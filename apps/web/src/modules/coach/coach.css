@@ -1,0 +1,110 @@
+/* Module coach — only what styles.css does not already provide. Colours reuse the brand/core tokens (AA in light
+   and dark), so the member PWA follows the gym's theme. Mobile-first: everything stacks at 360 px. */
+.coach-notice {
+  margin-bottom: 12px;
+}
+.coach-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+.coach-scale {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 12px;
+  margin: 0;
+  min-width: 0;
+}
+.coach-scale legend {
+  font-weight: 600;
+  padding: 0 4px;
+}
+.coach-scale__options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.coach-scale__options label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  cursor: pointer;
+}
+.coach-scale__options input:checked + span {
+  font-weight: 700;
+  text-decoration: underline;
+}
+.coach-scale__options label:has(input:checked) {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.coach-scale__options input:focus-visible + span {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.coach-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  background: var(--surface);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.coach-card--proposal {
+  border: 2px solid var(--accent-fg);
+  background: color-mix(in srgb, var(--accent) 6%, var(--surface));
+}
+.coach-facts {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.coach-fact__text {
+  margin: 4px 0;
+}
+.coach-chat {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.coach-msg {
+  max-width: 100%;
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  overflow-wrap: anywhere;
+}
+.coach-msg--member {
+  align-self: flex-end;
+  background: var(--accent-soft);
+}
+.coach-msg__who {
+  display: block;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+.coach-composer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: flex-end;
+}
+.coach-composer .field {
+  flex: 1 1 200px;
+}
