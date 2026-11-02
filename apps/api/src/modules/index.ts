@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { routes as billing } from "./billing.js";
+import { routes as coach } from "./coach.js";
 import { routes as crm } from "./crm.js";
 import { routes as engagement } from "./engagement.js";
 import { routes as finance } from "./finance.js";
@@ -20,4 +21,5 @@ export async function moduleRoutes(app: FastifyInstance): Promise<void> {
   await app.register(engagement, { prefix: "/v1" });
   await app.register(finance, { prefix: "/v1" });
   await app.register(reports, { prefix: "/v1" });
+  await app.register(coach, { prefix: "/v1" });
 }

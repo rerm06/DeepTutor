@@ -1,4 +1,5 @@
 import { module as billing } from "./billing";
+import { module as coach } from "./coach";
 import { module as crm } from "./crm";
 import { module as engagement } from "./engagement";
 import { module as finance } from "./finance";
@@ -20,4 +21,6 @@ export const MODULES: readonly AppModule[] = [
   engagement,
   finance,
   reports,
+  ,
+  coach,
 ];

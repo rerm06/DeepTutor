@@ -59,3 +59,4 @@ export * from "./modules/floor.js";
 export * from "./modules/engagement.js";
 export * from "./modules/finance.js";
 export * from "./modules/reports.js";
+export * from "./modules/coach.js";

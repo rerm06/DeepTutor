@@ -1,6 +1,7 @@
 import type pg from "pg";
 import type { OrgFixture } from "../testing.js";
 import { seed as billing } from "./billing.js";
+import { seed as coach } from "./coach.js";
 import { seed as crm } from "./crm.js";
 import { seed as engagement } from "./engagement.js";
 import { seed as finance } from "./finance.js";
@@ -21,4 +22,5 @@ export async function seedModules(c: pg.Client, org: OrgFixture, label: "A" | "B
   await engagement(c, org, label);
   await finance(c, org, label);
   await reports(c, org, label);
+  await coach(c, org, label);
 }
