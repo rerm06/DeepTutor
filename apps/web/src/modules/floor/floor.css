@@ -1,0 +1,105 @@
+/* Module floor: station labels, step cards, substitutes. Tokens come from styles.css. */
+.floor-labels {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 160px), 1fr));
+  gap: 12px;
+}
+.floor-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+  text-align: center;
+  break-inside: avoid;
+}
+.floor-label img {
+  background: #ffffff;
+}
+.floor-label__code {
+  font-size: 1.125rem;
+  font-weight: 700;
+}
+
+.floor-cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.floor-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.floor-card__title {
+  margin: 0;
+  font-size: 1.125rem;
+}
+.floor-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  align-items: center;
+  color: var(--text-muted);
+}
+.floor-cues {
+  margin: 0;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+.floor-steps {
+  margin: 0;
+  padding-left: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.floor-steps li {
+  overflow-wrap: anywhere;
+}
+.floor-step-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  align-items: center;
+  justify-content: space-between;
+}
+.floor-number {
+  max-width: 7rem;
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .floor-print,
+  .floor-print * {
+    visibility: visible;
+  }
+  .floor-print {
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 100%;
+    border: 0;
+  }
+  .floor-noprint {
+    display: none;
+  }
+  .floor-label {
+    border-color: #000000;
+    color: #000000;
+  }
+}
