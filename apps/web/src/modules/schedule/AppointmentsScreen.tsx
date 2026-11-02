@@ -1,11 +1,20 @@
 import { type FormEvent, useId, useState } from "react";
 import { type ErrorCode, toErrorCode } from "../../api/client";
 import type { Location } from "../../api/types";
-import { ErrorNote, LiveResult, Loading, Plate, Section, TableWrap } from "../../components/ui";
+import { Icon } from "../../components/icons";
+import { ErrorNote, LiveResult, Loading, Plate, TableWrap } from "../../components/ui";
 import { useAsync } from "../../lib/useAsync";
 import { useSession } from "../../session/SessionContext";
 import type { AppointmentKind } from "./api";
-import { FRONT_OF_HOUSE, LocationSelect, useLocations, useST, useScheduleApi } from "./shared";
+import {
+  FRONT_OF_HOUSE,
+  IconSection,
+  LocationSelect,
+  Stat,
+  useLocations,
+  useST,
+  useScheduleApi,
+} from "./shared";
 import { addDays, dayKey, formatDateTimeIn, zonedToUtc } from "./time";
 
 /** Kinds each role may schedule (the database re-checks; health-related kinds only for oneself). */
@@ -62,6 +71,20 @@ export function AppointmentsScreen() {
     <div className="page">
       <h1 className="page__title">{t("appt.title")}</h1>
       <p className="lede">{t("appt.lede")}</p>
+      {appts.data ? (
+        <div className="ds-stats sched-stats">
+          <Stat
+            icon="calendar"
+            label={t("appt.stat.scheduled")}
+            value={appts.data.data.filter((a) => a.status === "scheduled").length}
+          />
+          <Stat
+            icon="close"
+            label={t("appt.stat.cancelled")}
+            value={appts.data.data.filter((a) => a.status === "cancelled").length}
+          />
+        </div>
+      ) : null}
       <div className="toolbar">
         <LocationSelect
           list={list}
@@ -82,54 +105,63 @@ export function AppointmentsScreen() {
       ) : null}
       <LiveResult tone={announce ? "ok" : undefined}>{announce}</LiveResult>
       {error ? <ErrorNote code={error} /> : null}
-      {appts.loading ? <Loading /> : null}
-      {appts.error ? <ErrorNote code={appts.error} onRetry={appts.reload} /> : null}
-      {appts.data && appts.data.data.length === 0 ? (
-        <p className="muted">{t("appt.empty")}</p>
-      ) : null}
-      {appts.data && appts.data.data.length > 0 ? (
-        <TableWrap label={t("appt.title")}>
-          <table className="table">
-            <thead>
-              <tr>
-                <th scope="col">{t("appt.col.when")}</th>
-                <th scope="col">{t("appt.col.kind")}</th>
-                <th scope="col">{t("appt.col.staff")}</th>
-                <th scope="col">{t("appt.col.member")}</th>
-                <th scope="col">{t("common.status")}</th>
-                <th scope="col">{t("common.actions")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {appts.data.data.map((a) => (
-                <tr key={a.id}>
-                  <th scope="row" className="nowrap">
-                    {formatDateTimeIn(a.starts_at, lang, tz)}
-                  </th>
-                  <td>{t(`kind.${a.kind}`)}</td>
-                  <td>{a.staff_name ?? "—"}</td>
-                  <td>{a.member_name ?? "—"}</td>
-                  <td>
-                    <Plate tone={a.status === "scheduled" ? "ok" : "neutral"}>
-                      {t(`appt.status.${a.status}`)}
-                    </Plate>
-                  </td>
-                  <td>
-                    {a.status === "scheduled" ? (
-                      <button type="button" className="btn btn--ghost" onClick={() => cancel(a.id)}>
-                        {t("appt.cancel")}
-                        <span className="sr-only">
-                          : {a.member_name ?? ""} {formatDateTimeIn(a.starts_at, lang, tz)}
-                        </span>
-                      </button>
-                    ) : null}
-                  </td>
+      <IconSection icon="calendar" title={t("appt.list")}>
+        {appts.loading ? <Loading /> : null}
+        {appts.error ? <ErrorNote code={appts.error} onRetry={appts.reload} /> : null}
+        {appts.data && appts.data.data.length === 0 ? (
+          <div className="ds-empty">
+            <Icon name="calendar" size={40} />
+            <strong>{t("appt.empty")}</strong>
+          </div>
+        ) : null}
+        {appts.data && appts.data.data.length > 0 ? (
+          <TableWrap label={t("appt.title")}>
+            <table className="table">
+              <thead>
+                <tr>
+                  <th scope="col">{t("appt.col.when")}</th>
+                  <th scope="col">{t("appt.col.kind")}</th>
+                  <th scope="col">{t("appt.col.staff")}</th>
+                  <th scope="col">{t("appt.col.member")}</th>
+                  <th scope="col">{t("common.status")}</th>
+                  <th scope="col">{t("common.actions")}</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </TableWrap>
-      ) : null}
+              </thead>
+              <tbody>
+                {appts.data.data.map((a) => (
+                  <tr key={a.id}>
+                    <th scope="row" className="nowrap">
+                      {formatDateTimeIn(a.starts_at, lang, tz)}
+                    </th>
+                    <td>{t(`kind.${a.kind}`)}</td>
+                    <td>{a.staff_name ?? "—"}</td>
+                    <td>{a.member_name ?? "—"}</td>
+                    <td>
+                      <Plate tone={a.status === "scheduled" ? "ok" : "neutral"}>
+                        {t(`appt.status.${a.status}`)}
+                      </Plate>
+                    </td>
+                    <td>
+                      {a.status === "scheduled" ? (
+                        <button
+                          type="button"
+                          className="btn btn--ghost"
+                          onClick={() => cancel(a.id)}
+                        >
+                          {t("appt.cancel")}
+                          <span className="sr-only">
+                            : {a.member_name ?? ""} {formatDateTimeIn(a.starts_at, lang, tz)}
+                          </span>
+                        </button>
+                      ) : null}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TableWrap>
+        ) : null}
+      </IconSection>
     </div>
   );
 }
@@ -191,7 +223,7 @@ function NewAppointmentForm({
   }
 
   return (
-    <Section title={t("appt.new")}>
+    <IconSection icon="calendarPlus" title={t("appt.new")}>
       <form className="form" onSubmit={submit}>
         <div className="form__grid">
           <div className="field">
@@ -288,6 +320,6 @@ function NewAppointmentForm({
         </div>
         {error ? <ErrorNote code={error} /> : null}
       </form>
-    </Section>
+    </IconSection>
   );
 }

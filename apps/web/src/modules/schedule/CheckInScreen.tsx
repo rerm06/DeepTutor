@@ -1,20 +1,16 @@
 import { type FormEvent, useId, useRef, useState } from "react";
 import { type ErrorCode, toErrorCode } from "../../api/client";
 import type { Member } from "../../api/types";
-import {
-  ErrorNote,
-  Loading,
-  Plate,
-  Section,
-  TableWrap,
-  memberStatusTone,
-} from "../../components/ui";
+import { Icon } from "../../components/icons";
+import { ErrorNote, Loading, Plate, TableWrap, memberStatusTone } from "../../components/ui";
 import { useI18n } from "../../i18n/I18nContext";
 import { useAsync } from "../../lib/useAsync";
 import { useSession } from "../../session/SessionContext";
 import type { CheckInResult } from "./api";
-import { LocationSelect, useLocations, useST, useScheduleApi } from "./shared";
+import { IconSection, LocationSelect, useLocations, useST, useScheduleApi } from "./shared";
 import { formatDateTimeIn } from "./time";
+
+const DENIED_ICON = "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM9 9l6 6M15 9l-6 6";
 
 /** Name, email or member number; at most `limit` matches. */
 export function searchMembers(members: Member[], term: string, limit = 6): Member[] {
@@ -101,117 +97,133 @@ export function CheckInScreen() {
       >
         {result ? (
           <>
-            <span className="sched-result__verdict">
-              {allowed ? t("checkin.allowed") : t("checkin.denied")}
+            <span className="sched-result__icon">
+              {allowed ? <Icon name="checkCircle" size={72} /> : <Icon d={DENIED_ICON} size={72} />}
             </span>
-            <span className="sched-result__who">{result.full_name ?? t("checkin.unknown")}</span>
-            <span>{t(`reason.${result.reason}`)}</span>
+            <span className="sched-result__text">
+              <span className="sched-result__verdict">
+                {allowed ? t("checkin.allowed") : t("checkin.denied")}
+              </span>
+              <span className="sched-result__who">{result.full_name ?? t("checkin.unknown")}</span>
+              {result.member_no ? (
+                <span className="mono sched-result__no">{result.member_no}</span>
+              ) : null}
+              <span className="sched-result__reason">{t(`reason.${result.reason}`)}</span>
+            </span>
           </>
         ) : null}
       </output>
       {error ? <ErrorNote code={error} /> : null}
 
       <div className="sched-checkin">
-        <form
-          className="form"
-          onSubmit={(e) => {
-            e.preventDefault();
-            const only = matches.length === 1 ? matches[0] : undefined;
-            if (only) run(() => sched.checkInMember(locationId, only.id));
-          }}
-        >
-          <div className="field">
-            <label htmlFor={ids.search}>{t("checkin.search")}</label>
-            <input
-              id={ids.search}
-              ref={searchRef}
-              type="search"
-              autoComplete="off"
-              value={term}
-              aria-describedby={ids.hint}
-              onChange={(e) => setTerm(e.target.value)}
-              data-tour-id="checkin-search"
-            />
-            <p id={ids.hint} className="help">
-              {t("checkin.searchHint")}
-            </p>
-          </div>
-          {members.error ? <ErrorNote code={members.error} onRetry={members.reload} /> : null}
-          {term.trim().length >= 2 && matches.length === 0 && members.data ? (
-            <p className="muted">{t("checkin.noMatch")}</p>
-          ) : null}
-          {matches.length > 0 ? (
-            <ul className="sched-matches">
-              {matches.map((m) => (
-                <li key={m.id} className="sched-match">
-                  <span className="sched-match__who">
-                    <strong>{m.full_name}</strong>
-                    <span className="muted mono">
-                      {m.member_no ? `${m.member_no} · ` : ""}
-                      {m.email}
+        <IconSection icon="users" title={t("checkin.searchTitle")}>
+          <form
+            className="form"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const only = matches.length === 1 ? matches[0] : undefined;
+              if (only) run(() => sched.checkInMember(locationId, only.id));
+            }}
+          >
+            <div className="field">
+              <label htmlFor={ids.search}>{t("checkin.search")}</label>
+              <input
+                id={ids.search}
+                ref={searchRef}
+                type="search"
+                autoComplete="off"
+                value={term}
+                aria-describedby={ids.hint}
+                onChange={(e) => setTerm(e.target.value)}
+                data-tour-id="checkin-search"
+              />
+              <p id={ids.hint} className="help">
+                {t("checkin.searchHint")}
+              </p>
+            </div>
+            {members.error ? <ErrorNote code={members.error} onRetry={members.reload} /> : null}
+            {term.trim().length >= 2 && matches.length === 0 && members.data ? (
+              <p className="muted">{t("checkin.noMatch")}</p>
+            ) : null}
+            {matches.length > 0 ? (
+              <ul className="sched-matches">
+                {matches.map((m) => (
+                  <li key={m.id} className="sched-match">
+                    <span className="sched-match__who">
+                      <strong>{m.full_name}</strong>
+                      <span className="muted mono">
+                        {m.member_no ? `${m.member_no} · ` : ""}
+                        {m.email}
+                      </span>
                     </span>
-                  </span>
-                  <Plate tone={memberStatusTone(m.status)}>{tv("status", m.status)}</Plate>
-                  <button
-                    type="button"
-                    className="btn btn--primary"
-                    disabled={busy || !locationId}
-                    data-tour-id="checkin-member"
-                    onClick={() =>
-                      run(() => sched.checkInMember(locationId, m.id)).then(() => {
-                        setTerm("");
-                        searchRef.current?.focus();
-                      })
-                    }
-                  >
-                    {t("checkin.do")}
-                    <span className="sr-only">: {m.full_name}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-        </form>
+                    <Plate tone={memberStatusTone(m.status)}>{tv("status", m.status)}</Plate>
+                    <button
+                      type="button"
+                      className="btn btn--primary"
+                      disabled={busy || !locationId}
+                      data-tour-id="checkin-member"
+                      onClick={() =>
+                        run(() => sched.checkInMember(locationId, m.id)).then(() => {
+                          setTerm("");
+                          searchRef.current?.focus();
+                        })
+                      }
+                    >
+                      {t("checkin.do")}
+                      <span className="sr-only">: {m.full_name}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </form>
+        </IconSection>
 
-        <form className="form" onSubmit={submitToken}>
-          <div className="field">
-            <label htmlFor={ids.token}>{t("checkin.token")}</label>
-            <input
-              id={ids.token}
-              autoComplete="off"
-              spellCheck={false}
-              maxLength={200}
-              value={token}
-              aria-describedby={ids.tokenHint}
-              onChange={(e) => setToken(e.target.value)}
-              data-tour-id="checkin-token"
-            />
-            <p id={ids.tokenHint} className="help">
-              {t("checkin.tokenHint")}
-            </p>
-          </div>
-          <div className="form__actions">
-            <button
-              type="submit"
-              className="btn"
-              disabled={busy || !token.trim() || !locationId}
-              data-tour-id="checkin-token-submit"
-            >
-              {t("checkin.validate")}
-            </button>
-          </div>
-        </form>
+        <IconSection icon="qr" title={t("checkin.scanTitle")}>
+          <form className="form" onSubmit={submitToken}>
+            <div className="field">
+              <label htmlFor={ids.token}>{t("checkin.token")}</label>
+              <input
+                id={ids.token}
+                autoComplete="off"
+                spellCheck={false}
+                maxLength={200}
+                value={token}
+                aria-describedby={ids.tokenHint}
+                onChange={(e) => setToken(e.target.value)}
+                data-tour-id="checkin-token"
+              />
+              <p id={ids.tokenHint} className="help">
+                {t("checkin.tokenHint")}
+              </p>
+            </div>
+            <div className="form__actions">
+              <button
+                type="submit"
+                className="btn"
+                disabled={busy || !token.trim() || !locationId}
+                data-tour-id="checkin-token-submit"
+              >
+                <Icon name="qr" size={18} />
+                {t("checkin.validate")}
+              </button>
+            </div>
+          </form>
+        </IconSection>
       </div>
 
-      <Section title={t("checkin.recent")}>
+      <IconSection icon="checkCircle" title={t("checkin.recent")}>
         {recent.loading ? <Loading /> : null}
         {recent.error ? <ErrorNote code={recent.error} onRetry={recent.reload} /> : null}
         {recent.data && recent.data.data.length === 0 ? (
-          <p className="muted">{t("checkin.none")}</p>
+          <div className="ds-empty">
+            <Icon name="checkCircle" size={36} />
+            <strong>{t("checkin.none")}</strong>
+          </div>
         ) : null}
         {recent.data && recent.data.data.length > 0 ? (
           <TableWrap label={t("checkin.recent")}>
-            <table className="table">
+            <table className="table sched-recent">
               <thead>
                 <tr>
                   <th scope="col">{t("checkin.col.when")}</th>
@@ -239,7 +251,7 @@ export function CheckInScreen() {
             </table>
           </TableWrap>
         ) : null}
-      </Section>
+      </IconSection>
     </div>
   );
 }
