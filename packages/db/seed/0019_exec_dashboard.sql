@@ -8,19 +8,21 @@
 --   * invoices: zero totals first, lines second (IVU 10.5 % + 1 % comes from the GENERATED per-line columns, the
 --     same expression billing uses), then totals and the platform fee from the lines (CHECKs re-verify both);
 --     numbers stay gapless per legal entity and chronological (every demo invoice is renumbered by issue time);
---   * one-off sales grant their pass or credits; subscriptions roll monthly periods, freezes extend the period they
---     fall in (≤ 90 days a year), cancellations happen at period end;
+--   * one-off sales grant their pass or credits; org B's subscriptions roll monthly periods, freezes extend the
+--     period they fall in (≤ 90 days a year), cancellations happen at period end;
 --   * store lines use app.store_line_amounts(); the stock ledger stays balanced (Σ movements = on_hand: every
 --     historical sale is matched by that month's delivery, so current stock is unchanged);
 --   * bills are entered by the San Juan manager and approved by the owner (never the same person).
 -- Deterministic: pseudo-random choices come from md5 of stable keys (no random()). Dates are relative to the day
 -- the seed runs (Puerto Rico time), like the other module seeds.
 --
--- Shape [S]: Org A (Demo Gym Norte, pay per session) ≈ 300 members over two locations, ≈ 230 active today, monthly
--- cash revenue ≈ USD 18–28k with growth and seasonality (January peak, December dip), expenses ≈ 60–80 % of
--- revenue. Most members pay per session or buy packs; a minority holds the optional monthly "Plan ilimitado"
--- (no contract, commitment 0), which is where cancellations and freezes come from. Org B (Demo Club Sur, monthly
--- membership) gets a lighter history. FORCE RLS is lifted only on the tables written here, and restored.
+-- Shape [S]: Org A (Demo Gym Norte, pay per session) ≈ 300 members over two locations, ≈ 250 active today, monthly
+-- cash revenue ≈ USD 18–26k with growth and seasonality (January peak, December dip), expenses ≈ 60–80 % of
+-- revenue. Brand promise: no monthly fee, no contract, no enrollment, no maintenance fee — members pay single
+-- sessions or buy session / personal-training packs, nothing recurring. So org A has no subscriptions: its
+-- cancellations and freezes are honestly zero, and retention shows in the renewal (repurchase) rate instead.
+-- Org B (Demo Club Sur, classic monthly membership) gets a lighter history and carries the cancellation and
+-- freeze paths. FORCE RLS is lifted only on the tables written here, and restored.
 DO $seed$
 DECLARE
   tz constant text := 'America/Puerto_Rico';
@@ -64,9 +66,8 @@ DECLARE
   r_rent2 constant uuid := 'a0000000-0013-4000-8000-000000000102';
   r_power1 constant uuid := 'a0000000-0013-4000-8000-000000000103';
   r_rent_b constant uuid := 'b0000000-0013-4000-8000-000000000101';
-  -- This seed: org A's optional monthly plan (also the idempotency marker).
-  pa_plan constant uuid := 'a0000000-0019-4000-8000-000000000001';
-  xa_plan constant uuid := 'a0000000-0019-4000-8000-000000000002';
+  -- Idempotency marker: the first synthetic member of org A.
+  marker constant uuid := md5('exec:a:m:1')::uuid;
   first_names constant text[] := ARRAY['Adriana', 'Alejandro', 'Alicia', 'Ángel', 'Beatriz', 'Carlos', 'Carolina',
     'Daniel', 'Daniela', 'Eduardo', 'Elena', 'Emilio', 'Fernanda', 'Francisco', 'Gloria', 'Gustavo', 'Héctor', 'Irene',
     'Iván', 'Jazmín', 'Jorge', 'Julia', 'Karla', 'Kevin', 'Laura', 'Leonardo', 'Marta', 'Mateo', 'Natalia', 'Nicolás',
@@ -76,7 +77,7 @@ DECLARE
     'Lebrón', 'López', 'Maldonado', 'Martínez', 'Medina', 'Meléndez', 'Montañez', 'Negrón', 'Nieves', 'Ortiz',
     'Pagán', 'Pérez', 'Quiles', 'Ramírez', 'Reyes', 'Rivera', 'Rodríguez', 'Rosado', 'Santiago', 'Serrano', 'Soto',
     'Torres', 'Vázquez'];
-  seeded_tables constant text[] := ARRAY['person', 'member', 'plan_product', 'price', 'subscription',
+  seeded_tables constant text[] := ARRAY['person', 'member', 'subscription',
     'subscription_freeze', 'invoice', 'invoice_line', 'invoice_counter', 'payment', 'credit_balance', 'access_pass',
     'check_in', 'class_session', 'booking', 'sale', 'sale_line', 'stock_movement', 'expense', 'bill',
     'bill_approval'];
@@ -117,7 +118,7 @@ BEGIN
      OR NOT EXISTS (SELECT 1 FROM app.vendor WHERE id = v_clean) THEN
     RETURN;
   END IF;
-  IF EXISTS (SELECT 1 FROM app.plan_product WHERE id = pa_plan) THEN RETURN; END IF;
+  IF EXISTS (SELECT 1 FROM app.member WHERE id = marker) THEN RETURN; END IF;
 
   FOREACH t IN ARRAY seeded_tables LOOP
     EXECUTE format('ALTER TABLE app.%I NO FORCE ROW LEVEL SECURITY', t);
@@ -127,16 +128,8 @@ BEGIN
   CREATE FUNCTION app.exec_seed_u(p text) RETURNS double precision
   LANGUAGE sql IMMUTABLE AS 'SELECT (''x'' || substr(md5(p), 1, 8))::bit(32)::bigint / 4294967296.0';
 
-  -- ── Catalogue: org A's optional monthly plan (no contract, commitment 0).
-  INSERT INTO app.plan_product (id, org_id, kind, name, description, tax_category, created_at) VALUES
-    (pa_plan, oa, 'membership', 'Plan ilimitado mensual',
-     'Opcional: sesiones ilimitadas por mes. Sin contrato; cancela cuando quieras.', 'taxable', v_now - interval '3 years');
-  INSERT INTO app.price (id, org_id, product_id, location_id, amount_cents, billing_interval, credits, validity_days,
-                         created_at)
-  VALUES (xa_plan, oa, pa_plan, NULL, 5900, 'month', NULL, NULL, v_now - interval '3 years');
-
   -- ── Roster: baseline members (joined before the window) plus monthly joins with seasonality and growth.
-  WITH cfg(org, tag, base_n, scale) AS (VALUES (oa, 'a', 175, 0.55), (ob, 'b', 62, 0.30)),
+  WITH cfg(org, tag, base_n, scale) AS (VALUES (oa, 'a', 155, 0.45), (ob, 'b', 62, 0.30)),
   season(cm, w) AS (VALUES (1, 30), (2, 24), (3, 22), (4, 19), (5, 18), (6, 15), (7, 14), (8, 18), (9, 23), (10, 21),
                            (11, 17), (12, 12)),
   sched AS (
@@ -165,14 +158,13 @@ BEGIN
            'loc', CASE WHEN d.org = ob THEN lb1 WHEN app.exec_seed_u(d.mid || 'loc') < 0.62 THEN la1 ELSE la2 END,
            'created', least(((d.jd + time '08:00' + make_interval(mins => floor(app.exec_seed_u(d.mid || 'min') * 720)::integer))
                               AT TIME ZONE tz), v_now - interval '45 minutes'),
-           -- type: plan (monthly), pack (session packs), dropin (pays each visit); recent sign-ups may still be
-           -- leads or on trial.
+           -- type: plan (monthly membership, org B only), pack (session packs), dropin (pays each visit or day);
+           -- recent sign-ups may still be leads or on trial.
            'type', CASE
              WHEN d.jd > v_today - 21 AND app.exec_seed_u(d.mid || 'new') < 0.15 THEN 'lead'
              WHEN d.jd > v_today - 21 AND app.exec_seed_u(d.mid || 'new') < 0.45 THEN 'trial'
              WHEN d.org = ob THEN CASE WHEN app.exec_seed_u(d.mid || 'type') < 0.86 THEN 'plan' ELSE 'dropin' END
-             WHEN app.exec_seed_u(d.mid || 'type') < 0.33 THEN 'plan'
-             WHEN app.exec_seed_u(d.mid || 'type') < 0.63 THEN 'pack'
+             WHEN app.exec_seed_u(d.mid || 'type') < 0.48 THEN 'pack'
              ELSE 'dropin' END,
            'name', first_names[1 + floor(app.exec_seed_u(d.mid || 'fn') * array_length(first_names, 1))::integer] || ' '
                    || last_names[1 + floor(app.exec_seed_u(d.mid || 'ln') * array_length(last_names, 1))::integer] || ' '
@@ -190,20 +182,13 @@ BEGIN
     FROM jsonb_to_recordset(v_roster) AS x(mid uuid, org uuid, pid uuid, loc uuid, name text, tag text, n integer,
                                            type text, created timestamptz);
 
-  -- ── Monthly plans: periods, renewal invoices, freezes and cancellations (walked per member).
+  -- ── Org B monthly memberships: periods, renewal invoices, freezes and cancellations (walked per member).
   FOR r IN SELECT x.mid, x.org, x.loc, (x.created AT TIME ZONE tz)::date AS jd
              FROM jsonb_to_recordset(v_roster) AS x(mid uuid, org uuid, loc uuid, created timestamptz, type text)
-            WHERE x.type = 'plan'
+            WHERE x.type = 'plan' AND x.org = ob
             ORDER BY x.created, x.mid LOOP
-    IF r.org = oa THEN
-      v_prod := pa_plan; v_price := xa_plan; v_unit := 5900; v_bps := 75; v_le := lea; v_due := 3;
-      v_fd := CASE WHEN r.loc = la1 THEN fd_a1 ELSE fd_a2 END;
-      -- Monthly churn ≈ 10 %: tenure in periods is geometric.
-      v_tenure := 1 + floor(ln(greatest(app.exec_seed_u(r.mid || 'tenure'), 1e-9)) / ln(0.90))::integer;
-    ELSE
-      v_prod := pb_month; v_price := xb_month; v_unit := 3995; v_bps := 100; v_le := leb; v_due := 5; v_fd := fd_b;
-      v_tenure := 4 + floor(app.exec_seed_u(r.mid || 'tenure') * 30)::integer;
-    END IF;
+    v_prod := pb_month; v_price := xb_month; v_unit := 3995; v_bps := 100; v_le := leb; v_due := 5; v_fd := fd_b;
+    v_tenure := 4 + floor(app.exec_seed_u(r.mid || 'tenure') * 30)::integer;
     v_sub := md5('exec:sub:' || r.mid)::uuid;
     -- One past 30-day freeze in some member's history (mid-period, extending that period).
     v_pf := CASE WHEN app.exec_seed_u(r.mid || 'pastfreeze') < 0.22
@@ -267,7 +252,7 @@ BEGIN
       INSERT INTO app.invoice_line (id, org_id, invoice_id, product_id, price_id, description, quantity,
                                     unit_amount_cents, tax_category)
       VALUES (md5('exec:il:' || v_inv)::uuid, r.org, v_inv, v_prod, v_price,
-              CASE WHEN r.org = oa THEN 'Plan ilimitado mensual' ELSE 'Membresía mensual' END, 1, v_unit, 'taxable');
+              'Membresía mensual', 1, v_unit, 'taxable');
     END LOOP;
 
     UPDATE app.member SET status = CASE WHEN v_cancel THEN 'cancelled' WHEN v_frozen THEN 'frozen' ELSE 'active' END::app.member_status
@@ -276,7 +261,7 @@ BEGIN
 
   -- ── Visits: allowed check-ins with weekday / hour patterns, from the window start (or the join day) until
   -- today, never after a cancellation nor inside a freeze. Leads do not come in. Pay-per-visit and pack members
-  -- sometimes take a break of 5–10 weeks, and about one in five stops coming altogether (their status stays as
+  -- sometimes take a break of 6–13 weeks, and about one in four stops coming altogether (their status stays as
   -- the desk left it: nobody cancels a pay-per-session member); that is what the renewal rate measures.
   INSERT INTO app.check_in (id, org_id, location_id, member_id, source, result, reason, recorded_by, at)
   WITH mem AS (
@@ -289,17 +274,17 @@ BEGIN
                        WHEN 'trial' THEN 2.0
                        ELSE 0.9 + 1.4 * app.exec_seed_u(x.mid || 'freq') END AS per_week,
            app.exec_seed_u(x.mid || 'slot') AS slot,
-           CASE WHEN x.type IN ('pack', 'dropin') AND app.exec_seed_u(x.mid || 'lapse') < 0.2
+           CASE WHEN x.type IN ('pack', 'dropin') AND app.exec_seed_u(x.mid || 'lapse') < 0.25
                 THEN (x.created AT TIME ZONE tz)::date + 60 + floor(app.exec_seed_u(x.mid || 'lapsed') * 330)::integer
            END AS lapse_day
       FROM jsonb_to_recordset(v_roster) AS x(mid uuid, org uuid, loc uuid, type text, created timestamptz)
      WHERE x.type <> 'lead'),
   brk AS (
-    SELECT m.mid, b.bs, b.bs + 35 + floor(app.exec_seed_u(m.mid::text || 'brklen' || k) * 40)::integer AS be
+    SELECT m.mid, b.bs, b.bs + 45 + floor(app.exec_seed_u(m.mid::text || 'brklen' || k) * 50)::integer AS be
       FROM mem m CROSS JOIN generate_series(-2, 11) AS k,
            LATERAL (SELECT (v_first + make_interval(months => k))::date
                            + floor(app.exec_seed_u(m.mid::text || 'brkday' || k) * 28)::integer AS bs) b
-     WHERE m.type IN ('pack', 'dropin') AND app.exec_seed_u(m.mid::text || 'brk' || k) < 0.075),
+     WHERE m.type IN ('pack', 'dropin') AND app.exec_seed_u(m.mid::text || 'brk' || k) < 0.10),
   days AS (
     SELECT m.*, d::date AS d, extract(isodow FROM d)::integer AS dow
       FROM mem m,

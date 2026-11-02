@@ -74,13 +74,14 @@ Rows are bucketed in their own location's local time; the 12-month grid is in Pu
   session product within 30 days (decided at that purchase); not renewed = 30 days passed without one (decided at
   run-out + 30 days); otherwise pending and not counted. Rate = renewed ÷ decided × 100, one decimal, each member
   once per period (their latest outcome in it), **null** when nobody was decided.
-  - **Period attribution [S · coordinator to confirm]**: periods take the outcomes **decided** in them
+  - **Period attribution** (confirmed): periods take the outcomes **decided** in them
     (`value` = last 30 days, `prev` = the 30 days before, `series` = local calendar month of the decision). The
     literal reading ("run-outs during the trailing 30 days") cannot produce a meaningful current value: no run-out
     of the last 30 days can have a closed 30-day window, so only repurchasers would be counted and the value
     would sit at ~100 % by construction. Deciding by decision date keeps the 30-day window, the null rule and the
     member-level count, and gives every period a complete, unbiased denominator.
-  - Monthly memberships (org B) are not entitlements here; their churn shows as cancellations.
+  - Monthly memberships (org B) are not entitlements here; their churn shows as cancellations. A
+    pay-per-session organisation (org A) has no cancellations at all; this rate is its retention measure.
 
 ## Roles
 
@@ -93,24 +94,31 @@ Rows are bucketed in their own location's local time; the 12-month grid is in Pu
 ## Demo seed (`0019_exec_dashboard.sql`)
 
 Twelve months of synthetic history ("… Demo", `@demo.invalid`), deterministic (md5 of stable keys, no
-`random()`), idempotent (marker: org A's plan product), relative to the day it runs. Org A (pay per session, two
-locations): ≈ 300 members, ≈ 230 active today, cash revenue ≈ USD 18–28k a month with a January peak and growth,
-expenses ≈ 60–80 % of revenue, renewal rate ≈ 91–97 % (≈ 94 % over the last 30 days); an optional monthly "Plan ilimitado" (commitment 0) held by
-a third of members is where cancellations (geometric churn ≈ 10 %/month) and freezes come from; pay-per-visit
-and pack members take occasional breaks and some stop coming. Org B (monthly membership, Ponce): a lighter
-history. Rows go through the real tables with the rules the definer functions apply: IVU from the generated
-per-line columns, totals and platform fee from the lines, gapless chronological invoice numbers per legal entity
-(the billing demo invoices are renumbered with them), passes and credits for one-off sales, freezes extending
-their period (≤ 90 days a year), cancellations at period end, store amounts via `store_line_amounts` with a
-balanced stock ledger (`on_hand` unchanged), bills entered by the San Juan manager and approved by the owner,
-classes for the two weeks before the schedule seed's window. FORCE RLS is lifted only on the tables written and
-restored; a seed-only helper function is created and dropped inside the block.
+`random()`), idempotent (marker: org A's first synthetic member), relative to the day it runs.
+
+- **Org A** (Fitness R Us, two locations) keeps its brand promise — 0 monthly fee, 0 contract, 0 enrollment,
+  0 maintenance: members buy single sessions, 5/10-session packs or personal-training packs, nothing recurring. No
+  membership product, no subscription. Its cancellations and freezes are therefore **zero** (honest: nobody
+  cancels a pay-per-session member), and retention shows in the renewal rate instead: pay-per-visit and pack
+  members take 6–13-week breaks now and then and about one in four eventually stops coming. Figures on the day
+  of writing: ≈ 300 members, 250 active, cash revenue ≈ USD 18–26k a month (January peak, growth), expenses
+  ≈ 60–80 % of revenue, renewal rate 93.4 % over the last 30 days (≈ 89–95 % by month).
+- **Org B** (Demo Club Sur, Ponce) is the classic monthly-membership gym and carries the subscription paths:
+  monthly renewals, cancellations at period end (1–4 a month), past and current freezes, plus day passes.
+
+Rows go through the real tables with the rules the definer functions apply: IVU from the generated per-line
+columns, totals and platform fee from the lines, gapless chronological invoice numbers per legal entity (the
+billing demo invoices are renumbered with them), passes and credits for one-off sales, freezes extending their
+period (≤ 90 days a year), cancellations at period end, store amounts via `store_line_amounts` with a balanced
+stock ledger (`on_hand` unchanged), bills entered by the San Juan manager and approved by the owner, classes for
+the two weeks before the schedule seed's window. FORCE RLS is lifted only on the tables written and restored; a
+seed-only helper function is created and dropped inside the block.
 
 ## [VERIFICAR] / [S]
 
 - **[VERIFICAR · CPA]** Revenue includes IVU collected (cash basis). Should the executive "net profit" exclude IVU
   (a liability) or use the accrual P&L (`finance_pnl().net_cents`) instead?
-- **[S]** Renewal period attribution by decision date (see above) — confirm with the product owner.
+- Renewal period attribution by decision date: confirmed by the coordinator.
 - **[S]** Exhausted packs: run-out estimated from check-ins until credit consumption is dated.
 - **[S]** Active-member history is a reconstruction (no status history table).
 - **[S]** Cost: one call scans a year of payments, check-ins and entitlements under RLS (≈ 0.7 s owner / 1.5 s
