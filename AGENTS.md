@@ -19,5 +19,10 @@ Product: white-label multi-tenant SaaS for gyms (Puerto Rico / Hispanic US). Sou
 7. **Done** = gate green + independent review + ES/EN strings + WCAG 2.2 AA on UI + audit rows + `data-tour-id` on
    critical UI flows + short doc in `docs/`.
 
+## Master prompt
+Every loop cycle is driven by `docs/prompts/loop-architect.md` (role, 11-step cycle protocol, defect taxonomy,
+bug-fix protocol, hard stops, report format). Reviewers are always separate agents that never see the maker's
+self-assessment.
+
 ## Commands
 - `pnpm install` · `bash scripts/pg-local.sh start` (Postgres 16 on :54329, no Docker) · `pnpm gate` (the loop gate).

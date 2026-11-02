@@ -53,6 +53,11 @@
 - Cycle 2 NOT accepted.
 - Carry to slice 2: the delivery worker must re-check consent at send time.
 
+### Tooling — master prompt added
+- `docs/prompts/loop-architect.md`: master prompt (senior architect + loop engineer + senior full-stack) with the
+  defect taxonomy learned in cycles 1–2 and a 7-step bug-fix protocol (reproduce → root cause → minimal fix in the
+  right layer → regression → mutation → sweep → record). Used by the next cycle once the loop restarts.
+
 ## Decisions awaiting the human
 - Destination repository (create e.g. `rerm06/gym-saas`, empty, and say its name).
 - Identity provider: Supabase Auth (recommended, JWT-compatible) vs Auth0 vs Clerk.
