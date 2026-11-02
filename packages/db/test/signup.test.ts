@@ -534,10 +534,17 @@ describe("abuse: per-org cap of 30 attempts per hour", () => {
       expect((await submit(await valid({ org: o.org, location: o.loc }), c1)).outcome).toBe(
         "created",
       );
-      const second = submit(await valid({ org: o.org, location: o.loc }), c2);
+      // Settle the second attempt into a value right away: its error can arrive in the same tick as COMMIT's
+      // reply, before a later `expect(...).rejects` would attach (seen as an unhandled rejection in the gate).
+      const second = submit(await valid({ org: o.org, location: o.loc }), c2).then(
+        (r) => ({ ok: true as const, r }),
+        (e: Error) => ({ ok: false as const, e }),
+      );
       await new Promise((r) => setTimeout(r, 200));
       await c1.query("COMMIT");
-      await expect(second).rejects.toThrow("rate_limited");
+      const res = await second;
+      expect(res.ok).toBe(false);
+      expect(res.ok ? "" : res.e.message).toContain("rate_limited");
     } finally {
       await c1.end();
       await c2.end();
