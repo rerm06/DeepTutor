@@ -1,0 +1,138 @@
+/* Module health — only what styles.css does not already provide. Colours reuse the core tokens (AA contrast). */
+.health-emergency {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+  margin: 0 0 12px;
+  padding: 12px;
+  border: 2px solid var(--blocked-line);
+  border-left-width: 8px;
+  border-radius: var(--radius);
+  background: var(--blocked-bg);
+  color: var(--blocked-text);
+}
+.health-emergency p {
+  margin: 0;
+}
+.health-emergency__title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.25rem;
+  text-transform: uppercase;
+}
+.health-notice {
+  margin-bottom: 12px;
+}
+.health-triage {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  background: var(--surface);
+}
+.health-triage__title {
+  font-size: 1rem;
+  margin: 0 0 8px;
+}
+.health-triage__plates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 8px;
+}
+.health-triage__label {
+  margin: 0;
+  font-weight: 600;
+}
+.health-triage__reasons {
+  margin: 4px 0 0;
+  padding-left: 20px;
+}
+.health-parq {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 12px;
+  margin: 0;
+  min-width: 0;
+}
+.health-parq legend,
+.health-fieldset legend {
+  font-weight: 700;
+  padding: 0 4px;
+}
+.health-parq__q {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 0;
+  padding: 8px 0;
+  min-width: 0;
+}
+.health-parq__q:first-of-type {
+  border-top: 0;
+}
+.health-parq__q legend {
+  font-weight: 400;
+  padding: 0;
+  overflow-wrap: anywhere;
+}
+.health-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin-top: 4px;
+}
+.health-choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 24px;
+}
+.health-choice input {
+  width: 20px;
+  height: 20px;
+  margin: 0;
+}
+.health-fieldset {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 12px;
+  margin: 0;
+  min-width: 0;
+}
+.health-plan-body__heading {
+  font-size: 0.9375rem;
+  margin: 8px 0 2px;
+}
+.health-plan-body ul {
+  margin: 0;
+  padding-left: 20px;
+}
+.health-plan {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.health-plan__head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.health-plan__title {
+  font-size: 1.0625rem;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.health-signoff {
+  margin: 0;
+  font-weight: 600;
+}
+.health-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
