@@ -58,6 +58,15 @@
   defect taxonomy learned in cycles 1–2 and a 7-step bug-fix protocol (reproduce → root cause → minimal fix in the
   right layer → regression → mutation → sweep → record). Used by the next cycle once the loop restarts.
 
+### Deployment — Netlify (demo), 2026-11-02
+- Live: https://gym-saas-f1.netlify.app (site id bb60191b-2229-45a9-b6e0-b91233307fdd). SPA + API function (/api/*,
+  pre-bundled with esbuild) + Netlify Database with the mirrored migrations and the synthetic demo seed.
+- Verified live: personas, demo sessions, isolation (A front desk 6 members, A owner 9, B owner 2, member 1),
+  401 without token, reminder queued with consent, marketing blocked without consent.
+- Deploy fixes: functions could not require() ESM-only cookie@2 → server pre-bundled; AWS_LAMBDA_JS_RUNTIME=nodejs22.x set.
+- Known gaps: public demo is writable by anyone (synthetic data, no rate limiting, no password); guardian persona shows
+  "Todas las sedes"; brand name shown generically (no brands endpoint); E8 open findings N-A/N-B/N-C still apply.
+
 ## Decisions awaiting the human
 - Destination repository (create e.g. `rerm06/gym-saas`, empty, and say its name).
 - Identity provider: Supabase Auth (recommended, JWT-compatible) vs Auth0 vs Clerk.
