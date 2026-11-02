@@ -1,0 +1,132 @@
+/* Module store: small additions on top of styles.css tokens. 360 px safe (no fixed widths). */
+.store-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.store-check p {
+  flex-basis: 100%;
+  margin: 0;
+}
+.store-check input[type="checkbox"],
+.store-radio input[type="radio"] {
+  width: 24px;
+  min-width: 24px;
+  height: 24px;
+  min-height: 24px;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--accent);
+}
+.store-check label {
+  flex: 1 1 0;
+  min-width: 0;
+  font-weight: 600;
+}
+.store-fieldset {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 12px;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+.store-fieldset legend {
+  font-weight: 600;
+  padding: 0 4px;
+}
+.store-radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+}
+.store-results,
+.store-lines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.store-results__item,
+.store-lines li {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.store-qty {
+  width: 6em;
+}
+.store-price {
+  width: 7em;
+}
+.store-ivu__list {
+  margin: 0;
+  display: grid;
+  gap: 4px;
+  max-width: 360px;
+}
+.store-ivu__list > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.store-ivu__list dd {
+  margin: 0;
+}
+.store-ivu__total {
+  border-top: 1px solid var(--border-strong);
+  padding-top: 4px;
+  font-weight: 700;
+}
+.store-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
+  gap: 12px;
+}
+.store-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--surface);
+}
+.store-card p {
+  margin: 0;
+}
+.store-card__name {
+  margin: 0;
+  font-size: 1.0625rem;
+}
+.store-inline {
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+.store-disclaimer {
+  font-style: italic;
+}
+@media print {
+  .topbar,
+  .nav,
+  .demo-banner,
+  .toolbar,
+  .store-results,
+  .btn {
+    display: none !important;
+  }
+}
