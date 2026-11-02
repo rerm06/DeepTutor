@@ -1,6 +1,6 @@
 # Netlify build for the gym SaaS demo: SPA (apps/web) + API function (/api/*) + Netlify Database migrations.
 [build]
-  command = "pnpm -r build"
+  command = "pnpm run build"
   publish = "apps/web/dist"
 
 [build.environment]

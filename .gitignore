@@ -9,3 +9,4 @@ coverage/
 .DS_Store
 .turbo/
 .netlify/
+netlify/server-bundle.mjs
