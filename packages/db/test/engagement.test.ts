@@ -155,8 +155,14 @@ async function rewardId(org: OrgFixture, restricted: boolean): Promise<string> {
 }
 
 describe("rules and rewards configuration", () => {
-  it("owner and location manager change a rule; the change is audited with the real actor", async () => {
-    for (const role of ["owner", "location_manager"] as const) {
+  it("only the owner changes org-wide rules and rewards (security review H1); the change is audited", async () => {
+    await rolledBack(as(t.fx.A, "location_manager"), async (tx) => {
+      const r = await tx.query("UPDATE app.points_rule SET points = 10000");
+      expect(r.rowCount).toBe(0);
+      const w = await tx.query("UPDATE app.reward SET points_cost = 1");
+      expect(w.rowCount).toBe(0);
+    });
+    for (const role of ["owner"] as const) {
       await rolledBack(as(t.fx.A, role), async (tx) => {
         const u = await tx.query("UPDATE app.points_rule SET points = 12 WHERE event = 'visit'");
         expect(u.rowCount, role).toBe(1);
@@ -804,7 +810,8 @@ describe("referrals", () => {
     const id2 = (
       await asCaller(t.api, self(t.fx.A, late), (tx) => tx.query(CREATE, [late.memberId, email]))
     ).rows[0].id;
-    await denied(as(t.fx.A, "front_desk"), CREDIT, [id2], "23505");
+    // The person was already a member when this second referral was made → never credited (security review M2).
+    await denied(as(t.fx.A, "front_desk"), CREDIT, [id2], "22023", /referral_not_joined/);
     const msgs = await t.admin.query(
       "SELECT count(*)::int AS n FROM app.outbound_message WHERE created_at > now() - interval '1 minute' AND member_id = $1",
       [m.memberId],

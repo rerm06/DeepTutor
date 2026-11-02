@@ -873,9 +873,23 @@ describe("read access by role (RLS)", () => {
 });
 
 describe("direct writes and forbidden columns", () => {
-  it("only owner and location managers maintain products, through the allowed columns, and it is audited", async () => {
+  it("only the owner maintains products (org-wide catalogue), through the allowed columns, and it is audited", async () => {
     const { A, B } = t.fx;
-    const id = await asCaller(t.api, t.claims(A, "location_manager"), async (tx) => {
+    // Security review H1: products are org-wide, so a location manager must not change them.
+    await asCaller(t.api, t.claims(A, "location_manager"), async (tx) => {
+      await tx.query("SAVEPOINT s");
+      await denied(
+        tx.query(
+          `INSERT INTO app.product (sku, name, category, age_restricted, taxable, price_cents)
+           VALUES ('MGR-01', 'Demo Manager', 'supplement', false, true, 100)`,
+        ),
+        "42501",
+      );
+      await tx.query("ROLLBACK TO SAVEPOINT s");
+      const u = await tx.query("UPDATE app.product SET taxable = false, price_cents = 0");
+      expect(u.rowCount).toBe(0);
+    });
+    const id = await asCaller(t.api, t.claims(A, "owner"), async (tx) => {
       const { rows } = await tx.query(
         `INSERT INTO app.product (sku, name, category, age_restricted, taxable, price_cents)
          VALUES ('BAR-01', 'Demo Barra Proteica', 'supplement', false, true, 299) RETURNING id`,
@@ -1014,14 +1028,37 @@ describe("E11 acceptance: inventory equals the sum of movements after 100 mixed 
     };
     const fd = t.claims(A, "front_desk");
     const mgr = t.claims(A, "location_manager");
-    const member = t.claims(A, "member");
+    // Fresh members for this test: one member may hold at most 5 open pickup orders and 10 units of a product
+    // across them (security review M4), so the online traffic is spread over 5 members.
+    const members: ReturnType<typeof t.claims>[] = [];
+    for (let k = 0; k < 5; k++) {
+      const person = await t.admin.query<{ id: string }>(
+        "INSERT INTO app.person (email) VALUES ($1) RETURNING id",
+        [`e11.store.${k}@demo.invalid`],
+      );
+      await t.admin.query(
+        "INSERT INTO app.member (org_id, person_id, home_location_id, full_name, status) VALUES ($1,$2,$3,'Demo E11','active')",
+        [A.orgId, person.rows[0]?.id, loc],
+      );
+      members.push(t.claims(A, "member", person.rows[0]?.id));
+    }
 
     const ops: Array<() => Promise<unknown>> = [];
     for (let i = 0; i < 100; i++) {
       const l = cart();
       const kind = i % 5;
+      const member = members[Math.floor(i / 5) % members.length] as ReturnType<typeof t.claims>;
       if (kind <= 1) ops.push(() => asCaller(t.api, fd, (tx) => sell(tx, loc, l, { age: true })));
-      else if (kind === 2) ops.push(() => asCaller(t.api, member, (tx) => order(tx, loc, l)));
+      // Online orders left pending: only the first two (one member may hold at most 5 open orders).
+      else if (kind === 2 && i < 10)
+        ops.push(() => asCaller(t.api, member, (tx) => order(tx, loc, l)));
+      else if (kind === 2)
+        ops.push(async () => {
+          const id = await asCaller(t.api, member, (tx) => order(tx, loc, l));
+          await asCaller(t.api, fd, (tx) =>
+            tx.query("SELECT app.complete_pickup($1, 'cash', true)", [id]),
+          );
+        });
       else if (kind === 3)
         ops.push(async () => {
           const id = await asCaller(t.api, member, (tx) => order(tx, loc, l));

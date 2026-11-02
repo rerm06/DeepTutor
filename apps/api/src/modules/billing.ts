@@ -431,6 +431,18 @@ export async function routes(app: FastifyInstance, opts: BillingRouteOptions = {
       ).rows[0];
       let providerRef: string | null = null;
       if (b.method !== "cash" && inv) {
+        // Security review (money modules): never charge more than the open balance. Validate BEFORE the gateway
+        // call, so a real provider is never charged for a payment the database would then refuse.
+        const bal = (
+          await tx.query<{ balance: number }>(
+            `SELECT (i.total_cents - coalesce(sum(p.amount_cents) FILTER (WHERE p.status = 'succeeded'), 0))::integer AS balance
+               FROM app.invoice i LEFT JOIN app.payment p ON p.invoice_id = i.id
+              WHERE i.id = $1 GROUP BY i.total_cents`,
+            [id],
+          )
+        ).rows[0]?.balance;
+        if (bal === undefined || b.amount_cents > bal)
+          throw Object.assign(new Error("amount_exceeds_balance"), { statusCode: 400 });
         const charge = await gateway.charge({
           amount_cents: b.amount_cents,
           method: b.method,

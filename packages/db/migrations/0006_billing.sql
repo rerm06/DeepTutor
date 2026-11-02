@@ -556,6 +556,12 @@ BEGIN
   IF p_start < v_sub.current_period_start OR p_start >= v_sub.current_period_end THEN
     RAISE EXCEPTION 'freeze_outside_period' USING ERRCODE = '22023';
   END IF;
+  -- Security review L5: the limit is cumulative over the 365 days before this freeze starts, not per freeze.
+  IF v_days + coalesce((SELECT sum(f.end_date - f.start_date) FROM app.subscription_freeze f
+                         WHERE f.subscription_id = p_subscription AND f.end_date > p_start - 365), 0)
+     > (SELECT max_freeze_days FROM app.billing_policy_for(v_sub.location_id)) THEN
+    RAISE EXCEPTION 'freeze_limit_reached' USING ERRCODE = '22023';
+  END IF;
   IF EXISTS (SELECT 1 FROM app.subscription_freeze f WHERE f.subscription_id = p_subscription
               AND daterange(f.start_date, f.end_date) && daterange(p_start, p_end)) THEN
     RAISE EXCEPTION 'freeze_overlap' USING ERRCODE = '22023';
@@ -896,10 +902,12 @@ CREATE POLICY billing_policy_update ON app.billing_policy FOR UPDATE
 CREATE POLICY plan_product_select ON app.plan_product FOR SELECT USING (
   org_id = (SELECT app.org_id())
   AND (SELECT app.role()) IN ('owner', 'location_manager', 'front_desk', 'accountant', 'member', 'guardian'));
+-- Security review (money modules) H1: org-wide rows affect every location, so only the owner writes them.
 CREATE POLICY plan_product_insert ON app.plan_product FOR INSERT
-  WITH CHECK (org_id = (SELECT app.org_id()) AND (SELECT app.role()) IN ('owner', 'location_manager'));
+  WITH CHECK (org_id = (SELECT app.org_id()) AND (SELECT app.role()) = 'owner');
+-- Security review (money modules) H1: org-wide rows affect every location, so only the owner writes them.
 CREATE POLICY plan_product_update ON app.plan_product FOR UPDATE
-  USING (org_id = (SELECT app.org_id()) AND (SELECT app.role()) IN ('owner', 'location_manager'))
+  USING (org_id = (SELECT app.org_id()) AND (SELECT app.role()) = 'owner')
   WITH CHECK (org_id = (SELECT app.org_id()));
 
 CREATE POLICY price_select ON app.price FOR SELECT USING (

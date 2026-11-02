@@ -351,6 +351,11 @@ BEGIN
   IF p_event IS NULL OR p_event NOT IN ('visit', 'class', 'purchase') THEN
     RAISE EXCEPTION 'event_not_awardable' USING ERRCODE = '22023';
   END IF;
+  -- Security review M3: class and purchase awards must name the booking/sale they reward, so the duplicate check
+  -- always applies. [P] Validation against real booking/sale ids comes with the schedule/store event hooks.
+  IF p_event IN ('class', 'purchase') AND p_ref IS NULL THEN
+    RAISE EXCEPTION 'ref_required' USING ERRCODE = '22023';
+  END IF;
   IF p_ref IS NOT NULL AND p_ref !~ '^[A-Za-z0-9_.:-]{1,80}$' THEN
     RAISE EXCEPTION 'invalid_ref' USING ERRCODE = '22023';
   END IF;
@@ -681,7 +686,9 @@ BEGIN
   IF v_r.status = 'credited' THEN RAISE EXCEPTION 'already_credited' USING ERRCODE = '23505'; END IF;
   SELECT m.id INTO v_joined FROM app.member m JOIN app.person p ON p.id = m.person_id
    WHERE m.org_id = app.org_id() AND lower(p.email) = lower(v_r.referred_email) AND m.status = 'active'
-     AND m.id <> v_r.referrer_member_id;
+     AND m.id <> v_r.referrer_member_id
+     -- Security review M2: only people who became members AFTER the referral was made earn the credit.
+     AND m.created_at > v_r.created_at;
   IF v_joined IS NULL THEN RAISE EXCEPTION 'referral_not_joined' USING ERRCODE = '22023'; END IF;
 
   v_points := app.eng_credit(v_r.referrer_member_id, 'referral', p_referral::text, NULL);
@@ -828,20 +835,24 @@ CREATE POLICY points_rule_select ON app.points_rule FOR SELECT TO app_authentica
   org_id = (SELECT app.org_id()) AND (
     (SELECT app.role()) IN ('owner', 'location_manager', 'front_desk')
     OR ((SELECT app.role()) IN ('member', 'guardian') AND active)));
+-- Security review (money modules) H1: org-wide rows affect every location, so only the owner writes them.
 CREATE POLICY points_rule_insert ON app.points_rule FOR INSERT TO app_authenticated WITH CHECK (
-  org_id = (SELECT app.org_id()) AND (SELECT app.role()) IN ('owner', 'location_manager'));
+  org_id = (SELECT app.org_id()) AND (SELECT app.role()) = 'owner');
+-- Security review (money modules) H1: org-wide rows affect every location, so only the owner writes them.
 CREATE POLICY points_rule_update ON app.points_rule FOR UPDATE TO app_authenticated
-  USING (org_id = (SELECT app.org_id()) AND (SELECT app.role()) IN ('owner', 'location_manager'))
+  USING (org_id = (SELECT app.org_id()) AND (SELECT app.role()) = 'owner')
   WITH CHECK (org_id = (SELECT app.org_id()));
 
 CREATE POLICY reward_select ON app.reward FOR SELECT TO app_authenticated USING (
   org_id = (SELECT app.org_id()) AND (
     (SELECT app.role()) IN ('owner', 'location_manager', 'front_desk')
     OR ((SELECT app.role()) IN ('member', 'guardian') AND active)));
+-- Security review (money modules) H1: org-wide rows affect every location, so only the owner writes them.
 CREATE POLICY reward_insert ON app.reward FOR INSERT TO app_authenticated WITH CHECK (
-  org_id = (SELECT app.org_id()) AND (SELECT app.role()) IN ('owner', 'location_manager'));
+  org_id = (SELECT app.org_id()) AND (SELECT app.role()) = 'owner');
+-- Security review (money modules) H1: org-wide rows affect every location, so only the owner writes them.
 CREATE POLICY reward_update ON app.reward FOR UPDATE TO app_authenticated
-  USING (org_id = (SELECT app.org_id()) AND (SELECT app.role()) IN ('owner', 'location_manager'))
+  USING (org_id = (SELECT app.org_id()) AND (SELECT app.role()) = 'owner')
   WITH CHECK (org_id = (SELECT app.org_id()));
 
 -- Member-owned rows: front-of-house staff of the member's location, the member, the guardian.

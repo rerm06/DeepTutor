@@ -311,8 +311,15 @@ describe("online orders: POST /v1/store/orders → pickup", () => {
 });
 
 describe("products and inventory", () => {
-  it("manager creates and edits a product; front desk cannot; hostile names are refused", async () => {
-    const r = await call(as("location_manager"), "POST", "/store/products", {
+  it("owner creates and edits a product; manager and front desk cannot (org-wide catalogue); hostile names are refused", async () => {
+    const mgr = await call(as("location_manager"), "POST", "/store/products", {
+      sku: "MGR-01",
+      name: "Demo Manager",
+      category: "accessory",
+      price_cents: 100,
+    });
+    expect(mgr.statusCode).toBe(403);
+    const r = await call(as("owner"), "POST", "/store/products", {
       sku: "SHAKER-01",
       name: "Demo Shaker",
       category: "accessory",
@@ -327,7 +334,11 @@ describe("products and inventory", () => {
       price_cents: 899,
     });
     expect(dup.statusCode).toBe(409);
-    const patch = await call(as("location_manager"), "PATCH", `/store/products/${id}`, {
+    const mgrPatch = await call(as("location_manager"), "PATCH", `/store/products/${id}`, {
+      price_cents: 1,
+    });
+    expect(mgrPatch.statusCode).toBe(404);
+    const patch = await call(as("owner"), "PATCH", `/store/products/${id}`, {
       price_cents: 999,
       active: false,
     });

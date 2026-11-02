@@ -388,6 +388,22 @@ BEGIN
     RAISE EXCEPTION 'forbidden' USING ERRCODE = '42501';
   END IF;
   SELECT * INTO v_cart FROM app.store_cart(v_org, p_lines);
+  -- Security review M4: one member cannot reserve a location's stock. Limits [P]: at most 5 open pickup orders, 5
+  -- units of a product per order and 10 units of a product across all of the member's open orders. Staff can
+  -- cancel stale orders (cancel_online_order) and app.release_stale_orders() frees those older than 48 h.
+  PERFORM pg_advisory_xact_lock(hashtext('store_online:' || v_member::text));
+  IF (SELECT count(*) FROM app.sale s WHERE s.member_id = v_member AND s.status = 'pending_pickup') >= 5 THEN
+    RAISE EXCEPTION 'too_many_pending_orders' USING ERRCODE = '22023';
+  END IF;
+  IF EXISTS (SELECT 1 FROM unnest(v_cart.qtys) q WHERE q > 5) THEN
+    RAISE EXCEPTION 'quantity_limit' USING ERRCODE = '22023';
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM unnest(v_cart.products, v_cart.qtys) l(pid, qty)
+     WHERE l.qty + coalesce((SELECT sum(sl.qty) FROM app.sale s JOIN app.sale_line sl ON sl.sale_id = s.id
+                              WHERE s.member_id = v_member AND s.status = 'pending_pickup' AND sl.product_id = l.pid), 0) > 10) THEN
+    RAISE EXCEPTION 'quantity_limit' USING ERRCODE = '22023';
+  END IF;
   PERFORM app.store_lock_available(v_org, p_location, v_cart.products, v_cart.qtys);
   v_sale := app.store_insert_sale(v_org, p_location, 'online', v_member, 'pending_pickup', NULL, NULL,
                                   v_cart.products, v_cart.qtys);
@@ -737,10 +753,12 @@ CREATE POLICY product_select ON app.product FOR SELECT USING (
   org_id = (SELECT app.org_id()) AND (
     (SELECT app.role()) IN ('owner', 'location_manager', 'front_desk', 'accountant')
     OR ((SELECT app.role()) IN ('member', 'guardian') AND active)));
+-- Security review (money modules) H1: org-wide rows affect every location, so only the owner writes them.
 CREATE POLICY product_insert ON app.product FOR INSERT WITH CHECK (
-  org_id = (SELECT app.org_id()) AND (SELECT app.role()) IN ('owner', 'location_manager'));
+  org_id = (SELECT app.org_id()) AND (SELECT app.role()) = 'owner');
+-- Security review (money modules) H1: org-wide rows affect every location, so only the owner writes them.
 CREATE POLICY product_update ON app.product FOR UPDATE
-  USING (org_id = (SELECT app.org_id()) AND (SELECT app.role()) IN ('owner', 'location_manager'))
+  USING (org_id = (SELECT app.org_id()) AND (SELECT app.role()) = 'owner')
   WITH CHECK (org_id = (SELECT app.org_id()));
 
 -- inventory_level: sellers of the location (owner: every location).
