@@ -49,3 +49,4 @@ export function applicationFeeAmount(amountCents: number, plan: SaasPlan): numbe
 }
 
 export * from "./messages.js";
+export * from "./demo.js";

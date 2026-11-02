@@ -12,7 +12,11 @@ export interface Db {
 export function createDb(connectionString: string, claimsKeyHex: string): Db {
   const claimsKey = Buffer.from(claimsKeyHex, "hex");
   if (claimsKey.length < 32) throw new Error("claims key must be at least 32 bytes (64 hex chars)");
-  return { pool: new pg.Pool({ connectionString, max: 10 }), claimsKey };
+  const pool = new pg.Pool({ connectionString, max: 10 });
+  // An idle client dropped by the server (restart, scale-to-zero, admin termination) emits 'error' on the pool;
+  // unhandled, that crashes the process. Log it; the pool replaces the client on the next checkout.
+  pool.on("error", (err) => console.error(`pg pool: idle client error: ${err.message}`));
+  return { pool, claimsKey };
 }
 
 /** HMAC over `claims|backend pid|transaction start µs` — must match app.claims() in migration 0001. */

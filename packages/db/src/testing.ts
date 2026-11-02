@@ -70,9 +70,10 @@ export async function createTestDb(): Promise<TestDb> {
   const admin = new pg.Client({ connectionString: adminUrl });
   await admin.connect();
   const claimsKeyHex = randomBytes(32).toString("hex");
-  await admin.query("INSERT INTO app_private.claims_key (key) VALUES (decode($1, 'hex'))", [
-    claimsKeyHex,
-  ]);
+  await admin.query(
+    "INSERT INTO app_private.claims_key (id, key) VALUES (true, decode($1, 'hex')) ON CONFLICT (id) DO UPDATE SET key = EXCLUDED.key",
+    [claimsKeyHex],
+  );
   const fx = await seed(admin);
   const api = createDb(apiUrl, claimsKeyHex);
 

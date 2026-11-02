@@ -3,18 +3,30 @@
   "private": true,
   "version": "0.1.0",
   "packageManager": "pnpm@10.28.0",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
-    "typecheck": "pnpm -r --if-present typecheck",
+    "typecheck": "pnpm -r --if-present typecheck && tsc -p tsconfig.netlify.json",
     "lint": "biome check .",
     "format": "biome format --write .",
     "test": "pnpm -r --if-present --workspace-concurrency=1 test",
     "db:migrate": "pnpm --filter @gym/db migrate",
     "db:seed": "pnpm --filter @gym/db seed",
-    "gate": "bash scripts/gate.sh"
+    "gate": "bash scripts/gate.sh",
+    "build": "pnpm -r build"
   },
   "devDependencies": {
     "@biomejs/biome": "1.9.4",
-    "typescript": "5.6.3"
+    "typescript": "5.6.3",
+    "@netlify/functions": "6.0.3",
+    "@types/pg": "8.11.10",
+    "@types/node": "22.9.0"
+  },
+  "dependencies": {
+    "@gym/api": "workspace:*",
+    "@gym/db": "workspace:*",
+    "@netlify/database": "2.0.1",
+    "pg": "8.13.1"
   }
 }

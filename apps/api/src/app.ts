@@ -4,6 +4,7 @@ import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
 import { jwtVerify } from "jose";
 import { ZodError } from "zod";
 import { httpFromPg } from "./errors.js";
+import { demoRoutes } from "./routes/demo.js";
 import { memberRoutes } from "./routes/members.js";
 import { messagingRoutes } from "./routes/messaging.js";
 import { orgRoutes } from "./routes/org.js";
@@ -14,6 +15,8 @@ export interface AppDeps {
   jwtIssuer: string;
   jwtAudience: string;
   logger?: boolean;
+  /** DEMO MODE: expose /v1/demo/* to mint tokens for the synthetic personas. Never enable with real tenants. */
+  demo?: boolean;
 }
 
 declare module "fastify" {
@@ -37,6 +40,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
 
   app.addHook("onRequest", async (req, reply) => {
     if (req.url === "/health") return;
+    if (deps.demo && req.url.startsWith("/v1/demo/")) return;
     const header = req.headers.authorization;
     if (!header?.startsWith("Bearer ")) return reply.code(401).send({ error: "unauthenticated" });
     try {
@@ -72,6 +76,14 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   app.get("/health", async () => ({ ok: true }));
   await app.register(orgRoutes, { prefix: "/v1" });
   await app.register(memberRoutes, { prefix: "/v1" });
+  if (deps.demo) {
+    await app.register(demoRoutes, {
+      prefix: "/v1",
+      jwtSecret: deps.jwtSecret,
+      jwtIssuer: deps.jwtIssuer,
+      jwtAudience: deps.jwtAudience,
+    });
+  }
   await app.register(messagingRoutes, { prefix: "/v1" });
   return app;
 }

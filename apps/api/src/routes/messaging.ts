@@ -52,6 +52,7 @@ const MessageBody = z
   .strict();
 
 const InboxQuery = z.object({ location_id: z.string().uuid().optional() });
+const MessagesQuery = z.object({ member_id: z.string().uuid() });
 
 export async function messagingRoutes(app: FastifyInstance): Promise<void> {
   app.get("/members/:id/consents", async (req) => {
@@ -113,6 +114,27 @@ export async function messagingRoutes(app: FastifyInstance): Promise<void> {
     });
     if (!row) return reply.code(500).send({ error: "internal" });
     return reply.code(201).send(row);
+  });
+
+  app.get("/templates", async (req) =>
+    app.asCaller(req, async (tx) => {
+      const { rows } = await tx.query(
+        "SELECT key, locale, purpose, body FROM app.message_template ORDER BY key, locale",
+      );
+      return { data: rows };
+    }),
+  );
+
+  app.get("/messages", async (req) => {
+    const q = MessagesQuery.parse(req.query);
+    return app.asCaller(req, async (tx) => {
+      const { rows } = await tx.query(
+        `SELECT id, channel, purpose, template_key, body, status, block_reason, scheduled_for, created_at
+           FROM app.outbound_message WHERE member_id = $1 ORDER BY created_at DESC LIMIT 100`,
+        [q.member_id],
+      );
+      return { data: rows };
+    });
   });
 
   app.get("/inbox", async (req) => {
