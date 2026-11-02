@@ -7,6 +7,8 @@ import { useI18n } from "../i18n/I18nContext";
 import { brandsFor } from "../lib/brands";
 import { ROUTES, canManageMembers } from "../lib/roles";
 import { useAsync } from "../lib/useAsync";
+import { MODULES } from "../modules/registry";
+import { allows } from "../modules/types";
 import { useSession } from "../session/SessionContext";
 
 export function MemberDetailScreen() {
@@ -79,6 +81,11 @@ export function MemberDetailScreen() {
           />
           <MessagePanel memberId={member.id} brands={brands} onSent={() => setSent((n) => n + 1)} />
           <MessageHistory memberId={member.id} version={sent} />
+          {MODULES.flatMap((m) => m.memberTabs ?? [])
+            .filter((tab) => allows(tab.audience, role))
+            .map((tab) => (
+              <tab.Component key={tab.id} memberId={member.id} />
+            ))}
         </>
       ) : null}
     </div>

@@ -4,6 +4,7 @@ import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
 import { jwtVerify } from "jose";
 import { ZodError } from "zod";
 import { httpFromPg } from "./errors.js";
+import { moduleRoutes } from "./modules/index.js";
 import { demoRoutes } from "./routes/demo.js";
 import { memberRoutes } from "./routes/members.js";
 import { messagingRoutes } from "./routes/messaging.js";
@@ -76,6 +77,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   app.get("/health", async () => ({ ok: true }));
   await app.register(orgRoutes, { prefix: "/v1" });
   await app.register(memberRoutes, { prefix: "/v1" });
+  await app.register(moduleRoutes);
   if (deps.demo) {
     await app.register(demoRoutes, {
       prefix: "/v1",

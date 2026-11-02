@@ -9,6 +9,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { type Claims, ROLES, type Role, STAFF_ROLES } from "@gym/shared";
 import pg from "pg";
+import { seedModules } from "./fixtures/index.js";
 import { type Db, type Tx, bindClaims, createDb } from "./index.js";
 import { migrate } from "./migrate.js";
 
@@ -204,7 +205,14 @@ async function seedOrg(c: pg.Client, label: string): Promise<OrgFixture> {
     "INSERT INTO app.inbound_message (org_id, brand_id, location_id, channel, from_address, body) VALUES ($1,$2,$3,'sms','+17875550000','Demo hola')",
     [orgId, brand, locations[1]],
   );
-  return { orgId, brandId: brand, locations, people, members: [m1, m2] };
+  // Audit rows so the isolation matrix is not vacuous for audit_log.
+  await c.query(
+    "INSERT INTO app.audit_log (org_id, actor_person_id, actor_role, action, entity, location_id) VALUES ($1,$2,'owner','fixture','fixture',$3)",
+    [orgId, people.owner, locations[0]],
+  );
+  const fixture: OrgFixture = { orgId, brandId: brand, locations, people, members: [m1, m2] };
+  await seedModules(c, fixture, label as "A" | "B");
+  return fixture;
 }
 
 async function seed(c: pg.Client): Promise<Fixture> {

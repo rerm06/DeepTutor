@@ -1,6 +1,8 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { Layout } from "./components/Layout";
 import { canSeeAudit, homeFor, isMemberRole } from "./lib/roles";
+import { MODULES } from "./modules/registry";
+import { allows } from "./modules/types";
 import { AuditScreen } from "./screens/AuditScreen";
 import { EntryScreen } from "./screens/EntryScreen";
 import { InboxScreen } from "./screens/InboxScreen";
@@ -39,6 +41,13 @@ export function AppRoutes() {
             {canSeeAudit(role) ? <Route path="/staff/audit" element={<AuditScreen />} /> : null}
             <Route path="/staff/org" element={<OrgScreen />} />
           </>
+        )}
+        {MODULES.flatMap((m) =>
+          m.routes
+            .filter((r) => allows(r.audience, role))
+            .map((r) => (
+              <Route key={`${m.id}:${r.path}`} path={r.path} element={<r.Component />} />
+            )),
         )}
         <Route path="*" element={<Navigate to={homeFor(role)} replace />} />
       </Routes>

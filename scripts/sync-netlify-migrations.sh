@@ -9,8 +9,15 @@ declare -a PAIRS=(
   "netlify/bootstrap_roles.sql:20261102000000_bootstrap_roles.sql"
 )
 for f in packages/db/migrations/*.sql; do
-  b=$(basename "$f" .sql); n=${b%%_*}; slug=${b#*_}
-  PAIRS+=("$f:2026110200$(printf '%04d' "$((10#$n))")_${slug}.sql")
+  b=$(basename "$f" .sql); n=$((10#${b%%_*})); slug=${b#*_}
+  if [ "$n" -le 5 ]; then
+    PAIRS+=("$f:2026110200$(printf '%04d' "$n")_${slug}.sql")
+  else
+    # Modules: schema at ...10NN00, its demo seed right after at ...10NN50, so later modules always sort last.
+    PAIRS+=("$f:2026110210$(printf '%02d' "$n")00_${slug}.sql")
+    seed="packages/db/seed/$(printf '%04d' "$n")_${slug}.sql"
+    [ -f "$seed" ] && PAIRS+=("$seed:2026110210$(printf '%02d' "$n")50_${slug}_demo_seed.sql")
+  fi
 done
 PAIRS+=("packages/db/seed/demo.sql:20261102009000_demo_seed.sql")
 status=0

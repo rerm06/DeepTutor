@@ -7,27 +7,35 @@ import { type OrgFixture, type TestDb, asCaller, createTestDb } from "../src/tes
 let t: TestDb;
 beforeAll(async () => {
   t = await createTestDb();
+  const r = await t.admin.query<{ table_name: string }>(
+    "SELECT table_name FROM information_schema.columns WHERE table_schema = 'app' AND column_name = 'org_id' ORDER BY 1",
+  );
+  ORG_SCOPED_TABLES = r.rows.map((x) => x.table_name).filter((n) => n !== "organization");
 }, 60_000);
+
+describe("matrix coverage", () => {
+  it("every org-scoped table has RLS forced and fixture rows in BOTH organisations (no vacuous checks)", async () => {
+    expect(ORG_SCOPED_TABLES.length).toBeGreaterThan(10);
+    for (const table of ORG_SCOPED_TABLES) {
+      const rls = await t.admin.query(
+        "SELECT relrowsecurity AS on, relforcerowsecurity AS forced FROM pg_class WHERE oid = $1::regclass",
+        [`app.${table}`],
+      );
+      expect(rls.rows[0], `${table} RLS`).toEqual({ on: true, forced: true });
+      const n = await t.admin.query(
+        `SELECT count(DISTINCT org_id)::int AS n FROM app.${table} WHERE org_id IN ($1, $2)`,
+        [t.fx.A.orgId, t.fx.B.orgId],
+      );
+      expect(n.rows[0].n, `${table} needs fixture rows in org A and org B`).toBe(2);
+    }
+  });
+});
 afterAll(async () => {
   await t?.drop();
 });
 
-const ORG_SCOPED_TABLES = [
-  "legal_entity",
-  "brand",
-  "location",
-  "member",
-  "staff_member",
-  "staff_location",
-  "guardian_link",
-  "audit_log",
-  "consent",
-  "message_policy",
-  "outbound_message",
-  "inbound_message",
-  "consent_event",
-  "brand_opt_out",
-];
+// Every table in schema app with an org_id column, discovered at run time so new modules are covered automatically.
+let ORG_SCOPED_TABLES: string[] = [];
 
 function orgs(): Array<[string, OrgFixture, OrgFixture]> {
   return [

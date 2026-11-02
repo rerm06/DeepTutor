@@ -3,6 +3,8 @@ import { NavLink } from "react-router-dom";
 import { useI18n } from "../i18n/I18nContext";
 import type { Lang } from "../i18n/dict";
 import { navFor } from "../lib/roles";
+import { MODULES } from "../modules/registry";
+import { allows } from "../modules/types";
 import { useSession } from "../session/SessionContext";
 
 export function DemoBanner() {
@@ -39,9 +41,10 @@ export function LangToggle() {
 }
 
 export function Layout({ children }: { children: ReactNode }) {
-  const { t, tv } = useI18n();
+  const { t, tv, lang } = useI18n();
   const { persona, role, logout } = useSession();
   const items = navFor(role);
+  const moduleItems = MODULES.flatMap((m) => m.nav.filter((n) => allows(n.audience, role)));
 
   return (
     <div className="shell">
@@ -80,13 +83,20 @@ export function Layout({ children }: { children: ReactNode }) {
           ) : null}
         </div>
       </header>
-      {items.length > 0 ? (
+      {items.length + moduleItems.length > 0 ? (
         <nav className="nav" aria-label={t("nav.label")}>
           <ul className="nav__list">
             {items.map((item) => (
               <li key={item.to}>
                 <NavLink className="nav__link" to={item.to}>
                   {t(item.label)}
+                </NavLink>
+              </li>
+            ))}
+            {moduleItems.map((item) => (
+              <li key={item.to}>
+                <NavLink className="nav__link" to={item.to}>
+                  {item.label[lang]}
                 </NavLink>
               </li>
             ))}

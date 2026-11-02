@@ -50,3 +50,12 @@ export function applicationFeeAmount(amountCents: number, plan: SaasPlan): numbe
 
 export * from "./messages.js";
 export * from "./demo.js";
+export * from "./modules/billing.js";
+export * from "./modules/schedule.js";
+export * from "./modules/crm.js";
+export * from "./modules/store.js";
+export * from "./modules/health.js";
+export * from "./modules/floor.js";
+export * from "./modules/engagement.js";
+export * from "./modules/finance.js";
+export * from "./modules/reports.js";
