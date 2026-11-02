@@ -356,7 +356,13 @@ BEGIN
   END IF;
   IF v.status <> 'pending_approval' THEN RAISE EXCEPTION 'invalid_status' USING ERRCODE = '22023'; END IF;
   IF v.created_by = app.person_id() THEN RAISE EXCEPTION 'approver_is_creator' USING ERRCODE = '42501'; END IF;
-  IF NOT app.fin_can_decide(v.location_id, v.amount_cents) THEN
+  -- Security review (finance) M1: the manager threshold applies to the total of non-void bills from the same vendor
+  -- at the same location over the last 30 days, so a large bill cannot be split into approvable pieces.
+  IF NOT app.fin_can_decide(v.location_id, (
+       SELECT coalesce(sum(b.amount_cents), 0)::integer FROM app.bill b
+        WHERE b.org_id = v.org_id AND b.vendor_id = v.vendor_id AND b.location_id = v.location_id
+          AND b.status <> 'void' AND b.created_at > v.created_at - interval '30 days'
+          AND b.created_at <= v.created_at)) THEN
     RAISE EXCEPTION 'above_threshold' USING ERRCODE = '42501';
   END IF;
   IF v_note IS NOT NULL AND (length(v_note) > 300 OR v_note ~ '[[:cntrl:]]') THEN
@@ -831,16 +837,22 @@ CREATE POLICY bill_approval_select ON app.bill_approval FOR SELECT USING (
 CREATE POLICY recurring_expense_select ON app.recurring_expense FOR SELECT USING (
   org_id = (SELECT app.org_id()) AND app.fin_reader_at(location_id));
 CREATE POLICY recurring_expense_insert ON app.recurring_expense FOR INSERT WITH CHECK (
-  org_id = (SELECT app.org_id()) AND app.fin_writer_at(location_id) AND created_by = (SELECT app.person_id()));
+  org_id = (SELECT app.org_id()) AND app.fin_writer_at(location_id) AND created_by = (SELECT app.person_id())
+  AND ((SELECT app.role()) = 'owner' OR amount_cents <= app.fin_manager_max()));
+-- A manager can neither raise a template above the threshold nor edit an owner's template that already is.
 CREATE POLICY recurring_expense_update ON app.recurring_expense FOR UPDATE
-  USING (org_id = (SELECT app.org_id()) AND app.fin_writer_at(location_id))
-  WITH CHECK (org_id = (SELECT app.org_id()) AND app.fin_writer_at(location_id));
+  USING (org_id = (SELECT app.org_id()) AND app.fin_writer_at(location_id)
+         AND ((SELECT app.role()) = 'owner' OR amount_cents <= app.fin_manager_max()))
+  WITH CHECK (org_id = (SELECT app.org_id()) AND app.fin_writer_at(location_id)
+              AND ((SELECT app.role()) = 'owner' OR amount_cents <= app.fin_manager_max()));
 
 CREATE POLICY expense_select ON app.expense FOR SELECT USING (
   org_id = (SELECT app.org_id()) AND app.fin_reader_at(location_id));
+-- Security review (finance) M2: expenses above the manager threshold are recorded by the owner only.
 CREATE POLICY expense_insert ON app.expense FOR INSERT WITH CHECK (
   org_id = (SELECT app.org_id()) AND app.fin_writer_at(location_id)
-  AND recurring_id IS NULL AND voided_at IS NULL AND recorded_by = (SELECT app.person_id()));
+  AND recurring_id IS NULL AND voided_at IS NULL AND recorded_by = (SELECT app.person_id())
+  AND ((SELECT app.role()) = 'owner' OR amount_cents <= app.fin_manager_max()));
 
 -- A commission is for a staff member assigned to that location (staff_location RLS applies to the caller).
 CREATE POLICY commission_select ON app.commission FOR SELECT USING (
@@ -917,3 +929,6 @@ GRANT EXECUTE ON FUNCTION app.decide_bill(uuid, app.bill_decision, text), app.pa
   app.void_bill(uuid, text), app.void_expense(uuid, text), app.run_recurring_expenses(date),
   app.set_commission_status(uuid, app.commission_status, date), app.finance_pnl(date), app.finance_deferred(),
   app.generate_journal_export(date) TO app_authenticated;
+
+-- Policies on expense/recurring_expense compare amounts with the manager threshold (security review M2).
+GRANT EXECUTE ON FUNCTION app.fin_manager_max() TO app_authenticated;

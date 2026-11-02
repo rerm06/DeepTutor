@@ -42,6 +42,9 @@ without conflicts. Shared wiring (registries) already exists; do not edit it.
 - No new npm dependencies (qrcode is already in apps/web). No Stripe/Twilio/LLM calls: provide adapters/stubs only.
 - UI: ES/EN via your local dictionary, WCAG 2.2 AA, 360 px without horizontal scroll, `data-tour-id` on critical
   controls, reuse `components/ui.tsx` and the CSS classes in `styles.css` (add module CSS in your folder if needed).
-- Health data: visible only to the member, their guardian, and licensed/clinical roles at the member's location;
-  never to front desk, chef or accountant. Never use the regulated nutrition titles in UI or data.
+- Health data: visible only to the member, their guardian, and the roles that act on it at the member's location —
+  trainer, licensed nutrition specialist, clinician, location manager — plus the owner org-wide (oversight); never to
+  front desk, chef or accountant [VERIFICAR · legal: confirm owner/manager access and minimum-necessary under HIPAA/PR].
+- Care plans: the licensed author may approve their own plan (the professional signs their own work, spec §6.7);
+  a second reviewer is a [P] option per organisation, not enforced. Never use the regulated nutrition titles in UI or data.
 - Verify in your worktree: `pnpm install`, `bash scripts/sync-netlify-migrations.sh`, `bash scripts/gate.sh` → `GATE: PASS`.

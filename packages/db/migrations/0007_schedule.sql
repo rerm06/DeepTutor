@@ -120,7 +120,7 @@ CREATE TABLE app.check_in (
   source app.checkin_source NOT NULL,
   result app.checkin_result NOT NULL,
   reason text NOT NULL CHECK (reason IN ('active', 'trial', 'past_due', 'past_due_denied', 'frozen', 'cancelled',
-                                         'lead', 'invalid_token', 'expired_token')),
+                                         'lead', 'invalid_token', 'expired_token', 'token_used')),
   recorded_by uuid NOT NULL,
   at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (org_id, id),
@@ -280,6 +280,14 @@ BEGIN
     v_result := 'denied'; v_reason := 'invalid_token';
   ELSIF NOT v_fresh THEN
     v_result := 'denied'; v_reason := 'expired_token';
+  ELSIF v_source = 'qr' AND (
+      -- Security review (schedule) L1: a token admits ONE allowed check-in. Its window is at most 60 s, so an allowed
+      -- QR check-in for this member in the last 90 s means the token (or a copy of it) was already used anywhere.
+      SELECT pg_advisory_xact_lock(hashtext('qr_use:' || v_member::text)) IS NOT NULL
+         AND EXISTS (SELECT 1 FROM app.check_in c
+                      WHERE c.member_id = v_member AND c.org_id = v_org AND c.source = 'qr' AND c.result = 'allowed'
+                        AND c.at > now() - interval '90 seconds')) THEN
+    v_result := 'denied'; v_reason := 'token_used';
   ELSE
     SELECT m.status INTO v_status FROM app.member m WHERE m.id = v_member;
     SELECT coalesce(lp.deny_past_due, false) INTO v_deny

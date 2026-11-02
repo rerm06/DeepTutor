@@ -70,6 +70,13 @@ async function vendorOf(org: OrgFixture): Promise<string> {
   ]);
   return rows[0].id;
 }
+async function freshVendor(org: OrgFixture): Promise<string> {
+  const { rows } = await t.admin.query(
+    "INSERT INTO app.vendor (org_id, name, created_by) VALUES ($1, $2, $3) RETURNING id",
+    [org.orgId, `Demo Proveedor ${randomUUID().slice(0, 6)}`, org.people.owner],
+  );
+  return rows[0].id;
+}
 /** A pending bill of its own for each case (admin path), entered by `creator`. */
 async function newBill(
   org: OrgFixture,
@@ -81,7 +88,9 @@ async function newBill(
      VALUES ($1, $2, $3, $4, 'maintenance', $5, $5::date + 30, $6, $7) RETURNING id`,
     [
       org.orgId,
-      await vendorOf(org),
+      // A fresh vendor per bill: the manager threshold aggregates a vendor's bills at a location over 30 days
+      // (security review M1), so unrelated test bills must not share one.
+      await freshVendor(org),
       org.locations[opts.loc ?? 0],
       `T-${randomUUID().slice(0, 8)}`,
       opts.issued ?? "2026-10-01",

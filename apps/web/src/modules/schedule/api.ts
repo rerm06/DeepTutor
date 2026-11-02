@@ -13,7 +13,8 @@ export type CheckinReason =
   | "cancelled"
   | "lead"
   | "invalid_token"
-  | "expired_token";
+  | "expired_token"
+  | "token_used";
 
 export interface ClassType {
   id: string;

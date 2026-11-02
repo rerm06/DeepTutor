@@ -30,6 +30,7 @@ export const CHECKIN_REASONS = [
   "lead",
   "invalid_token",
   "expired_token",
+  "token_used",
 ] as const;
 export type CheckinReason = (typeof CHECKIN_REASONS)[number];
 
