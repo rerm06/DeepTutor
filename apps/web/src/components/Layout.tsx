@@ -5,6 +5,7 @@ import type { Lang, MessageKey } from "../i18n/dict";
 import { useBrandTheme } from "../lib/brandTheme";
 import { setLocation, setLocationScope, useLocationId } from "../lib/location";
 import { NavTargets } from "../lib/navTargets";
+import { promptInstall, useInstallState } from "../lib/pwa";
 import { isMemberRole, navFor } from "../lib/roles";
 import { setPref, useMode } from "../lib/themeMode";
 import { useAsync } from "../lib/useAsync";
@@ -92,10 +93,16 @@ type SectionId =
   | "config"
   | "help"
   | "account"
-  | "train"
-  | "coach"
-  | "community"
+  | "panel"
+  | "magenda"
+  | "plan"
+  | "pay"
+  | "programs"
+  | "progress"
+  | "nutrition"
   | "shop"
+  | "achievements"
+  | "docs"
   | "more";
 
 interface SectionDef {
@@ -122,15 +129,27 @@ const STAFF_SECTIONS: SectionDef[] = [
   { id: "config", icon: "gear", match: /^\/staff\/(org|online-join)(\/|$)/ },
   { id: "more", icon: "star", match: /^\/staff\// },
 ];
+/* Member portal sections, as the client's member design lists them. */
 const MEMBER_SECTIONS: SectionDef[] = [
-  { id: "account", icon: "home", match: /^\/me\/(account|membership|credential|consents)(\/|$)/ },
-  { id: "train", icon: "dumbbell", match: /^\/me\/(classes|health|circuits|station)(\/|$)/ },
-  { id: "coach", icon: "sparkle", match: /^\/me\/coach(\/|$)/, badge: true },
-  { id: "community", icon: "star", match: /^\/me\/(points|challenges|wall|refer|redeem)(\/|$)/ },
+  { id: "account", icon: "home", match: /^\/me\/account(\/|$)/ },
+  { id: "panel", icon: "grid", match: /^\/me\/(home|coach)(\/|$)/ },
+  { id: "magenda", icon: "calendar", match: /^\/me\/(classes|credential)(\/|$)/ },
+  { id: "plan", icon: "card", match: /^\/me\/health(\/|$)/ },
+  { id: "pay", icon: "receipt", match: /^\/me\/membership(\/|$)/ },
+  { id: "programs", icon: "dumbbell", match: /^\/me\/(programs|circuits|station)(\/|$)/ },
+  { id: "progress", icon: "chart", match: /^\/me\/progress(\/|$)/ },
+  { id: "nutrition", icon: "apple", match: /^\/me\/nutrition(\/|$)/ },
   { id: "shop", icon: "bag", match: /^\/me\/store(\/|$)/ },
+  {
+    id: "achievements",
+    icon: "trophy",
+    match: /^\/me\/(points|challenges|wall|refer|redeem)(\/|$)/,
+  },
+  { id: "docs", icon: "doc", match: /^\/me\/(documents|consents)(\/|$)/ },
   { id: "more", icon: "star", match: /^\/me\// },
 ];
 const HELP: SectionDef = { id: "help", icon: "academy", match: /^\/help(\/|$)/ };
+const HELP_MEMBER: SectionDef = { id: "help", icon: "headset", match: /^\/help(\/|$)/ };
 
 export function sectionOf(path: string, member: boolean): SectionId {
   if (HELP.match.test(path)) return "help";
@@ -160,7 +179,12 @@ function useNavItems(): Item[] {
       "/staff/members",
       "/staff/schedule",
       "/me/account",
-      "/me/coach/today",
+      "/me/home",
+      "/me/classes",
+      "/me/health/plan",
+      "/me/programs",
+      "/me/challenges",
+      "/me/documents",
     ];
     const rank = (to: string) => (first.includes(to) ? first.indexOf(to) : first.length);
     return [...core, ...mods]
@@ -170,12 +194,14 @@ function useNavItems(): Item[] {
   }, [role, t, lang]);
 }
 
-/** Member quick bar (phones): the four places a member goes most, plus the full menu. */
-const MEMBER_TABS: ReadonlyArray<readonly [string, IconName]> = [
-  ["/me/account", "home"],
-  ["/me/classes", "calendar"],
-  ["/me/credential", "qr"],
-  ["/me/coach/today", "sparkle"],
+/** Member bottom bar (client design): six destinations plus help; phones keep the first three and the menu. */
+const MEMBER_TABS: ReadonlyArray<readonly [string, IconName, MessageKey, boolean]> = [
+  ["/me/home", "home", "tab.home", true],
+  ["/me/classes", "calendar", "tab.agenda", true],
+  ["/me/health/plan", "dumbbell", "tab.plan", false],
+  ["/me/progress", "chart", "tab.progress", false],
+  ["/me/store", "bag", "tab.store", false],
+  ["/me/coach/chat", "sparkle", "tab.chat", true],
 ];
 
 function initialsOf(name: string): string {
@@ -326,7 +352,11 @@ function AlertsBell() {
   );
 }
 
-function AccountMenu({ name, role }: { name: string; role: string }) {
+function AccountMenu({
+  name,
+  role,
+  showName = false,
+}: { name: string; role: string; showName?: boolean }) {
   const { t } = useI18n();
   const { logout } = useSession();
   const pop = usePopover();
@@ -342,6 +372,11 @@ function AccountMenu({ name, role }: { name: string; role: string }) {
         <span className="avatar avatar--lg" aria-hidden="true">
           {initialsOf(name)}
         </span>
+        {showName ? (
+          <span className="avatar-btn__name" aria-hidden="true">
+            {name}
+          </span>
+        ) : null}
         <span className="sr-only">
           {t("header.account")}: {name}, {role}
         </span>
@@ -365,6 +400,108 @@ function AccountMenu({ name, role }: { name: string; role: string }) {
           </button>
         </dialog>
       ) : null}
+    </div>
+  );
+}
+
+interface MemberHomeLite {
+  membership?: { kind: string; credits_left: number | null };
+  next_class?: { class_name: string; starts_at: string } | null;
+  challenge?: { name: string; joined: boolean } | null;
+}
+
+/** Member alerts from the member's own dashboard data: low sessions, a class today, a new challenge. */
+function MemberBell() {
+  const { t } = useI18n();
+  const api = useApi();
+  const pop = usePopover();
+  const home = useAsync(() => api.request<MemberHomeLite>("GET", "/me/home"), [api]);
+  const d = home.data;
+  const alerts: Array<{ key: string; text: string; to: string }> = [];
+  const left = d?.membership?.kind === "credits" ? d.membership.credits_left : null;
+  if (left !== null && left !== undefined && left <= 2)
+    alerts.push({
+      key: "credits",
+      text: t("alerts.credits", { n: String(left) }),
+      to: "/me/membership",
+    });
+  if (d?.next_class) {
+    const day = (x: Date) =>
+      new Intl.DateTimeFormat("en-CA", { timeZone: "America/Puerto_Rico" }).format(x);
+    if (day(new Date(d.next_class.starts_at)) === day(new Date()))
+      alerts.push({
+        key: "class",
+        text: t("alerts.classToday", { name: d.next_class.class_name }),
+        to: "/me/classes",
+      });
+  }
+  if (d?.challenge && !d.challenge.joined)
+    alerts.push({
+      key: "challenge",
+      text: t("alerts.challenge", { name: d.challenge.name }),
+      to: "/me/challenges",
+    });
+  return (
+    <div className="pop" ref={pop.ref}>
+      <button
+        type="button"
+        className="hdr-icon"
+        aria-expanded={pop.open}
+        onClick={() => pop.setOpen(!pop.open)}
+        data-tour-id="member-alerts"
+      >
+        <Icon name="bell" size={26} />
+        {alerts.length ? <span className="hdr-icon__dot" aria-hidden="true" /> : null}
+        <span className="sr-only">
+          {t("alerts.title")}
+          {alerts.length ? ` (${alerts.length})` : ""}
+        </span>
+      </button>
+      {pop.open ? (
+        <dialog open className="pop__panel" aria-label={t("alerts.title")}>
+          <p className="pop__title">{t("alerts.title")}</p>
+          {alerts.length === 0 ? (
+            <p className="pop__empty">{t("alerts.none")}</p>
+          ) : (
+            <ul className="pop__list">
+              {alerts.map((a) => (
+                <li key={a.key}>
+                  <Link to={a.to} onClick={() => pop.setOpen(false)}>
+                    {a.text}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </dialog>
+      ) : null}
+    </div>
+  );
+}
+
+/** "App {brand} · Descarga la PWA": native install where the browser offers it, manual steps otherwise. */
+function PwaCard() {
+  const { t } = useI18n();
+  const state = useInstallState();
+  const [help, setHelp] = useState(false);
+  if (state === "installed") return null;
+  return (
+    <div className="tenant-card-wrap">
+      <button
+        type="button"
+        className="tenant-card"
+        onClick={() => (state === "prompt" ? void promptInstall() : setHelp(!help))}
+        aria-expanded={state === "prompt" ? undefined : help}
+        data-tour-id="pwa-install"
+      >
+        <Icon name="home" size={34} />
+        <span className="tenant-card__text">
+          <strong>{t("pwa.title")}</strong>
+          <span>{t("pwa.sub")}</span>
+        </span>
+        <Icon name="download" size={22} />
+      </button>
+      {help ? <p className="tenant-card__help">{t("pwa.manual")}</p> : null}
     </div>
   );
 }
@@ -395,7 +532,7 @@ export function Layout({ children }: { children: ReactNode }) {
 
   const current = sectionOf(location.pathname, member);
   const sections = useMemo(() => {
-    const defs = [...(member ? MEMBER_SECTIONS : STAFF_SECTIONS), HELP];
+    const defs = [...(member ? MEMBER_SECTIONS : STAFF_SECTIONS), member ? HELP_MEMBER : HELP];
     return defs
       .map((s) => ({ ...s, items: items.filter((i) => sectionOf(i.to, member) === s.id) }))
       .filter((s) => s.items.length > 0);
@@ -403,10 +540,15 @@ export function Layout({ children }: { children: ReactNode }) {
   const mainSections = sections.filter((s) => s.id !== "help");
   const helpSection = sections.find((s) => s.id === "help");
   const tabs = member
-    ? MEMBER_TABS.map(([to, icon]) => ({ icon, item: items.find((i) => i.to === to) })).filter(
-        (x): x is { icon: IconName; item: Item } => Boolean(x.item),
-      )
+    ? MEMBER_TABS.map(([to, icon, label, phone]) => ({
+        to,
+        icon,
+        label,
+        phone,
+        ok: items.some((i) => i.to === to),
+      })).filter((x) => x.ok)
     : [];
+  const hasHelp = items.some((i) => i.to === "/help");
 
   const close = useCallback((restoreFocus: boolean) => {
     setOpen(false);
@@ -457,7 +599,9 @@ export function Layout({ children }: { children: ReactNode }) {
     const show = active || expanded === s.id;
     const subId = `nav-sub-${s.id}`;
     const first = s.items[0] as Item;
-    const label = t(`nav.sec.${s.id}` as MessageKey);
+    const label = t(
+      (s.id === "help" && member ? "nav.sec.helpMember" : `nav.sec.${s.id}`) as MessageKey,
+    );
     return (
       <li key={s.id} className={`navsec${active ? " is-active" : ""}`}>
         <div className="navsec__row">
@@ -529,15 +673,28 @@ export function Layout({ children }: { children: ReactNode }) {
             <span className="topbar__product">
               {t("header.product")} <em>{t("header.productAccent")}</em>
             </span>
+          ) : member ? (
+            <span className="topbar__portal">
+              <Icon name="pin" size={28} />
+              <span>
+                <strong>{t("header.portal")}</strong>
+                {persona?.home ? <span>{persona.home}</span> : null}
+              </span>
+            </span>
           ) : tagline ? (
             <span className="brandmark__tagline">{tagline}</span>
           ) : null}
         </div>
         <div className="topbar__tools">
           {staff ? <LocationPicker id="hdr-location" /> : null}
+          {member ? <MemberBell /> : null}
           <LangToggle />
           {role === "owner" || role === "location_manager" ? <AlertsBell /> : null}
-          {persona ? <AccountMenu name={persona.display_name} role={roleLabel} /> : <ThemeToggle />}
+          {persona ? (
+            <AccountMenu name={persona.display_name} role={roleLabel} showName={member} />
+          ) : (
+            <ThemeToggle />
+          )}
         </div>
       </header>
       <div className="frame">
@@ -575,29 +732,29 @@ export function Layout({ children }: { children: ReactNode }) {
                   </span>
                   <Icon name="chevronRight" size={18} />
                 </Link>
-              ) : persona ? (
-                <div className="appnav__who">
-                  <span className="avatar" aria-hidden="true">
-                    {initialsOf(persona.display_name)}
-                  </span>
-                  <span className="appnav__who-text">
-                    <span className="appnav__name">{persona.display_name}</span>
-                    <span className="appnav__role">{roleLabel}</span>
-                  </span>
-                </div>
+              ) : member ? (
+                <PwaCard />
               ) : null}
             </div>
             {tabs.length ? (
               <ul className="tabbar" data-inert-when-nav="">
-                {tabs.map(({ icon, item }) => (
-                  <li key={item.to}>
-                    <NavLink className="tabbar__link" to={item.to}>
-                      <Icon name={icon} size={22} />
-                      <span>{item.label}</span>
+                {tabs.map(({ to, icon, label, phone }) => (
+                  <li key={to} className={phone ? undefined : "tabbar__wide"}>
+                    <NavLink className="tabbar__link" to={to}>
+                      <Icon name={icon} size={26} />
+                      <span>{t(label)}</span>
                     </NavLink>
                   </li>
                 ))}
-                <li>
+                {hasHelp ? (
+                  <li className="tabbar__wide tabbar__help">
+                    <NavLink className="tabbar__helpbtn" to="/help">
+                      <Icon name="help" size={30} />
+                      <span className="sr-only">{t("nav.sec.helpMember")}</span>
+                    </NavLink>
+                  </li>
+                ) : null}
+                <li className="tabbar__menu">
                   <button
                     ref={member ? toggleRef : undefined}
                     type="button"

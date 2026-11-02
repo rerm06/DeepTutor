@@ -314,7 +314,7 @@ describe("home (client design)", () => {
 
   it("quick actions only link to pages the role can open", () => {
     wrap(<QuickActions />, ["/staff/members", "/help"]);
-    const nav = screen.getByRole("navigation", { name: "Accesos rápidos" });
+    const nav = screen.getByRole("region", { name: "Accesos rápidos" });
     expect(
       within(nav)
         .getAllByRole("link")

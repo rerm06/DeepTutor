@@ -298,13 +298,13 @@ export function QuickActions() {
   const allowed = useNavTargets();
   const actions = ACTIONS.filter(([, , to]) => allowed.has(to));
   return (
-    <nav className="home-actions" aria-label={t("home.actions")}>
+    <section className="home-actions" aria-label={t("home.actions")}>
       {actions.map(([key, icon, to]) => (
         <Link key={key} className="home-action" to={to}>
           <Icon name={icon} size={46} />
           <span>{t(key as Parameters<typeof t>[0])}</span>
         </Link>
       ))}
-    </nav>
+    </section>
   );
 }

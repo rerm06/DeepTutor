@@ -48,7 +48,8 @@ export function navFor(role: string | null | undefined): NavItem[] {
 }
 
 export function homeFor(role: string | null | undefined): string {
-  if (isMemberRole(role)) return ROUTES.myAccount;
+  // Members land on their dashboard ("Mi Panel", module memberhome).
+  if (isMemberRole(role)) return "/me/home";
   // Owners and managers land on the executive panel (reports module); everyone else on members.
   if (role === "owner" || role === "location_manager") return "/staff/panel";
   return ROUTES.members;

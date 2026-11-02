@@ -1701,3 +1701,133 @@ textarea[aria-invalid="true"] {
 .navsec__sub[hidden] {
   display: none;
 }
+
+/* ── Member portal chrome (client design) ── */
+.topbar__portal {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-left: 34px;
+  line-height: 1.25;
+}
+.topbar__portal > .icon {
+  color: var(--chrome-icon);
+}
+.topbar__portal > span {
+  display: flex;
+  flex-direction: column;
+}
+.topbar__portal strong {
+  font-size: 1.375rem;
+}
+.topbar__portal span span {
+  font-size: 1.0625rem;
+  color: var(--chrome-muted);
+}
+@media (max-width: 900px) {
+  .topbar__portal {
+    display: none;
+  }
+}
+.avatar-btn__name {
+  font-size: 1.25rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+@media (max-width: 1100px) {
+  .avatar-btn__name {
+    display: none;
+  }
+}
+.shell--member .navsec__link {
+  min-height: 48px;
+}
+.tenant-card-wrap {
+  margin-top: auto;
+}
+.tenant-card-wrap .tenant-card {
+  width: calc(100% - 12px);
+  border-style: solid;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.tenant-card__help {
+  margin: 8px 8px 0;
+  font-size: 0.8125rem;
+  color: var(--chrome-muted);
+}
+
+/* Member bottom bar: on every screen size (client design); phones keep three tabs plus the menu. */
+.shell--member .tabbar {
+  position: fixed;
+  inset: auto 0 0 0;
+  z-index: var(--z-sticky);
+  display: flex;
+  align-items: stretch;
+  margin: 0;
+  padding: 6px 8px max(6px, env(safe-area-inset-bottom));
+  list-style: none;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+}
+.shell--member .tabbar > li {
+  flex: 1;
+  display: flex;
+  min-width: 0;
+}
+.shell--member .tabbar > li + li:not(.tabbar__help):not(.tabbar__menu) {
+  border-left: 1px solid var(--border);
+}
+.shell--member .tabbar__link {
+  margin: 2px 6px;
+  border-radius: 10px;
+  font-size: 0.8125rem;
+}
+.shell--member .tabbar__link.active,
+.shell--member .tabbar__link[aria-current="page"] {
+  background: var(--nav-active-bg);
+  color: var(--nav-active-text);
+}
+.tabbar__help {
+  flex: 0 0 auto !important;
+  align-items: center;
+  padding: 0 12px;
+}
+.tabbar__helpbtn {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: var(--gold);
+  color: var(--accent-text);
+}
+.tabbar__helpbtn:hover {
+  color: var(--accent-text);
+  filter: brightness(1.08);
+}
+@media (min-width: 1024px) {
+  .shell--member .tabbar {
+    left: var(--sidebar-w);
+    margin: 0 16px 12px;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 6px 8px;
+  }
+  .shell--member .tabbar__link {
+    min-height: 68px;
+    font-size: 1.0625rem;
+  }
+  .shell--member .tabbar > li.tabbar__menu {
+    display: none;
+  }
+  .shell--member .main {
+    padding-bottom: 120px;
+  }
+}
+@media (max-width: 1023.98px) {
+  .shell--member .tabbar__wide {
+    display: none !important;
+  }
+}
