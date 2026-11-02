@@ -9,6 +9,7 @@ import { seed as floor } from "./floor.js";
 import { seed as health } from "./health.js";
 import { seed as reports } from "./reports.js";
 import { seed as schedule } from "./schedule.js";
+import { seed as signup } from "./signup.js";
 import { seed as store } from "./store.js";
 
 /** Run every module's fixture seeder for one org (after the core seed). Order = migration order. */
@@ -23,4 +24,5 @@ export async function seedModules(c: pg.Client, org: OrgFixture, label: "A" | "B
   await finance(c, org, label);
   await reports(c, org, label);
   await coach(c, org, label);
+  await signup(c, org, label);
 }

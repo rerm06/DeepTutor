@@ -119,7 +119,7 @@ const STAFF_SECTIONS: SectionDef[] = [
   { id: "crm", icon: "crm", match: /^\/staff\/(crm|inbox|engagement)(\/|$)/ },
   { id: "ai", icon: "sparkle", match: /^\/staff\/ai(\/|$)/, badge: true },
   { id: "reports", icon: "chart", match: /^\/staff\/(reports|finance|audit)(\/|$)/ },
-  { id: "config", icon: "gear", match: /^\/staff\/org(\/|$)/ },
+  { id: "config", icon: "gear", match: /^\/staff\/(org|online-join)(\/|$)/ },
   { id: "more", icon: "star", match: /^\/staff\// },
 ];
 const MEMBER_SECTIONS: SectionDef[] = [

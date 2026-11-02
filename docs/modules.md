@@ -14,6 +14,7 @@ without conflicts. Shared wiring (registries) already exists; do not edit it.
 | engagement | 0012 | §9 | Points ledger, rules, challenges, badges, referrals, moderated community wall |
 | finance | 0013 | §8 | Vendors, bills + approvals, expenses, commissions, P&L by location, journal export (wave B) |
 | reports | 0014 | E13 | Dashboard KPIs, peak-hours heatmap, overdue, expiring, IVU by municipality, exports (wave B) |
+| signup | 0018 | E7, §11 | Public self-service "Únete" page, online member registration, agreements, per-location switch (wave C; public routes and `/join` wired in `app.ts` / `App.tsx`) |
 
 ## Files a module owns (and nothing else)
 - `packages/db/migrations/00NN_<id>.sql` — schema, RLS (ENABLE + FORCE), policies, column-level grants, definer functions.
