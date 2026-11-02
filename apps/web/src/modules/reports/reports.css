@@ -1,0 +1,334 @@
+/* Module reports. Core tokens from styles.css; no chart library. Everything stacks at 360 px; wide tables scroll
+   inside their own .table-wrap. The heatmap scale has its own tokens (brand-independent) and every cell also
+   carries its number, so colour is never the only signal (WCAG 1.4.1). Text/background pairs are ≥ 4.5:1. */
+:root {
+  --rpt-heat-0-bg: var(--surface);
+  --rpt-heat-0-fg: var(--text-muted);
+  --rpt-heat-1-bg: #e3ebfb;
+  --rpt-heat-1-fg: #15181d;
+  --rpt-heat-2-bg: #b7c9f2;
+  --rpt-heat-2-fg: #15181d;
+  --rpt-heat-3-bg: #6f8fdc;
+  --rpt-heat-3-fg: #0b1027;
+  --rpt-heat-4-bg: #1f3f9e;
+  --rpt-heat-4-fg: #ffffff;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --rpt-heat-1-bg: #1d2747;
+    --rpt-heat-1-fg: #e9ebef;
+    --rpt-heat-2-bg: #2b3f7a;
+    --rpt-heat-2-fg: #e9ebef;
+    --rpt-heat-3-bg: #4466c9;
+    --rpt-heat-3-fg: #ffffff;
+    --rpt-heat-4-bg: #9bb3ff;
+    --rpt-heat-4-fg: #0b1027;
+  }
+}
+
+.rpt-num {
+  text-align: right !important;
+  white-space: nowrap;
+}
+
+/* ── KPI rows ── */
+.rpt-kpi-groups {
+  display: grid;
+  gap: 16px;
+}
+.rpt-kpi-group {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 16px 16px;
+  min-width: 0;
+}
+.rpt-kpi-group__title {
+  font-size: 1.125rem;
+  text-transform: uppercase;
+  margin: 0 0 8px;
+}
+.rpt-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+  gap: 12px;
+  margin: 0;
+}
+.rpt-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 8px 10px;
+  border-left: 4px solid var(--neutral-line);
+  background: var(--surface-2);
+  border-radius: var(--radius);
+  overflow-wrap: anywhere;
+}
+.rpt-kpi--warn {
+  border-left-color: var(--warn-line);
+}
+.rpt-kpi--ok {
+  border-left-color: var(--ok-line);
+}
+.rpt-kpi__label {
+  font-family: var(--font-display);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+.rpt-kpi dd {
+  margin: 0;
+}
+.rpt-kpi__value {
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1.15;
+  color: var(--text);
+}
+.rpt-kpi__hint {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
+.rpt-kpi__link {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+/* ── Quick check-in ── */
+.rpt-quick__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.rpt-quick__results {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.rpt-quick__row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow-wrap: anywhere;
+}
+.rpt-quick__row .btn {
+  min-height: 44px;
+  min-width: 96px;
+}
+
+/* ── Segmented radio group (heatmap period) ── */
+.rpt-segmented {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+.rpt-segmented legend {
+  font-weight: 600;
+  padding: 0;
+  margin-bottom: 4px;
+  width: 100%;
+}
+.rpt-segmented__opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+}
+.rpt-segmented__opt input {
+  width: 20px;
+  height: 20px;
+}
+
+/* ── Heatmap ── */
+.rpt-heat {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+.rpt-heat__summary {
+  margin: 0;
+  font-weight: 600;
+}
+.rpt-heat__caption {
+  caption-side: top;
+  text-align: left;
+  padding: 8px 10px;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
+.rpt-heat__table th,
+.rpt-heat__table td {
+  padding: 4px 6px;
+}
+.rpt-heat__hour {
+  text-align: center !important;
+  font-size: 0.75rem !important;
+}
+.rpt-heat__cell {
+  text-align: center;
+  min-width: 2.25rem;
+  font-variant-numeric: tabular-nums;
+  border-left: 1px solid var(--border);
+}
+.rpt-heat--0 {
+  background: var(--rpt-heat-0-bg);
+  color: var(--rpt-heat-0-fg);
+}
+.rpt-heat--1 {
+  background: var(--rpt-heat-1-bg);
+  color: var(--rpt-heat-1-fg);
+}
+.rpt-heat--2 {
+  background: var(--rpt-heat-2-bg);
+  color: var(--rpt-heat-2-fg);
+}
+.rpt-heat--3 {
+  background: var(--rpt-heat-3-bg);
+  color: var(--rpt-heat-3-fg);
+  font-weight: 600;
+}
+.rpt-heat--4 {
+  background: var(--rpt-heat-4-bg);
+  color: var(--rpt-heat-4-fg);
+  font-weight: 700;
+}
+.rpt-heat__legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  font-size: 0.875rem;
+}
+.rpt-heat__legend ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.rpt-heat__legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.rpt-heat__swatch {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 1px solid var(--border-strong);
+  border-radius: 2px;
+}
+
+/* ── Reports sub-navigation ── */
+.rpt-subnav ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.rpt-subnav__link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 6px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  font-weight: 600;
+  text-decoration: none;
+  color: var(--text);
+  background: var(--surface);
+}
+.rpt-subnav__link[aria-current="page"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+
+.rpt-csv {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.rpt-list {
+  margin: 0;
+  padding-left: 1.25rem;
+  display: grid;
+  gap: 4px;
+}
+
+/* Joins / cancellations: number first, the bar only reinforces it. */
+.rpt-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 120px;
+}
+.rpt-bar__n {
+  min-width: 2.5rem;
+  text-align: right;
+}
+.rpt-bar__track {
+  flex: 1;
+  height: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+}
+.rpt-bar__fill {
+  display: block;
+  height: 100%;
+  background: var(--ok-line);
+}
+.rpt-bar__fill--out {
+  background: var(--blocked-line);
+}
+
+.rpt-print-only {
+  display: none;
+}
+
+/* ── Print-friendly view: only the report itself ── */
+@media print {
+  body:has(.rpt-print) .topbar,
+  body:has(.rpt-print) .nav,
+  body:has(.rpt-print) .demo-banner,
+  body:has(.rpt-print) .skip-link,
+  .rpt-noprint {
+    display: none !important;
+  }
+  .rpt-print-only {
+    display: inline;
+  }
+  .rpt .table-wrap {
+    overflow: visible;
+    border: 0;
+  }
+  .rpt .section,
+  .rpt-kpi-group {
+    break-inside: avoid;
+    border-color: #000;
+  }
+  .rpt-heat__cell,
+  .rpt-heat__swatch,
+  .rpt-bar__fill {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
