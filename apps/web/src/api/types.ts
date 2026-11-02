@@ -172,6 +172,9 @@ export interface ListOf<T> {
 export interface BrandTheme {
   logo_url?: string;
   icon_url?: string;
+  /** Wide photo behind the home greeting and the image of the AI-agent card (both served from /brand/). */
+  hero_url?: string;
+  promo_url?: string;
   logo_alt?: string;
   colors?: Partial<
     Record<

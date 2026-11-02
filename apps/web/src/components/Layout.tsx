@@ -1,13 +1,19 @@
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { NavLink, useLocation } from "react-router-dom";
+import { Link, NavLink, useLocation } from "react-router-dom";
 import { useI18n } from "../i18n/I18nContext";
 import type { Lang, MessageKey } from "../i18n/dict";
 import { useBrandTheme } from "../lib/brandTheme";
+import { setLocation, setLocationScope, useLocationId } from "../lib/location";
+import { NavTargets } from "../lib/navTargets";
 import { isMemberRole, navFor } from "../lib/roles";
 import { setPref, useMode } from "../lib/themeMode";
+import { useAsync } from "../lib/useAsync";
 import { MODULES } from "../modules/registry";
 import { allows } from "../modules/types";
-import { useSession } from "../session/SessionContext";
+import { useApi, useSession } from "../session/SessionContext";
+import { Icon, type IconName } from "./icons";
+
+export { Icon } from "./icons";
 
 export function DemoBanner() {
   const { t } = useI18n();
@@ -42,73 +48,99 @@ export function LangToggle() {
   );
 }
 
-/** One button: dark on/off. The choice is stored on this device and wins over the brand's default. */
-export function ThemeToggle() {
+/** Dark on/off. The choice is stored on this device and wins over the brand's default. */
+export function ThemeToggle({ asMenuItem = false }: { asMenuItem?: boolean }) {
   const { t } = useI18n();
-  const mode = useMode();
-  const dark = mode === "dark";
+  const dark = useMode() === "dark";
   return (
     <button
       type="button"
-      className="icon-btn"
+      className={asMenuItem ? "menu__item" : "icon-btn"}
       aria-pressed={dark}
       data-tour-id="theme-toggle"
       onClick={() => setPref(dark ? "light" : "dark")}
     >
-      <Icon
-        d={
-          dark
-            ? "M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"
-            : "M12 4V2M12 22v-2M4 12H2M22 12h-2M5.6 5.6 4.2 4.2M19.8 19.8l-1.4-1.4M5.6 18.4l-1.4 1.4M19.8 4.2l-1.4 1.4M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10Z"
-        }
-      />
-      <span className="sr-only">{t("theme.dark")}</span>
+      <Icon name={dark ? "moon" : "sun"} />
+      {asMenuItem ? (
+        <span>{t("theme.dark")}</span>
+      ) : (
+        <span className="sr-only">{t("theme.dark")}</span>
+      )}
+      {asMenuItem ? (
+        <span className="menu__state" aria-hidden="true">
+          {dark ? "ON" : "OFF"}
+        </span>
+      ) : null}
     </button>
   );
 }
 
 /* ── Navigation model ─────────────────────────────────────────────────────────────────────────────────────────
-   Thirty-odd destinations are grouped by the job a person is doing, not by the module that implements them.
-   Grouping is derived from the route path so new module routes land in a sensible group without edits here. */
+   The sidebar shows the console's top-level sections, as the client's design shows them. Every module page
+   still has a place: it is listed under the section its route belongs to, so nothing is hidden or lost. */
 
-type GroupId =
-  | "today"
-  | "people"
-  | "sales"
-  | "training"
-  | "loyalty"
-  | "admin"
-  | "me"
+type SectionId =
+  | "home"
+  | "members"
+  | "subs"
+  | "agenda"
+  | "pos"
+  | "store"
+  | "crm"
+  | "ai"
+  | "reports"
+  | "config"
+  | "help"
+  | "account"
   | "train"
+  | "coach"
   | "community"
   | "shop"
   | "more";
 
-const STAFF_ORDER: GroupId[] = ["today", "people", "sales", "training", "loyalty", "admin", "more"];
-const MEMBER_ORDER: GroupId[] = ["me", "train", "community", "shop", "more"];
+interface SectionDef {
+  id: SectionId;
+  icon: IconName;
+  match: RegExp;
+  badge?: boolean;
+}
 
-const RULES: ReadonlyArray<readonly [RegExp, GroupId]> = [
-  [/^\/staff\/(panel|check-in|schedule|appointments|inbox)(\/|$)/, "today"],
-  [/^\/staff\/(members|crm)(\/|$)/, "people"],
-  [/^\/staff\/(billing|store)(\/|$)/, "sales"],
-  [/^\/staff\/(health|floor|coach)(\/|$)/, "training"],
-  [/^\/staff\/engagement(\/|$)/, "loyalty"],
-  [/^\/staff\/(finance|reports|org|audit)(\/|$)/, "admin"],
-  [/^\/me\/(account|membership|credential|consents)(\/|$)/, "me"],
-  [/^\/me\/(classes|health|circuits|station|coach)(\/|$)/, "train"],
-  [/^\/me\/(points|challenges|wall|refer|redeem)(\/|$)/, "community"],
-  [/^\/me\/store(\/|$)/, "shop"],
+const STAFF_SECTIONS: SectionDef[] = [
+  { id: "home", icon: "home", match: /^\/staff\/(panel|today)(\/|$)/ },
+  { id: "members", icon: "users", match: /^\/staff\/(members|health)(\/|$)/ },
+  { id: "subs", icon: "doc", match: /^\/staff\/billing(\/|$)/ },
+  {
+    id: "agenda",
+    icon: "calendar",
+    match: /^\/staff\/(schedule|check-in|appointments|floor)(\/|$)/,
+  },
+  { id: "pos", icon: "card", match: /^\/staff\/store\/(pos|sales)(\/|$)/ },
+  { id: "store", icon: "bag", match: /^\/staff\/store(\/|$)/ },
+  { id: "crm", icon: "crm", match: /^\/staff\/(crm|inbox|engagement)(\/|$)/ },
+  { id: "ai", icon: "sparkle", match: /^\/staff\/ai(\/|$)/, badge: true },
+  { id: "reports", icon: "chart", match: /^\/staff\/(reports|finance|audit)(\/|$)/ },
+  { id: "config", icon: "gear", match: /^\/staff\/org(\/|$)/ },
+  { id: "more", icon: "star", match: /^\/staff\// },
 ];
+const MEMBER_SECTIONS: SectionDef[] = [
+  { id: "account", icon: "home", match: /^\/me\/(account|membership|credential|consents)(\/|$)/ },
+  { id: "train", icon: "dumbbell", match: /^\/me\/(classes|health|circuits|station)(\/|$)/ },
+  { id: "coach", icon: "sparkle", match: /^\/me\/coach(\/|$)/, badge: true },
+  { id: "community", icon: "star", match: /^\/me\/(points|challenges|wall|refer|redeem)(\/|$)/ },
+  { id: "shop", icon: "bag", match: /^\/me\/store(\/|$)/ },
+  { id: "more", icon: "star", match: /^\/me\// },
+];
+const HELP: SectionDef = { id: "help", icon: "academy", match: /^\/help(\/|$)/ };
 
-export function groupOf(path: string): GroupId {
-  for (const [re, g] of RULES) if (re.test(path)) return g;
-  return "more";
+export function sectionOf(path: string, member: boolean): SectionId {
+  if (HELP.match.test(path)) return "help";
+  const list = member ? MEMBER_SECTIONS : STAFF_SECTIONS;
+  return list.find((s) => s.match.test(path))?.id ?? "more";
 }
 
 interface Item {
   to: string;
   label: string;
-  group: GroupId;
 }
 
 function useNavItems(): Item[] {
@@ -121,88 +153,258 @@ function useNavItems(): Item[] {
         .filter((n) => allows(n.audience, role))
         .map((n) => ({ to: n.to, label: n.label[lang] })),
     );
-    // Within a group the overview comes first, then registry order.
-    const first = ["/staff/panel", "/staff/check-in", "/me/account"];
+    // Each section opens on its overview page first, then registry order.
+    const first = [
+      "/staff/panel",
+      "/staff/today",
+      "/staff/members",
+      "/staff/schedule",
+      "/me/account",
+      "/me/coach/today",
+    ];
     const rank = (to: string) => (first.includes(to) ? first.indexOf(to) : first.length);
     return [...core, ...mods]
-      .map((i, n) => ({ ...i, group: groupOf(i.to), n }))
+      .map((i, n) => ({ ...i, n }))
       .sort((a, b) => rank(a.to) - rank(b.to) || a.n - b.n)
       .map(({ n: _n, ...i }) => i);
   }, [role, t, lang]);
 }
 
-/* Small stroke icons (24-unit grid, 1.75 stroke) drawn for this console; one per group. */
-const ICONS: Record<GroupId, string> = {
-  today: "M4 13h4l2-6 4 12 2-6h4",
-  people:
-    "M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-6 10v-1a6 6 0 0 1 12 0v1M16 3.5a4 4 0 0 1 0 7.5M21 21v-1a6 6 0 0 0-3.5-5.4",
-  sales: "M3 7h18v12H3zM3 11h18M7 15h4",
-  training: "M6.5 6.5v11M17.5 6.5v11M3 9.5v5M21 9.5v5M6.5 12h11",
-  loyalty: "m12 3 2.8 5.7 6.2.9-4.5 4.4 1 6.2L12 17.3 6.5 20.2l1-6.2L3 9.6l6.2-.9L12 3Z",
-  admin: "M4 20V10M10 20V4M16 20v-7M22 20H2",
-  me: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-8 9v-1a8 8 0 0 1 16 0v1",
-  train: "M6.5 6.5v11M17.5 6.5v11M3 9.5v5M21 9.5v5M6.5 12h11",
-  community: "M21 12a8 8 0 0 1-11.8 7L3 21l2-6.2A8 8 0 1 1 21 12Z",
-  shop: "M5 8h14l-1 12H6L5 8Zm4 0V6a3 3 0 0 1 6 0v2",
-  more: "M5 12h.01M12 12h.01M19 12h.01",
-};
+/** Member quick bar (phones): the four places a member goes most, plus the full menu. */
+const MEMBER_TABS: ReadonlyArray<readonly [string, IconName]> = [
+  ["/me/account", "home"],
+  ["/me/classes", "calendar"],
+  ["/me/credential", "qr"],
+  ["/me/coach/today", "sparkle"],
+];
 
-export function Icon({ d, size = 20 }: { d: string; size?: number }) {
+function initialsOf(name: string): string {
+  return name
+    .split(/\s+/)
+    .map((w) => w[0] ?? "")
+    .slice(0, 2)
+    .join("");
+}
+
+/* ── Header pieces ── */
+
+function LocationPicker({ id }: { id: string }) {
+  const { t } = useI18n();
+  const api = useApi();
+  const value = useLocationId();
+  const locs = useAsync(() => api.locations(), [api]);
+  const list = locs.data?.data ?? [];
+  // A remembered location the caller can no longer see falls back to "all".
+  useEffect(() => {
+    if (value && locs.data && !locs.data.data.some((l) => l.id === value)) setLocation("");
+  }, [value, locs.data]);
+  if (list.length === 0) return null;
   return (
-    <svg
-      className="icon"
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.75"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      focusable="false"
-    >
-      <path d={d} />
-    </svg>
+    <label className="loc-pill" htmlFor={id}>
+      <Icon name="dumbbell" className="loc-pill__icon" />
+      <span className="sr-only">{t("header.location")}</span>
+      <select
+        id={id}
+        value={value}
+        onChange={(e) => setLocation(e.target.value)}
+        data-tour-id="header-location"
+      >
+        {list.length > 1 ? <option value="">{t("header.allLocations")}</option> : null}
+        {list.map((l) => (
+          <option key={l.id} value={l.id}>
+            {l.name}
+          </option>
+        ))}
+      </select>
+      <Icon name="chevronDown" className="loc-pill__chev" size={18} />
+    </label>
   );
 }
 
-/** Member quick bar (phones): the four places a member goes most, plus the full menu. */
-const MEMBER_TABS: ReadonlyArray<readonly [string, string]> = [
-  ["/me/account", ICONS.me],
-  ["/me/classes", "M4 6h16v14H4zM4 10h16M9 3v4M15 3v4"],
-  [
-    "/me/credential",
-    "M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h2v2h-2zM18 18h2v2h-2zM14 18h2M18 14h2",
-  ],
-  ["/me/circuits", ICONS.train],
-];
+function usePopover() {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+  return { open, setOpen, ref };
+}
+
+interface DashLite {
+  overdue_members?: number;
+  expiring_credits_7d?: number;
+  expiring_passes_7d?: number;
+  expiring_memberships_7d?: number;
+  low_stock_products?: number;
+}
+
+/** Alerts derived from the owner/manager dashboard read model; other roles get no bell. */
+function AlertsBell() {
+  const { t } = useI18n();
+  const api = useApi();
+  const loc = useLocationId();
+  const pop = usePopover();
+  const dash = useAsync(
+    () =>
+      api.request<DashLite>(
+        "GET",
+        `/reports/dashboard${loc ? `?location_id=${encodeURIComponent(loc)}` : ""}`,
+      ),
+    [api, loc],
+  );
+  const d = dash.data;
+  const expiring =
+    (d?.expiring_credits_7d ?? 0) +
+    (d?.expiring_passes_7d ?? 0) +
+    (d?.expiring_memberships_7d ?? 0);
+  const alerts: Array<{ key: string; text: string; to: string }> = [];
+  if (d?.overdue_members)
+    alerts.push({
+      key: "overdue",
+      text: t("alerts.overdue", { n: String(d.overdue_members) }),
+      to: "/staff/panel#rpt-overdue",
+    });
+  if (expiring)
+    alerts.push({
+      key: "expiring",
+      text: t("alerts.expiring", { n: String(expiring) }),
+      to: "/staff/panel#rpt-expiring",
+    });
+  if (d?.low_stock_products)
+    alerts.push({
+      key: "stock",
+      text: t("alerts.lowStock", { n: String(d.low_stock_products) }),
+      to: "/staff/store/inventory",
+    });
+  return (
+    <div className="pop" ref={pop.ref}>
+      <button
+        type="button"
+        className="hdr-icon"
+        aria-expanded={pop.open}
+        onClick={() => pop.setOpen(!pop.open)}
+        data-tour-id="alerts-bell"
+      >
+        <Icon name="bell" size={24} />
+        {alerts.length ? <span className="hdr-icon__dot" aria-hidden="true" /> : null}
+        <span className="sr-only">
+          {t("alerts.title")}
+          {alerts.length ? ` (${alerts.length})` : ""}
+        </span>
+      </button>
+      {pop.open ? (
+        <dialog open className="pop__panel" aria-label={t("alerts.title")}>
+          <p className="pop__title">{t("alerts.title")}</p>
+          {alerts.length === 0 ? (
+            <p className="pop__empty">{t("alerts.none")}</p>
+          ) : (
+            <ul className="pop__list">
+              {alerts.map((a) => (
+                <li key={a.key}>
+                  <Link to={a.to} onClick={() => pop.setOpen(false)}>
+                    {a.text}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </dialog>
+      ) : null}
+    </div>
+  );
+}
+
+function AccountMenu({ name, role }: { name: string; role: string }) {
+  const { t } = useI18n();
+  const { logout } = useSession();
+  const pop = usePopover();
+  return (
+    <div className="pop" ref={pop.ref}>
+      <button
+        type="button"
+        className="avatar-btn"
+        aria-expanded={pop.open}
+        onClick={() => pop.setOpen(!pop.open)}
+        data-tour-id="account-menu"
+      >
+        <span className="avatar avatar--lg" aria-hidden="true">
+          {initialsOf(name)}
+        </span>
+        <span className="sr-only">
+          {t("header.account")}: {name}, {role}
+        </span>
+        <Icon name="chevronDown" size={18} />
+      </button>
+      {pop.open ? (
+        <dialog open className="pop__panel pop__panel--menu" aria-label={t("header.account")}>
+          <p className="pop__who">
+            <strong>{name}</strong>
+            <span>{role}</span>
+          </p>
+          <ThemeToggle asMenuItem />
+          <button
+            type="button"
+            className="menu__item"
+            data-tour-id="persona-switch"
+            onClick={logout}
+          >
+            <Icon name="logout" />
+            <span>{t("session.switch")}</span>
+          </button>
+        </dialog>
+      ) : null}
+    </div>
+  );
+}
+
+/* ── Shell ── */
 
 export function Layout({ children }: { children: ReactNode }) {
   const { t, tv, lang } = useI18n();
-  const { persona, role, logout } = useSession();
+  const { persona, role } = useSession();
   const items = useNavItems();
   const brand = useBrandTheme();
   const location = useLocation();
   const [open, setOpen] = useState(false);
+  const [expanded, setExpanded] = useState<SectionId | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const toggleRef = useRef<HTMLButtonElement>(null);
   const member = isMemberRole(role);
+  const staff = Boolean(role) && !member;
   const tagline = brand
     ? lang === "en"
       ? brand.theme.tagline_en
       : brand.theme.tagline_es
     : undefined;
 
-  const groups = useMemo(() => {
-    const order = member ? MEMBER_ORDER : STAFF_ORDER;
-    return order
-      .map((g) => ({ id: g, items: items.filter((i) => i.group === g) }))
-      .filter((g) => g.items.length > 0);
+  useEffect(() => {
+    setLocationScope(persona?.org);
+  }, [persona?.org]);
+
+  const current = sectionOf(location.pathname, member);
+  const sections = useMemo(() => {
+    const defs = [...(member ? MEMBER_SECTIONS : STAFF_SECTIONS), HELP];
+    return defs
+      .map((s) => ({ ...s, items: items.filter((i) => sectionOf(i.to, member) === s.id) }))
+      .filter((s) => s.items.length > 0);
   }, [items, member]);
+  const mainSections = sections.filter((s) => s.id !== "help");
+  const helpSection = sections.find((s) => s.id === "help");
   const tabs = member
-    ? MEMBER_TABS.map(([to, d]) => ({ d, item: items.find((i) => i.to === to) })).filter(
-        (x): x is { d: string; item: Item } => Boolean(x.item),
+    ? MEMBER_TABS.map(([to, icon]) => ({ icon, item: items.find((i) => i.to === to) })).filter(
+        (x): x is { icon: IconName; item: Item } => Boolean(x.item),
       )
     : [];
 
@@ -211,13 +413,13 @@ export function Layout({ children }: { children: ReactNode }) {
     if (restoreFocus) toggleRef.current?.focus();
   }, []);
 
-  // Close the drawer whenever the route changes.
+  // Route change: close the drawer and fold any section the person opened by hand.
   // biome-ignore lint/correctness/useExhaustiveDependencies: route change is the trigger
   useEffect(() => {
     setOpen(false);
+    setExpanded(null);
   }, [location.pathname]);
 
-  // While the drawer is open: Escape closes it, focus moves into it, the page behind is inert.
   useEffect(() => {
     if (!open) return;
     const behind = document.querySelectorAll<HTMLElement>("[data-inert-when-nav]");
@@ -233,16 +435,13 @@ export function Layout({ children }: { children: ReactNode }) {
     };
   }, [open, close]);
 
-  const brandBlock = brand?.theme.logo_url ? (
-    <span className="brandmark">
-      <img
-        className="brandmark__logo"
-        src={brand.theme.logo_url}
-        alt={brand.theme.logo_alt ?? brand.name}
-        height={32}
-      />
-      {tagline ? <span className="brandmark__tagline">{tagline}</span> : null}
-    </span>
+  const logo = brand?.theme.logo_url ? (
+    <img
+      className="brandmark__logo"
+      src={brand.theme.logo_url}
+      alt={brand.theme.logo_alt ?? brand.name}
+      height={44}
+    />
   ) : (
     <span className="wordmark">{brand?.name ?? t("app.name")}</span>
   );
@@ -250,64 +449,138 @@ export function Layout({ children }: { children: ReactNode }) {
   const roleLabel = persona
     ? tv("role", String(role ?? persona.role), t("role.unknown", { role: String(role) }))
     : "";
-  const initials = persona
-    ? persona.display_name
-        .split(/\s+/)
-        .map((w) => w[0])
-        .slice(0, 2)
-        .join("")
-    : "";
-  const hasNav = groups.length > 0;
+  const hasNav = sections.length > 0;
+  const targets = useMemo(() => new Set(items.map((i) => i.to)), [items]);
+
+  const renderSection = (s: (typeof sections)[number]) => {
+    const active = s.id === current;
+    const show = active || expanded === s.id;
+    const subId = `nav-sub-${s.id}`;
+    const first = s.items[0] as Item;
+    const label = t(`nav.sec.${s.id}` as MessageKey);
+    return (
+      <li key={s.id} className={`navsec${active ? " is-active" : ""}`}>
+        <div className="navsec__row">
+          <Link
+            className="navsec__link"
+            to={first.to}
+            aria-current={active && first.to === location.pathname ? "page" : undefined}
+          >
+            <Icon name={s.icon} size={22} />
+            <span className="navsec__label">{label}</span>
+            {s.items.length === 1 && first.label !== label ? (
+              <span className="sr-only">: {first.label}</span>
+            ) : null}
+            {s.badge ? <span className="navsec__badge">IA</span> : null}
+          </Link>
+          {s.items.length > 1 ? (
+            <button
+              type="button"
+              className="navsec__toggle"
+              aria-expanded={show}
+              aria-controls={subId}
+              onClick={() => setExpanded(show && !active ? null : s.id)}
+            >
+              <Icon name="chevronDown" size={16} />
+              <span className="sr-only">{t("nav.expand", { section: label })}</span>
+            </button>
+          ) : null}
+        </div>
+        {s.items.length > 1 ? (
+          <ul className="navsec__sub" id={subId} hidden={!show}>
+            {s.items.map((item) => (
+              <li key={item.to}>
+                <NavLink className="nav__link" to={item.to} end>
+                  {item.label}
+                </NavLink>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </li>
+    );
+  };
 
   return (
-    <div className={`shell${hasNav ? " shell--nav" : ""}${member ? " shell--member" : ""}`}>
+    <div
+      className={`shell${hasNav ? " shell--nav" : ""}${member ? " shell--member" : ""}${staff ? " shell--staff" : ""}`}
+    >
       <a className="skip-link" href="#main">
         {t("app.skip")}
       </a>
       <DemoBanner />
+      <header className="topbar" data-inert-when-nav="">
+        <div className="topbar__brand">
+          {hasNav ? (
+            <button
+              ref={member ? undefined : toggleRef}
+              type="button"
+              className="topbar__menu"
+              aria-expanded={open}
+              aria-controls="appnav-panel"
+              onClick={() => setOpen(true)}
+            >
+              <Icon name="menu" size={22} />
+              <span className="sr-only">{t("nav.menu")}</span>
+            </button>
+          ) : null}
+          <span className="brandmark">{logo}</span>
+          {staff ? (
+            <span className="topbar__product">
+              {t("header.product")} <em>{t("header.productAccent")}</em>
+            </span>
+          ) : tagline ? (
+            <span className="brandmark__tagline">{tagline}</span>
+          ) : null}
+        </div>
+        <div className="topbar__tools">
+          {staff ? <LocationPicker id="hdr-location" /> : null}
+          <LangToggle />
+          {role === "owner" || role === "location_manager" ? <AlertsBell /> : null}
+          {persona ? <AccountMenu name={persona.display_name} role={roleLabel} /> : <ThemeToggle />}
+        </div>
+      </header>
       <div className="frame">
         {hasNav ? (
           <nav className="appnav" aria-label={t("nav.label")} data-open={open ? "true" : "false"}>
             {/* biome-ignore lint/a11y/useKeyWithClickEvents: pointer-only scrim; keyboard users close with Escape or the close button */}
             <div className="appnav__backdrop" aria-hidden="true" onClick={() => close(false)} />
             <div className="appnav__panel" id="appnav-panel" ref={panelRef}>
-              <div className="appnav__brand">
-                {brandBlock}
+              <div className="appnav__drawerhead">
+                <span className="brandmark">{logo}</span>
                 <button
                   type="button"
                   className="appnav__close"
                   aria-label={t("nav.close")}
                   onClick={() => close(true)}
                 >
-                  <Icon d="M6 6l12 12M18 6 6 18" />
+                  <Icon name="close" />
                 </button>
               </div>
-              <div className="appnav__groups">
-                {groups.map((g) => (
-                  <div key={g.id} className="navgroup">
-                    <span className="navgroup__title" id={`navgroup-${g.id}`}>
-                      <Icon d={ICONS[g.id]} size={16} />
-                      {t(`nav.group.${g.id}` as MessageKey)}
-                    </span>
-                    <ul className="navgroup__list" aria-labelledby={`navgroup-${g.id}`}>
-                      {g.items.map((item) => (
-                        <li key={item.to}>
-                          <NavLink className="nav__link" to={item.to}>
-                            {item.label}
-                          </NavLink>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ))}
-              </div>
-              {persona ? (
+              {staff ? (
+                <div className="appnav__loc">
+                  <LocationPicker id="drawer-location" />
+                </div>
+              ) : null}
+              <ul className="appnav__list">{mainSections.map(renderSection)}</ul>
+              {helpSection ? (
+                <ul className="appnav__list appnav__list--foot">{renderSection(helpSection)}</ul>
+              ) : null}
+              {staff ? (
+                <Link className="tenant-card" to="/staff/org">
+                  <Icon name="building" size={30} />
+                  <span className="tenant-card__text">
+                    <strong>{t("tenant.title")}</strong>
+                    <span>{t("tenant.sub")}</span>
+                  </span>
+                  <Icon name="chevronRight" size={18} />
+                </Link>
+              ) : persona ? (
                 <div className="appnav__who">
                   <span className="avatar" aria-hidden="true">
-                    {initials}
+                    {initialsOf(persona.display_name)}
                   </span>
                   <span className="appnav__who-text">
-                    <span className="sr-only">{t("session.as")} </span>
                     <span className="appnav__name">{persona.display_name}</span>
                     <span className="appnav__role">{roleLabel}</span>
                   </span>
@@ -316,10 +589,10 @@ export function Layout({ children }: { children: ReactNode }) {
             </div>
             {tabs.length ? (
               <ul className="tabbar" data-inert-when-nav="">
-                {tabs.map(({ d, item }) => (
+                {tabs.map(({ icon, item }) => (
                   <li key={item.to}>
                     <NavLink className="tabbar__link" to={item.to}>
-                      <Icon d={d} size={22} />
+                      <Icon name={icon} size={22} />
                       <span>{item.label}</span>
                     </NavLink>
                   </li>
@@ -333,7 +606,7 @@ export function Layout({ children }: { children: ReactNode }) {
                     aria-controls="appnav-panel"
                     onClick={() => setOpen(true)}
                   >
-                    <Icon d="M4 7h16M4 12h16M4 17h16" size={22} />
+                    <Icon name="menu" size={22} />
                     <span>{t("nav.menu")}</span>
                   </button>
                 </li>
@@ -342,47 +615,8 @@ export function Layout({ children }: { children: ReactNode }) {
           </nav>
         ) : null}
         <div className="workspace" data-inert-when-nav="">
-          <header className="topbar">
-            <div className="topbar__brand">
-              {hasNav && !member ? (
-                <button
-                  ref={member ? undefined : toggleRef}
-                  type="button"
-                  className="topbar__menu"
-                  aria-expanded={open}
-                  aria-controls="appnav-panel"
-                  onClick={() => setOpen(true)}
-                >
-                  <Icon d="M4 7h16M4 12h16M4 17h16" size={22} />
-                  <span className="sr-only">{t("nav.menu")}</span>
-                </button>
-              ) : null}
-              <span className={hasNav ? "topbar__logo" : undefined}>{brandBlock}</span>
-              {persona ? (
-                <span className="topbar__who">
-                  <span className="sr-only">{t("session.as")} </span>
-                  <span className="topbar__name">{persona.display_name}</span>
-                  <span className="topbar__role">{roleLabel}</span>
-                </span>
-              ) : null}
-            </div>
-            <div className="topbar__tools">
-              <ThemeToggle />
-              <LangToggle />
-              {persona ? (
-                <button
-                  type="button"
-                  className="btn btn--ghost topbar__switch"
-                  data-tour-id="persona-switch"
-                  onClick={logout}
-                >
-                  {t("session.switch")}
-                </button>
-              ) : null}
-            </div>
-          </header>
           <main id="main" className="main" tabIndex={-1}>
-            {children}
+            <NavTargets.Provider value={targets}>{children}</NavTargets.Provider>
           </main>
         </div>
       </div>

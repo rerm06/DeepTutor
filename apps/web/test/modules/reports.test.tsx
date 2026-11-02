@@ -174,9 +174,12 @@ function renderWith(role: string, ui: ReactNode, lang: "es" | "en" = "es") {
 describe("reports · Panel", () => {
   it("renders KPI rows in plain HTML with formatted numbers and links", async () => {
     renderWith("owner", <PanelScreen />);
-    expect(await screen.findByRole("heading", { level: 1, name: "Panel" })).toBeTruthy();
-    const kpis = await screen.findByText("Socios activos");
-    const box = kpis.closest(".rpt-kpi") as HTMLElement;
+    // The home greeting is the page heading (client design); the detailed KPI groups follow below.
+    expect(await screen.findByRole("heading", { level: 1, name: /^Hola, / })).toBeTruthy();
+    await screen.findAllByText("Socios activos");
+    const box = (await screen.findAllByText("Socios activos"))
+      .map((el) => el.closest(".rpt-kpi"))
+      .find(Boolean) as HTMLElement;
     expect(within(box).getByText("412")).toBeTruthy();
     expect(screen.getByText("Saldo vencido")).toBeTruthy();
     expect(screen.getByText(/\$33\.46/)).toBeTruthy();
@@ -246,8 +249,9 @@ describe("reports · Panel", () => {
 
   it("English copy", async () => {
     renderWith("owner", <PanelScreen />, "en");
-    expect(await screen.findByRole("heading", { level: 1, name: "Dashboard" })).toBeTruthy();
-    expect(await screen.findByText("Active members")).toBeTruthy();
+    expect(await screen.findByRole("heading", { level: 1, name: /^Hi, / })).toBeTruthy();
+    expect((await screen.findAllByText("Active members")).length).toBeGreaterThan(0);
+    expect(screen.getByText("Today's schedule")).toBeTruthy();
     expect(screen.getByText("Peak hour: Tuesday from 06:00 to 07:00 (12 check-ins).")).toBeTruthy();
   });
 });

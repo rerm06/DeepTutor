@@ -192,3 +192,140 @@ describe("brand dark mode", () => {
     expect(root.style.getPropertyValue("--accent")).toBe("");
   });
 });
+
+import { NavTargets } from "../../src/lib/navTargets";
+import {
+  HomeKpis,
+  QuickActions,
+  TodayAgenda,
+  classThumb,
+  clock,
+} from "../../src/modules/reports/Home";
+import type { Today } from "../../src/modules/reports/api";
+
+const ok = <T,>(data: T) => ({ data, error: null, loading: false, reload: () => undefined });
+
+describe("home (client design)", () => {
+  function wrap(ui: React.ReactNode, targets: string[] = []) {
+    render(
+      <I18nProvider lang="es">
+        <MemoryRouter future={ROUTER_FUTURE}>
+          <NavTargets.Provider value={new Set(targets)}>{ui}</NavTargets.Provider>
+        </MemoryRouter>
+      </I18nProvider>,
+    );
+  }
+  const today: Today = {
+    check_ins_today: 3,
+    check_ins_members_today: 3,
+    check_ins_denied_today: 0,
+    overdue_members: 0,
+    overdue_invoices: 0,
+    classes_today: [
+      {
+        session_id: "b",
+        location_id: "l",
+        class_name: "Spinning",
+        room: "Cardio",
+        starts_at: "2026-11-02T11:00:00Z",
+        ends_at: "2026-11-02T12:00:00Z",
+        capacity: 25,
+        booked: 20,
+        waitlisted: 0,
+      },
+      {
+        session_id: "a",
+        location_id: "l",
+        class_name: "HIIT",
+        room: "Sala Principal",
+        starts_at: "2026-11-02T10:00:00Z",
+        ends_at: "2026-11-02T11:00:00Z",
+        capacity: 30,
+        booked: 24,
+        waitlisted: 0,
+      },
+      {
+        session_id: "c",
+        location_id: "l",
+        class_name: "Boxeo",
+        room: null,
+        starts_at: "2026-11-02T12:00:00Z",
+        ends_at: "2026-11-02T13:00:00Z",
+        capacity: 20,
+        booked: 15,
+        waitlisted: 0,
+      },
+      {
+        session_id: "d",
+        location_id: "l",
+        class_name: "Late",
+        room: null,
+        starts_at: "2026-11-02T23:00:00Z",
+        ends_at: "2026-11-02T23:30:00Z",
+        capacity: 10,
+        booked: 1,
+        waitlisted: 0,
+      },
+    ],
+  };
+
+  it("KPI cards: % for members and revenue, absolute for classes, points for renewals", () => {
+    const withMore = {
+      ...EXEC,
+      kpis: {
+        ...EXEC.kpis,
+        classes_today: { value: 18, prev: 16, series: [] },
+        renewal_rate_pct: { value: 94, prev: 90.9, series: [] },
+      },
+    };
+    // biome-ignore lint/suspicious/noExplicitAny: test doubles for the async state shape
+    wrap(<HomeKpis exec={ok(withMore) as any} today={ok(today) as any} />);
+    const card = (label: string) =>
+      (screen.getByText(label).closest(".home-kpi") as HTMLElement).textContent ?? "";
+    expect(card("Socios activos")).toContain("212");
+    expect(card("Socios activos")).toContain("+3.4%");
+    expect(card("Clases hoy")).toContain("18");
+    expect(card("Clases hoy")).toContain("+2");
+    expect(card("Ingresos (mes)")).toContain("$33,500");
+    expect(card("Renovaciones")).toContain("94%");
+    expect(card("Renovaciones")).toContain("+3.1 pp");
+  });
+
+  it("without the new KPIs it shows — instead of inventing numbers, and counts today's classes", () => {
+    // biome-ignore lint/suspicious/noExplicitAny: test doubles for the async state shape
+    wrap(<HomeKpis exec={ok(EXEC) as any} today={ok(today) as any} />);
+    const renew = screen.getByText("Renovaciones").closest(".home-kpi") as HTMLElement;
+    expect(renew.textContent).toContain("—");
+    expect(renew.textContent).not.toContain("pp");
+    const classes = screen.getByText("Clases hoy").closest(".home-kpi") as HTMLElement;
+    expect(classes.textContent).toContain("4");
+  });
+
+  it("agenda lists the first three classes in time order with occupancy", () => {
+    // biome-ignore lint/suspicious/noExplicitAny: test doubles for the async state shape
+    wrap(<TodayAgenda today={ok(today) as any} />);
+    const rows = document.querySelectorAll(".agenda-row");
+    expect(rows).toHaveLength(3);
+    expect(rows[0]?.textContent).toContain("HIIT");
+    expect(rows[0]?.textContent).toContain("6:00 am");
+    expect(rows[0]?.textContent).toContain("24 / 30");
+    expect(rows[2]?.querySelector("img")).toBeNull(); // no photo for "Boxeo": icon tile, not a wrong picture
+  });
+
+  it("quick actions only link to pages the role can open", () => {
+    wrap(<QuickActions />, ["/staff/members", "/help"]);
+    const nav = screen.getByRole("navigation", { name: "Accesos rápidos" });
+    expect(
+      within(nav)
+        .getAllByRole("link")
+        .map((a) => a.textContent),
+    ).toEqual(["Nuevo socio", "Academia"]);
+  });
+
+  it("helpers", () => {
+    expect(classThumb("HIIT Express")).toBe("/brand/class-hiit.jpg");
+    expect(classThumb("Yoga Flow")).toBe("/brand/class-movilidad.jpg");
+    expect(classThumb("Boxeo")).toBeNull();
+    expect(clock("2026-11-02T16:30:00Z")).toBe("12:30 pm");
+  });
+});

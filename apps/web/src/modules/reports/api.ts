@@ -154,6 +154,10 @@ export interface Executive {
     active_members: ExecKpi;
     net_profit_month_cents: ExecKpi;
     checkins_today: ExecKpi;
+    /** Class sessions scheduled today; prev = same weekday last week. */
+    classes_today?: ExecKpi;
+    /** Repurchase rate (pay-per-session "renewals"), %, null when nobody ran out in the window. */
+    renewal_rate_pct?: { value: number | null; prev: number | null; series: Array<number | null> };
   };
   revenue_vs_expenses: Array<{ month: string; revenue_cents: number; expenses_cents: number }>;
   new_members: Array<{ month: string; joins: number; cancellations: number }>;

@@ -1,9 +1,11 @@
 import { useId, useMemo, useState } from "react";
 import { ErrorNote, Loading, Section, TableWrap } from "../../components/ui";
 import { formatDateTime } from "../../lib/format";
+import { useLocationId } from "../../lib/location";
 import { useAsync } from "../../lib/useAsync";
 import { useSession } from "../../session/SessionContext";
 import { ExecutiveOverview } from "./Executive";
+import { AgentPromo, HomeHero, HomeKpis, QuickActions, TodayAgenda } from "./Home";
 import { type Dashboard, count, money, pct, reportsApi } from "./api";
 import {
   CsvButton,
@@ -11,7 +13,6 @@ import {
   Heatmap,
   Kpi,
   KpiGroup,
-  LocationSelect,
   OverdueTable,
   PrintButton,
   QuickCheckIn,
@@ -25,9 +26,10 @@ import "./reports.css";
  */
 export function PanelScreen() {
   const { t, lang } = useReportsT();
-  const { api } = useSession();
+  const { api, persona } = useSession();
   const rpt = useMemo(() => reportsApi(api), [api]);
-  const [loc, setLoc] = useState("");
+  // The location comes from the picker in the top bar (shared across screens).
+  const loc = useLocationId();
   const [weeks, setWeeks] = useState<4 | 8>(4);
   const locId = loc || undefined;
   const locations = useAsync(() => api.locations(), [api]);
@@ -35,21 +37,27 @@ export function PanelScreen() {
   const overdue = useAsync(() => rpt.overdue(locId), [rpt, locId]);
   const expiring = useAsync(() => rpt.expiring(locId, 7), [rpt, locId]);
   const heat = useAsync(() => rpt.heatmap(locId, weeks), [rpt, locId, weeks]);
+  const exec = useAsync(() => rpt.executive(locId), [rpt, locId]);
+  const today = useAsync(() => rpt.today(locId), [rpt, locId]);
+  const firstName = (persona?.display_name ?? "").split(/\s+/)[0] ?? "";
   const locs = locations.data?.data ?? [];
   const weeksName = useId();
 
   return (
-    <div className="page rpt rpt-print">
-      <div className="page__head">
-        <h1 className="page__title">{t("panel.title")}</h1>
+    <div className="page rpt rpt-print home">
+      <HomeHero name={firstName} />
+      <HomeKpis exec={exec} today={today} />
+      <div className="home-row">
+        <TodayAgenda today={today} />
+        <AgentPromo />
+      </div>
+      <QuickActions />
+
+      <div className="page__head rpt-noprint">
+        <span />
         <PrintButton />
       </div>
-      <p className="lede">{t("panel.lede")}</p>
-      <div className="toolbar rpt-noprint">
-        <LocationSelect locations={locs} value={loc} onChange={setLoc} tourId="rpt-location" />
-      </div>
-
-      <ExecutiveOverview locationId={locId} />
+      <ExecutiveOverview locationId={locId} showKpis={false} source={exec} />
 
       <h2 className="exec__title exec__title--section">{t("exec.ops")}</h2>
       <QuickCheckIn locations={locs} locationId={loc} />

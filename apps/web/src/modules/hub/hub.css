@@ -1,0 +1,83 @@
+/* Hub pages (AI agents, help). */
+.hub-list,
+.hub-guides {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+.hub-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: start;
+  padding: 18px 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.hub-card__icon {
+  display: inline-grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  color: var(--accent-fg);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+.hub-card__title,
+.hub-guide__title {
+  font-size: 1.0625rem;
+  margin-bottom: 4px;
+}
+.hub-card__body p {
+  margin: 0 0 4px;
+  max-width: 70ch;
+}
+.hub-card__side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+}
+@media (max-width: 640px) {
+  .hub-card {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .hub-card__side {
+    grid-column: 1 / -1;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+  }
+}
+.hub-guides {
+  counter-reset: guide;
+}
+.hub-guide {
+  counter-increment: guide;
+  position: relative;
+  padding: 16px 20px 16px 64px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.hub-guide::before {
+  content: counter(guide);
+  position: absolute;
+  left: 20px;
+  top: 16px;
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-text);
+  font-weight: 700;
+}
+.hub-guide p {
+  margin: 0;
+  max-width: 72ch;
+}

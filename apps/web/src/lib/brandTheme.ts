@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import type { Brand, BrandTheme } from "../api/types";
 import { useApi, useSession } from "../session/SessionContext";
 import { type Mode, setBrandMode, useMode } from "./themeMode";
@@ -41,6 +41,8 @@ export function sanitizeTheme(theme: BrandTheme | null | undefined): BrandTheme 
   if (!theme) return out;
   if (theme.logo_url && SAFE_PATH.test(theme.logo_url)) out.logo_url = theme.logo_url;
   if (theme.icon_url && SAFE_PATH.test(theme.icon_url)) out.icon_url = theme.icon_url;
+  if (theme.hero_url && SAFE_PATH.test(theme.hero_url)) out.hero_url = theme.hero_url;
+  if (theme.promo_url && SAFE_PATH.test(theme.promo_url)) out.promo_url = theme.promo_url;
   if (theme.logo_alt) out.logo_alt = theme.logo_alt.slice(0, 80);
   if (theme.tagline_es) out.tagline_es = theme.tagline_es.slice(0, 120);
   if (theme.tagline_en) out.tagline_en = theme.tagline_en.slice(0, 120);
@@ -105,6 +107,24 @@ export function applyTheme(
   };
 }
 
+/* The brand loaded by the shell, readable anywhere (home hero, agent card) without fetching it twice. */
+let currentBrand: Brand | null = null;
+const brandListeners = new Set<() => void>();
+function publishBrand(b: Brand | null): void {
+  currentBrand = b;
+  for (const l of brandListeners) l();
+}
+export function useCurrentBrand(): Brand | null {
+  return useSyncExternalStore(
+    (cb) => {
+      brandListeners.add(cb);
+      return () => brandListeners.delete(cb);
+    },
+    () => currentBrand,
+    () => null,
+  );
+}
+
 /** Loads the signed-in organisation's first brand and applies its theme for the session's lifetime. */
 export function useBrandTheme(): Brand | null {
   const api = useApi();
@@ -114,6 +134,7 @@ export function useBrandTheme(): Brand | null {
   useEffect(() => {
     if (!persona) {
       setBrand(null);
+      publishBrand(null);
       setBrandMode(undefined);
       return;
     }
@@ -127,6 +148,7 @@ export function useBrandTheme(): Brand | null {
         const theme = sanitizeTheme(b.theme);
         setBrandMode(theme.mode);
         setBrand({ ...b, theme });
+        publishBrand({ ...b, theme });
       })
       .catch(() => setBrand(null));
     return () => {

@@ -90,11 +90,25 @@ function KpiTile({
   );
 }
 
-export function ExecutiveOverview({ locationId }: { locationId?: string }) {
+export function ExecutiveOverview({
+  locationId,
+  showKpis = true,
+  source,
+}: {
+  locationId?: string;
+  /** Already-loaded data (the home screen fetches it once for its KPI cards and the charts). */
+  source?: ReturnType<typeof useAsync<Exec>>;
+  /** The home screen shows its own KPI cards above, so it renders the charts only. */
+  showKpis?: boolean;
+}) {
   const { t, lang } = useReportsT();
   const { api } = useSession();
   const rpt = useMemo(() => reportsApi(api), [api]);
-  const ex = useAsync(() => rpt.executive(locationId), [rpt, locationId]);
+  const own = useAsync(
+    () => (source ? Promise.resolve(null) : rpt.executive(locationId)),
+    [rpt, locationId, Boolean(source)],
+  );
+  const ex = source ?? own;
   return (
     <section className="exec" aria-labelledby="exec-title" data-tour-id="exec-overview">
       <div className="exec__head">
@@ -105,7 +119,7 @@ export function ExecutiveOverview({ locationId }: { locationId?: string }) {
       </div>
       {ex.error ? <ErrorNote code={ex.error} onRetry={ex.reload} /> : null}
       {ex.loading && !ex.data ? <ExecSkeleton /> : null}
-      {ex.data ? <ExecBody d={ex.data} lang={lang} /> : null}
+      {ex.data ? <ExecBody d={ex.data} lang={lang} showKpis={showKpis} /> : null}
     </section>
   );
 }
@@ -120,7 +134,7 @@ function ExecSkeleton() {
   );
 }
 
-function ExecBody({ d, lang }: { d: Exec; lang: Lang }) {
+function ExecBody({ d, lang, showKpis }: { d: Exec; lang: Lang; showKpis: boolean }) {
   const { t } = useReportsT();
   const months = d.months.map((m, i) => monthLabel(m, lang, i === 0));
   const money = (c: number) => moneyWhole(c, lang);
@@ -172,36 +186,38 @@ function ExecBody({ d, lang }: { d: Exec; lang: Lang }) {
 
   return (
     <>
-      <dl className="exec-kpis">
-        <KpiTile
-          label={t("exec.kpi.revenue")}
-          k={k.revenue_month_cents}
-          value={money(k.revenue_month_cents.value)}
-          vs={t("exec.vsMonth")}
-          tourId="exec-kpi-revenue"
-        />
-        <KpiTile
-          label={t("exec.kpi.active")}
-          k={k.active_members}
-          value={n(k.active_members.value)}
-          vs={t("exec.vsMonth")}
-          tourId="exec-kpi-active"
-        />
-        <KpiTile
-          label={t("exec.kpi.profit")}
-          k={k.net_profit_month_cents}
-          value={money(k.net_profit_month_cents.value)}
-          vs={t("exec.vsMonth")}
-          tourId="exec-kpi-profit"
-        />
-        <KpiTile
-          label={t("exec.kpi.checkins")}
-          k={k.checkins_today}
-          value={n(k.checkins_today.value)}
-          vs={t("exec.vsWeek")}
-          tourId="exec-kpi-checkins"
-        />
-      </dl>
+      {showKpis ? (
+        <dl className="exec-kpis">
+          <KpiTile
+            label={t("exec.kpi.revenue")}
+            k={k.revenue_month_cents}
+            value={money(k.revenue_month_cents.value)}
+            vs={t("exec.vsMonth")}
+            tourId="exec-kpi-revenue"
+          />
+          <KpiTile
+            label={t("exec.kpi.active")}
+            k={k.active_members}
+            value={n(k.active_members.value)}
+            vs={t("exec.vsMonth")}
+            tourId="exec-kpi-active"
+          />
+          <KpiTile
+            label={t("exec.kpi.profit")}
+            k={k.net_profit_month_cents}
+            value={money(k.net_profit_month_cents.value)}
+            vs={t("exec.vsMonth")}
+            tourId="exec-kpi-profit"
+          />
+          <KpiTile
+            label={t("exec.kpi.checkins")}
+            k={k.checkins_today}
+            value={n(k.checkins_today.value)}
+            vs={t("exec.vsWeek")}
+            tourId="exec-kpi-checkins"
+          />
+        </dl>
+      ) : null}
 
       {!hasHistory ? <p className="muted">{t("exec.empty")}</p> : null}
 

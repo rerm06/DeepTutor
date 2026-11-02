@@ -65,6 +65,8 @@ describe("brand colour mode (0020)", () => {
     `{"mode":1}`,
     `{"mode":"dark; x"}`,
     `{"colors":{"accent_dark":"gold"}}`,
+    `{"hero_url":"https://evil.invalid/x.jpg"}`,
+    `{"promo_url":"/brand/../x.jpg"}`,
   ])("rejects %s", async (theme) => {
     await asCaller(t.api, t.claims(t.fx.A, "owner"), async (tx) => {
       await expect(
