@@ -5,6 +5,9 @@ cd "$(dirname "$0")/.."
 echo "== secrets scan"; ! git grep --untracked -nE '(sk_live_|rk_live_|whsec_[A-Za-z0-9]{20,}|-----BEGIN [A-Z ]*PRIVATE KEY)' -- . ':!scripts/gate.sh'
 echo "== forbidden terms (spec §6.7: AI is never a 'nutricionista')"; ! git grep --untracked -niE 'agente nutricionista|ai nutritionist|nutricionista (virtual|ia|con ia)' -- 'apps' 'packages' 'services' 2>/dev/null
 echo "== netlify migrations mirror"; bash scripts/sync-netlify-migrations.sh --check
+# Migrations already applied in production can never change (Netlify rejects drift). Append a line here after each
+# successful deploy that applies new migrations.
+echo "== applied migrations unchanged"; (cd netlify/database/migrations && sha256sum --quiet -c ../applied-migrations.sha256)
 echo "== lint"; pnpm -s lint
 echo "== build"; pnpm -r --reporter=append-only build && node scripts/bundle-function.mjs
 echo "== typecheck"; pnpm -s typecheck

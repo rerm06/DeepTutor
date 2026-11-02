@@ -122,10 +122,7 @@ REVOKE ALL ON ALL TABLES IN SCHEMA app_private FROM PUBLIC;
 GRANT USAGE ON SCHEMA app TO app_authenticated;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA app TO app_authenticated;
 
--- organization.saas_plan is not readable by request traffic (it reveals the platform fee); staff read it through
--- app.org_saas_plan() (migration 0017). Security review (money modules) L6.
-GRANT SELECT (id, name, created_at) ON app.organization TO app_authenticated;
-GRANT SELECT ON app.legal_entity, app.brand, app.location, app.member,
+GRANT SELECT ON app.organization, app.legal_entity, app.brand, app.location, app.member,
   app.staff_member, app.staff_location, app.guardian_link, app.audit_log TO app_authenticated;
 GRANT SELECT (id, email) ON app.person TO app_authenticated;  -- not created_at: it would hint prior registration
 

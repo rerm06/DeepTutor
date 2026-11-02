@@ -1,6 +1,12 @@
 -- Security hardening after the independent review of the money modules (billing, store, engagement).
--- Most fixes live next to the code they fix (marked "Security review" in 0002/0006/0009/0012); this file adds the
--- pieces that are new objects.
+-- Fixes to module migrations that were never deployed live next to the code they fix (marked "Security review" in
+-- 0006/0009/0012/0013/0007). Migrations 0000-0005 are already applied in production and are never edited: their
+-- fixes go here as forward changes.
+
+-- L6 (0002 is applied): request traffic loses table-wide SELECT on organization and keeps only these columns, so
+-- organization.saas_plan (the platform fee rate) is not readable through RLS'd queries.
+REVOKE SELECT ON app.organization FROM app_authenticated;
+GRANT SELECT (id, name, created_at) ON app.organization TO app_authenticated;
 
 -- L6: organization.saas_plan is not a readable column for request traffic (it reveals the platform fee rate).
 -- Staff read the plan through this function; members and guardians get NULL.
