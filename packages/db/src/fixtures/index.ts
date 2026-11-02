@@ -7,6 +7,7 @@ import { seed as engagement } from "./engagement.js";
 import { seed as finance } from "./finance.js";
 import { seed as floor } from "./floor.js";
 import { seed as health } from "./health.js";
+import { seed as portal } from "./portal.js";
 import { seed as reports } from "./reports.js";
 import { seed as schedule } from "./schedule.js";
 import { seed as signup } from "./signup.js";
@@ -25,4 +26,5 @@ export async function seedModules(c: pg.Client, org: OrgFixture, label: "A" | "B
   await reports(c, org, label);
   await coach(c, org, label);
   await signup(c, org, label);
+  await portal(c, org, label);
 }
