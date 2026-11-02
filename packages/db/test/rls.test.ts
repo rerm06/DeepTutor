@@ -1,7 +1,7 @@
 import { ORG_WIDE_ROLES, ROLES, type Role, STAFF_ROLES } from "@gym/shared";
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { withClaims } from "../src/index.js";
+import { signClaims, withClaims } from "../src/index.js";
 import { type OrgFixture, type TestDb, createTestDb } from "../src/testing.js";
 
 let t: TestDb;
@@ -53,7 +53,7 @@ describe("connection hardening", () => {
   });
 
   it("no claims means no rows", async () => {
-    const c = await t.api.connect();
+    const c = await t.api.pool.connect();
     await c.query("BEGIN; SET LOCAL ROLE app_authenticated");
     for (const table of ["organization", ...ORG_SCOPED_TABLES, "person"]) {
       const { rowCount } = await c.query(`SELECT 1 FROM app.${table}`);
@@ -172,7 +172,7 @@ describe("members, guardians and the global person", () => {
   it("a guardian sees only their ward", async () => {
     await withClaims(t.api, t.claims(t.fx.A, "guardian"), async (tx) => {
       const { rows } = await tx.query(
-        "SELECT p.full_name FROM app.member m JOIN app.person p ON p.id = m.person_id",
+        "SELECT m.full_name FROM app.member m JOIN app.person p ON p.id = m.person_id",
       );
       expect(rows.map((r) => r.full_name)).toEqual(["Demo ward A"]);
     });
@@ -236,6 +236,145 @@ describe("audit log", () => {
         tx.query(
           "INSERT INTO app.audit_log (action, entity, actor_role) VALUES ('x', 'y', 'owner')",
         ),
+      ).rejects.toMatchObject({ code: "42501" });
+    });
+  });
+});
+
+// Regression tests for the independent security review of cycle 1 (findings HIGH-1 … LOW-8).
+describe("security review regressions", () => {
+  it("HIGH-1: registering another org's email exposes and changes none of that org's data", async () => {
+    await withClaims(t.api, t.claims(t.fx.B, "front_desk"), async (tx) => {
+      await tx.query(
+        "SELECT app.register_member('member.a@demo.invalid', 'Planted by B', '+1-000', $1)",
+        [t.fx.B.locations[0]],
+      );
+      const leaked = await tx.query(
+        "SELECT full_name, phone FROM app.member WHERE full_name = 'Demo member A'",
+      );
+      expect(leaked.rowCount).toBe(0);
+      const cols = await tx.query(
+        "SELECT column_name FROM information_schema.columns WHERE table_schema='app' AND table_name='person'",
+      );
+      expect(cols.rows.map((r) => r.column_name).sort()).toEqual(["created_at", "email", "id"]);
+    });
+    const a = await t.admin.query("SELECT full_name, phone FROM app.member WHERE id = $1", [
+      t.fx.A.members[0],
+    ]);
+    expect(a.rows[0]).toEqual({ full_name: "Demo member A", phone: "+1-787-555-0101" });
+  });
+
+  it("HIGH-2: nobody can repoint member.person_id or member.org_id", async () => {
+    await withClaims(t.api, t.claims(t.fx.A, "front_desk"), async (tx) => {
+      await tx.query("SAVEPOINT s");
+      await expect(
+        tx.query("UPDATE app.member SET person_id = $1 WHERE id = $2", [
+          t.fx.B.people.owner,
+          t.fx.A.members[0],
+        ]),
+      ).rejects.toMatchObject({ code: "42501" });
+      await tx.query("ROLLBACK TO SAVEPOINT s");
+      await expect(
+        tx.query("UPDATE app.member SET org_id = $1 WHERE id = $2", [
+          t.fx.B.orgId,
+          t.fx.A.members[0],
+        ]),
+      ).rejects.toMatchObject({ code: "42501" });
+    });
+  });
+
+  it("HIGH-3: an owner cannot change the SaaS plan, Stripe account or licence verification", async () => {
+    for (const sql of [
+      "UPDATE app.organization SET saas_plan = 'elite'",
+      "UPDATE app.legal_entity SET stripe_account_id = 'acct_x'",
+      "UPDATE app.staff_member SET license_verified_at = now()",
+    ]) {
+      await withClaims(t.api, t.claims(t.fx.A, "owner"), async (tx) => {
+        await expect(tx.query(sql)).rejects.toMatchObject({ code: "42501" });
+      });
+    }
+  });
+
+  it("HIGH-4: rewriting the claims from SQL yields nothing", async () => {
+    await withClaims(t.api, t.claims(t.fx.A, "member"), async (tx) => {
+      const forged = JSON.stringify({
+        sub: t.fx.B.people.owner,
+        org_id: t.fx.B.orgId,
+        app_role: "owner",
+        location_ids: [],
+      });
+      await tx.query("SELECT set_config('request.jwt.claims', $1, true)", [forged]);
+      expect((await tx.query("SELECT app.org_id() AS o")).rows[0].o).toBeNull();
+      expect((await tx.query("SELECT 1 FROM app.member")).rowCount).toBe(0);
+      // A signature made with a wrong key is rejected as well.
+      await tx.query("SELECT set_config('request.jwt.claims_sig', $1, true)", [
+        signClaims(forged, Buffer.alloc(32, 1)),
+      ]);
+      expect((await tx.query("SELECT 1 FROM app.organization")).rowCount).toBe(0);
+    });
+  });
+
+  it("HIGH-4: request traffic cannot read the claims key", async () => {
+    await withClaims(t.api, t.claims(t.fx.A, "owner"), async (tx) => {
+      await expect(tx.query("SELECT key FROM app_private.claims_key")).rejects.toMatchObject({
+        code: "42501",
+      });
+    });
+  });
+
+  it("MEDIUM-5: audit rows cannot be inserted directly or backdated", async () => {
+    await withClaims(t.api, t.claims(t.fx.A, "member"), async (tx) => {
+      await tx.query("SAVEPOINT s");
+      await expect(
+        tx.query("INSERT INTO app.audit_log (action, entity, at) VALUES ('x', 'y', '2001-01-01')"),
+      ).rejects.toMatchObject({ code: "42501" });
+      await tx.query("ROLLBACK TO SAVEPOINT s");
+      await tx.query("SELECT app.audit('member.self', 'member', NULL, NULL, '{}')");
+    });
+    const r = await t.admin.query(
+      "SELECT at > now() - interval '1 minute' AS fresh, actor_role FROM app.audit_log WHERE action = 'member.self'",
+    );
+    expect(r.rows[0]).toEqual({ fresh: true, actor_role: "member" });
+  });
+
+  it("MEDIUM-6: front desk cannot link a guardian to a member outside its locations", async () => {
+    await withClaims(t.api, t.claims(t.fx.A, "front_desk"), async (tx) => {
+      await expect(
+        tx.query("INSERT INTO app.guardian_link (guardian_person_id, member_id) VALUES ($1, $2)", [
+          t.fx.A.people.guardian,
+          t.fx.A.members[1],
+        ]),
+      ).rejects.toMatchObject({ code: "42501" });
+    });
+  });
+
+  it("LOW-8: scoped staff see only staff assignments of their own locations", async () => {
+    // Add a trainer assigned only to location 2.
+    const p = await t.admin.query(
+      "INSERT INTO app.person (email) VALUES ('trainer2.a@demo.invalid') RETURNING id",
+    );
+    const sm = await t.admin.query(
+      "INSERT INTO app.staff_member (org_id, person_id, role, display_name) VALUES ($1,$2,'trainer','Demo trainer2 A') RETURNING id",
+      [t.fx.A.orgId, p.rows[0].id],
+    );
+    await t.admin.query(
+      "INSERT INTO app.staff_location (org_id, staff_member_id, location_id) VALUES ($1,$2,$3)",
+      [t.fx.A.orgId, sm.rows[0].id, t.fx.A.locations[1]],
+    );
+    await withClaims(t.api, t.claims(t.fx.A, "trainer"), async (tx) => {
+      const locs = await tx.query("SELECT DISTINCT location_id FROM app.staff_location");
+      expect(locs.rows.map((r) => r.location_id)).toEqual([t.fx.A.locations[0]]);
+      const names = await tx.query("SELECT display_name FROM app.staff_member");
+      expect(names.rows.map((r) => r.display_name)).not.toContain("Demo trainer2 A");
+      const emails = await tx.query("SELECT email FROM app.person");
+      expect(emails.rows.map((r) => r.email)).not.toContain("trainer2.a@demo.invalid");
+    });
+  });
+
+  it("people cannot change their global email from request traffic", async () => {
+    await withClaims(t.api, t.claims(t.fx.A, "member"), async (tx) => {
+      await expect(
+        tx.query("UPDATE app.person SET email = 'x@demo.invalid'"),
       ).rejects.toMatchObject({ code: "42501" });
     });
   });

@@ -19,10 +19,10 @@ export async function memberRoutes(app: FastifyInstance): Promise<void> {
     const q = ListQuery.parse(req.query);
     return app.asCaller(req, async (tx) => {
       const { rows } = await tx.query(
-        `SELECT m.id, m.status, m.member_no, m.home_location_id, p.full_name, p.email
+        `SELECT m.id, m.status, m.member_no, m.home_location_id, m.full_name, p.email
            FROM app.member m JOIN app.person p ON p.id = m.person_id
           WHERE ($1::uuid IS NULL OR m.home_location_id = $1)
-          ORDER BY p.full_name LIMIT 500`,
+          ORDER BY m.full_name LIMIT 500`,
         [q.location_id ?? null],
       );
       return { data: rows };

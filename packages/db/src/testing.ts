@@ -3,13 +3,13 @@
  * organisations (A, B) × two locations × every role. The admin (superuser) connection is used ONLY to
  * create the database and insert fixtures; all assertions run through `withClaims` as app_api.
  */
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { type Claims, ROLES, type Role, STAFF_ROLES } from "@gym/shared";
 import pg from "pg";
-import { type Db, createPool } from "./index.js";
+import { type Db, createDb } from "./index.js";
 import { migrate } from "./migrate.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -46,6 +46,8 @@ export interface TestDb {
   adminUrl: string;
   api: Db;
   admin: pg.Client;
+  /** Hex HMAC key installed in app_private.claims_key for this database. */
+  claimsKeyHex: string;
   fx: Fixture;
   claims(org: OrgFixture, role: Role, personId?: string): Claims;
   drop(): Promise<void>;
@@ -66,8 +68,12 @@ export async function createTestDb(): Promise<TestDb> {
 
   const admin = new pg.Client({ connectionString: adminUrl });
   await admin.connect();
+  const claimsKeyHex = randomBytes(32).toString("hex");
+  await admin.query("INSERT INTO app_private.claims_key (key) VALUES (decode($1, 'hex'))", [
+    claimsKeyHex,
+  ]);
   const fx = await seed(admin);
-  const api = createPool(apiUrl);
+  const api = createDb(apiUrl, claimsKeyHex);
 
   const claims = (org: OrgFixture, role: Role, personId?: string): Claims => ({
     sub: personId ?? org.people[role],
@@ -83,10 +89,11 @@ export async function createTestDb(): Promise<TestDb> {
     adminUrl,
     api,
     admin,
+    claimsKeyHex,
     fx,
     claims,
     async drop() {
-      await api.end();
+      await api.pool.end();
       await admin.end();
       const r = new pg.Client({ connectionString: ADMIN_URL });
       await r.connect();
@@ -125,18 +132,23 @@ async function seedOrg(c: pg.Client, label: string): Promise<OrgFixture> {
     );
   const locations: [string, string] = [await loc(1), await loc(2)];
   const person = (tag: string) =>
-    one(c, "INSERT INTO app.person (email, full_name) VALUES ($1, $2) RETURNING id", [
+    one(c, "INSERT INTO app.person (email) VALUES ($1) RETURNING id", [
       `${tag}.${label.toLowerCase()}@demo.invalid`,
-      `Demo ${tag} ${label}`,
     ]);
+  const member = (personId: string, loc: string, name: string, phone?: string) =>
+    one(
+      c,
+      "INSERT INTO app.member (org_id, person_id, home_location_id, full_name, phone, status) VALUES ($1,$2,$3,$4,$5,'active') RETURNING id",
+      [orgId, personId, loc, name, phone ?? null],
+    );
 
   const people = {} as Record<Role, string>;
   for (const role of ROLES) people[role] = await person(role);
   for (const role of STAFF_ROLES) {
     const sm = await one(
       c,
-      "INSERT INTO app.staff_member (org_id, person_id, role) VALUES ($1,$2,$3) RETURNING id",
-      [orgId, people[role], role],
+      "INSERT INTO app.staff_member (org_id, person_id, role, display_name) VALUES ($1,$2,$3,$4) RETURNING id",
+      [orgId, people[role], role, `Demo ${role} ${label}`],
     );
     if (role !== "owner" && role !== "accountant") {
       await c.query(
@@ -145,24 +157,10 @@ async function seedOrg(c: pg.Client, label: string): Promise<OrgFixture> {
       );
     }
   }
-  const m1 = await one(
-    c,
-    "INSERT INTO app.member (org_id, person_id, home_location_id, status) VALUES ($1,$2,$3,'active') RETURNING id",
-    [orgId, people.member, locations[0]],
-  );
-  const otherPerson = await person("member2");
-  const m2 = await one(
-    c,
-    "INSERT INTO app.member (org_id, person_id, home_location_id, status) VALUES ($1,$2,$3,'active') RETURNING id",
-    [orgId, otherPerson, locations[1]],
-  );
+  const m1 = await member(people.member, locations[0], `Demo member ${label}`, "+1-787-555-0101");
+  const m2 = await member(await person("member2"), locations[1], `Demo member2 ${label}`);
   // The guardian's ward is a minor member at location 1.
-  const ward = await person("ward");
-  const wardMember = await one(
-    c,
-    "INSERT INTO app.member (org_id, person_id, home_location_id, status) VALUES ($1,$2,$3,'active') RETURNING id",
-    [orgId, ward, locations[0]],
-  );
+  const wardMember = await member(await person("ward"), locations[0], `Demo ward ${label}`);
   await c.query(
     "INSERT INTO app.guardian_link (org_id, guardian_person_id, member_id) VALUES ($1,$2,$3)",
     [orgId, people.guardian, wardMember],
@@ -173,20 +171,16 @@ async function seedOrg(c: pg.Client, label: string): Promise<OrgFixture> {
 async function seed(c: pg.Client): Promise<Fixture> {
   const A = await seedOrg(c, "A");
   const B = await seedOrg(c, "B");
-  const sharedPersonId = await one(
-    c,
-    "INSERT INTO app.person (email, full_name) VALUES ($1,$2) RETURNING id",
-    ["shared@demo.invalid", "Demo Shared Person"],
-  );
-  const mA = await one(
-    c,
-    "INSERT INTO app.member (org_id, person_id, home_location_id, status) VALUES ($1,$2,$3,'active') RETURNING id",
-    [A.orgId, sharedPersonId, A.locations[0]],
-  );
-  const mB = await one(
-    c,
-    "INSERT INTO app.member (org_id, person_id, home_location_id, status) VALUES ($1,$2,$3,'active') RETURNING id",
-    [B.orgId, sharedPersonId, B.locations[0]],
-  );
+  const sharedPersonId = await one(c, "INSERT INTO app.person (email) VALUES ($1) RETURNING id", [
+    "shared@demo.invalid",
+  ]);
+  const link = (org: OrgFixture) =>
+    one(
+      c,
+      "INSERT INTO app.member (org_id, person_id, home_location_id, full_name, status) VALUES ($1,$2,$3,'Demo Shared','active') RETURNING id",
+      [org.orgId, sharedPersonId, org.locations[0]],
+    );
+  const mA = await link(A);
+  const mB = await link(B);
   return { A, B, sharedPersonId, sharedMemberIds: { A: mA, B: mB } };
 }

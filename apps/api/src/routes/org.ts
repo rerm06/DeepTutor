@@ -4,9 +4,7 @@ export async function orgRoutes(app: FastifyInstance): Promise<void> {
   app.get("/me", async (req) =>
     app.asCaller(req, async (tx) => {
       const org = await tx.query("SELECT id, name, saas_plan FROM app.organization");
-      const person = await tx.query(
-        "SELECT id, email, full_name FROM app.person WHERE id = app.person_id()",
-      );
+      const person = await tx.query("SELECT id, email FROM app.person WHERE id = app.person_id()");
       return {
         organization: org.rows[0] ?? null,
         person: person.rows[0] ?? null,

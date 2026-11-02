@@ -43,6 +43,9 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         algorithms: ["HS256"],
         issuer: deps.jwtIssuer,
         audience: deps.jwtAudience,
+        // Security review MEDIUM-7: no eternal tokens. Location scope lives in the token, so keep it short.
+        requiredClaims: ["exp", "iat"],
+        maxTokenAge: "15m",
       });
       req.claims = ClaimsSchema.parse(payload);
     } catch {
