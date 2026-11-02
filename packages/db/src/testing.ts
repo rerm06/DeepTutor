@@ -9,7 +9,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { type Claims, ROLES, type Role, STAFF_ROLES } from "@gym/shared";
 import pg from "pg";
-import { type Db, createDb } from "./index.js";
+import { type Db, type Tx, bindClaims, createDb } from "./index.js";
 import { migrate } from "./migrate.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -206,4 +206,24 @@ async function seed(c: pg.Client): Promise<Fixture> {
   const mA = await link(A);
   const mB = await link(B);
   return { A, B, sharedPersonId, sharedMemberIds: { A: mA, B: mB } };
+}
+
+/**
+ * Test-only twin of withClaims for denial tests: identical binding, but a transaction that ends aborted
+ * (because the test expected the last statement to be refused) is rolled back instead of raising.
+ */
+export async function asCaller<T>(db: Db, claims: Claims, fn: (tx: Tx) => Promise<T>): Promise<T> {
+  const client = await db.pool.connect();
+  try {
+    await client.query("BEGIN");
+    await bindClaims(client, db, claims);
+    const result = await fn(client);
+    await client.query("COMMIT");
+    return result;
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw err;
+  } finally {
+    client.release();
+  }
 }

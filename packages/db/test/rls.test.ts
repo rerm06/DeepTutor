@@ -2,7 +2,7 @@ import { ORG_WIDE_ROLES, ROLES, type Role, STAFF_ROLES } from "@gym/shared";
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { signClaims, withClaims } from "../src/index.js";
-import { type OrgFixture, type TestDb, createTestDb } from "../src/testing.js";
+import { type OrgFixture, type TestDb, asCaller, createTestDb } from "../src/testing.js";
 
 let t: TestDb;
 beforeAll(async () => {
@@ -35,8 +35,17 @@ function orgs(): Array<[string, OrgFixture, OrgFixture]> {
 }
 
 describe("connection hardening", () => {
+  it("withClaims refuses to report success when the transaction was silently rolled back", async () => {
+    await expect(
+      withClaims(t.api, t.claims(t.fx.A, "owner"), async (tx) => {
+        await tx.query("SELECT 1/0").catch(() => undefined); // error swallowed by the caller
+        return "looks fine";
+      }),
+    ).rejects.toThrow(/transaction aborted/);
+  });
+
   it("request traffic runs as app_authenticated without BYPASSRLS", async () => {
-    const r = await withClaims(
+    const r = await asCaller(
       t.api,
       t.claims(t.fx.A, "owner"),
       async (tx) =>
@@ -72,7 +81,7 @@ describe("connection hardening", () => {
 describe.each(ROLES.map((r) => [r] as [Role]))("role %s", (role) => {
   it.each(["A", "B"])("org %s: sees only its own organisation in every table", async (label) => {
     const [, mine] = orgs().find(([l]) => l === label) as [string, OrgFixture, OrgFixture];
-    await withClaims(t.api, t.claims(mine, role), async (tx) => {
+    await asCaller(t.api, t.claims(mine, role), async (tx) => {
       const org = await tx.query("SELECT id FROM app.organization");
       expect(org.rows.map((r) => r.id)).toEqual([mine.orgId]);
       for (const table of ORG_SCOPED_TABLES) {
@@ -84,7 +93,7 @@ describe.each(ROLES.map((r) => [r] as [Role]))("role %s", (role) => {
 
   it.each(["A", "B"])("org %s: cannot write into the other organisation", async (label) => {
     const [, mine, other] = orgs().find(([l]) => l === label) as [string, OrgFixture, OrgFixture];
-    await withClaims(t.api, t.claims(mine, role), async (tx) => {
+    await asCaller(t.api, t.claims(mine, role), async (tx) => {
       await tx.query("SAVEPOINT s");
       await expect(
         tx.query("SELECT app.register_member($1, 'X', NULL, $2)", [
@@ -117,7 +126,7 @@ describe("location scope", () => {
     "%s sees members and locations only of assigned locations",
     async (role) => {
       const A = t.fx.A;
-      await withClaims(t.api, t.claims(A, role as Role), async (tx) => {
+      await asCaller(t.api, t.claims(A, role as Role), async (tx) => {
         const locs = await tx.query("SELECT id FROM app.location");
         expect(locs.rows.map((r) => r.id)).toEqual([A.locations[0]]);
         const members = await tx.query("SELECT home_location_id FROM app.member");
@@ -128,13 +137,13 @@ describe("location scope", () => {
   );
 
   it.each(ORG_WIDE_ROLES.map((r) => [r]))("%s sees every location of the org", async (role) => {
-    await withClaims(t.api, t.claims(t.fx.A, role as Role), async (tx) => {
+    await asCaller(t.api, t.claims(t.fx.A, role as Role), async (tx) => {
       expect((await tx.query("SELECT id FROM app.location")).rowCount).toBe(2);
     });
   });
 
   it("front desk cannot register a member at an unassigned location of its own org", async () => {
-    await withClaims(t.api, t.claims(t.fx.A, "front_desk"), async (tx) => {
+    await asCaller(t.api, t.claims(t.fx.A, "front_desk"), async (tx) => {
       await expect(
         tx.query("SELECT app.register_member('loc2@demo.invalid', 'X', NULL, $1)", [
           t.fx.A.locations[1],
@@ -153,7 +162,7 @@ describe("location scope", () => {
       "member",
       "guardian",
     ] as Role[]) {
-      await withClaims(t.api, t.claims(t.fx.A, role), async (tx) => {
+      await asCaller(t.api, t.claims(t.fx.A, role), async (tx) => {
         await expect(
           tx.query("SELECT app.register_member($1, 'X', NULL, $2)", [
             `no-${role}@demo.invalid`,
@@ -167,14 +176,14 @@ describe("location scope", () => {
 
 describe("members, guardians and the global person", () => {
   it("a member sees only their own member row", async () => {
-    await withClaims(t.api, t.claims(t.fx.A, "member"), async (tx) => {
+    await asCaller(t.api, t.claims(t.fx.A, "member"), async (tx) => {
       const { rows } = await tx.query("SELECT id FROM app.member");
       expect(rows.map((r) => r.id)).toEqual([t.fx.A.members[0]]);
     });
   });
 
   it("a guardian sees only their ward", async () => {
-    await withClaims(t.api, t.claims(t.fx.A, "guardian"), async (tx) => {
+    await asCaller(t.api, t.claims(t.fx.A, "guardian"), async (tx) => {
       const { rows } = await tx.query(
         "SELECT m.full_name FROM app.member m JOIN app.person p ON p.id = m.person_id",
       );
@@ -188,7 +197,7 @@ describe("members, guardians and the global person", () => {
       [A, sharedMemberIds.A],
       [B, sharedMemberIds.B],
     ] as const) {
-      await withClaims(t.api, t.claims(org, "member", sharedPersonId), async (tx) => {
+      await asCaller(t.api, t.claims(org, "member", sharedPersonId), async (tx) => {
         const { rows } = await tx.query("SELECT id, org_id FROM app.member");
         expect(rows).toEqual([{ id: expected, org_id: org.orgId }]);
       });
@@ -196,7 +205,7 @@ describe("members, guardians and the global person", () => {
   });
 
   it("registering an email that exists in another org links the person without exposing the other org", async () => {
-    const id = await withClaims(t.api, t.claims(t.fx.B, "front_desk"), async (tx) => {
+    const id = await asCaller(t.api, t.claims(t.fx.B, "front_desk"), async (tx) => {
       const r = await tx.query(
         "SELECT app.register_member('member2.a@demo.invalid', 'Ignored', NULL, $1) AS id",
         [t.fx.B.locations[0]],
@@ -215,12 +224,12 @@ describe("members, guardians and the global person", () => {
 
 describe("audit log", () => {
   it("register_member writes an audit row the owner can read and nobody can alter", async () => {
-    await withClaims(t.api, t.claims(t.fx.A, "front_desk"), (tx) =>
+    await asCaller(t.api, t.claims(t.fx.A, "front_desk"), (tx) =>
       tx.query("SELECT app.register_member('audited@demo.invalid', 'Audited', NULL, $1)", [
         t.fx.A.locations[0],
       ]),
     );
-    await withClaims(t.api, t.claims(t.fx.A, "owner"), async (tx) => {
+    await asCaller(t.api, t.claims(t.fx.A, "owner"), async (tx) => {
       const { rows } = await tx.query(
         "SELECT action, actor_role FROM app.audit_log WHERE action = 'member.register'",
       );
@@ -235,7 +244,7 @@ describe("audit log", () => {
   });
 
   it("nobody can forge an audit row for another person or role", async () => {
-    await withClaims(t.api, t.claims(t.fx.A, "trainer"), async (tx) => {
+    await asCaller(t.api, t.claims(t.fx.A, "trainer"), async (tx) => {
       await expect(
         tx.query(
           "INSERT INTO app.audit_log (action, entity, actor_role) VALUES ('x', 'y', 'owner')",
@@ -248,7 +257,7 @@ describe("audit log", () => {
 // Regression tests for the independent security review of cycle 1 (findings HIGH-1 … LOW-8).
 describe("security review regressions", () => {
   it("HIGH-1: registering another org's email exposes and changes none of that org's data", async () => {
-    await withClaims(t.api, t.claims(t.fx.B, "front_desk"), async (tx) => {
+    await asCaller(t.api, t.claims(t.fx.B, "front_desk"), async (tx) => {
       await tx.query(
         "SELECT app.register_member('member.a@demo.invalid', 'Planted by B', '+1-000', $1)",
         [t.fx.B.locations[0]],
@@ -269,7 +278,7 @@ describe("security review regressions", () => {
   });
 
   it("HIGH-2: nobody can repoint member.person_id or member.org_id", async () => {
-    await withClaims(t.api, t.claims(t.fx.A, "front_desk"), async (tx) => {
+    await asCaller(t.api, t.claims(t.fx.A, "front_desk"), async (tx) => {
       await tx.query("SAVEPOINT s");
       await expect(
         tx.query("UPDATE app.member SET person_id = $1 WHERE id = $2", [
@@ -293,14 +302,14 @@ describe("security review regressions", () => {
       "UPDATE app.legal_entity SET stripe_account_id = 'acct_x'",
       "UPDATE app.staff_member SET license_verified_at = now()",
     ]) {
-      await withClaims(t.api, t.claims(t.fx.A, "owner"), async (tx) => {
+      await asCaller(t.api, t.claims(t.fx.A, "owner"), async (tx) => {
         await expect(tx.query(sql)).rejects.toMatchObject({ code: "42501" });
       });
     }
   });
 
   it("HIGH-4: rewriting the claims from SQL yields nothing", async () => {
-    await withClaims(t.api, t.claims(t.fx.A, "member"), async (tx) => {
+    await asCaller(t.api, t.claims(t.fx.A, "member"), async (tx) => {
       const forged = JSON.stringify({
         sub: t.fx.B.people.owner,
         org_id: t.fx.B.orgId,
@@ -320,7 +329,7 @@ describe("security review regressions", () => {
   });
 
   it("HIGH-4: request traffic cannot read the claims key", async () => {
-    await withClaims(t.api, t.claims(t.fx.A, "owner"), async (tx) => {
+    await asCaller(t.api, t.claims(t.fx.A, "owner"), async (tx) => {
       await expect(tx.query("SELECT key FROM app_private.claims_key")).rejects.toMatchObject({
         code: "42501",
       });
@@ -328,7 +337,7 @@ describe("security review regressions", () => {
   });
 
   it("MEDIUM-5 / N3: audit rows cannot be inserted, backdated or forged by request traffic", async () => {
-    await withClaims(t.api, t.claims(t.fx.A, "member"), async (tx) => {
+    await asCaller(t.api, t.claims(t.fx.A, "member"), async (tx) => {
       await tx.query("SAVEPOINT s");
       await expect(
         tx.query("INSERT INTO app.audit_log (action, entity, at) VALUES ('x', 'y', '2001-01-01')"),
@@ -343,7 +352,7 @@ describe("security review regressions", () => {
   });
 
   it("member changes are audited by trigger with the real actor and time", async () => {
-    await withClaims(t.api, t.claims(t.fx.A, "front_desk"), (tx) =>
+    await asCaller(t.api, t.claims(t.fx.A, "front_desk"), (tx) =>
       tx.query("UPDATE app.member SET status = 'frozen' WHERE id = $1", [t.fx.A.members[0]]),
     );
     const r = await t.admin.query(
@@ -358,13 +367,13 @@ describe("security review regressions", () => {
   });
 
   it("N1: a captured claims/signature pair cannot be replayed in another transaction", async () => {
-    const captured = await withClaims(t.api, t.claims(t.fx.B, "owner"), async (tx) => {
+    const captured = await asCaller(t.api, t.claims(t.fx.B, "owner"), async (tx) => {
       const r = await tx.query(
         "SELECT current_setting('request.jwt.claims') AS c, current_setting('request.jwt.claims_sig') AS s",
       );
       return r.rows[0] as { c: string; s: string };
     });
-    await withClaims(t.api, t.claims(t.fx.A, "member"), async (tx) => {
+    await asCaller(t.api, t.claims(t.fx.A, "member"), async (tx) => {
       await tx.query(
         "SELECT set_config('request.jwt.claims', $1, true), set_config('request.jwt.claims_sig', $2, true)",
         [captured.c, captured.s],
@@ -376,13 +385,13 @@ describe("security review regressions", () => {
 
   it("N1: expired claims are rejected inside Postgres even with a valid signature", async () => {
     const expired = { ...t.claims(t.fx.A, "owner"), exp: Math.floor(Date.now() / 1000) - 1 };
-    await withClaims(t.api, expired, async (tx) => {
+    await asCaller(t.api, expired, async (tx) => {
       expect((await tx.query("SELECT 1 FROM app.organization")).rowCount).toBe(0);
     });
   });
 
   it("N2: staff rows are created only through add_staff, which exposes nothing", async () => {
-    await withClaims(t.api, t.claims(t.fx.A, "owner"), async (tx) => {
+    await asCaller(t.api, t.claims(t.fx.A, "owner"), async (tx) => {
       await tx.query("SAVEPOINT s");
       await expect(
         tx.query(
@@ -399,7 +408,7 @@ describe("security review regressions", () => {
       );
       expect(names.rowCount).toBe(1);
     });
-    await withClaims(t.api, t.claims(t.fx.A, "location_manager"), async (tx) => {
+    await asCaller(t.api, t.claims(t.fx.A, "location_manager"), async (tx) => {
       await expect(
         tx.query("SELECT app.add_staff('x@demo.invalid', 'X', 'trainer', NULL)"),
       ).rejects.toMatchObject({ code: "42501" });
@@ -407,7 +416,7 @@ describe("security review regressions", () => {
   });
 
   it("person.created_at is not readable by request traffic", async () => {
-    await withClaims(t.api, t.claims(t.fx.A, "owner"), async (tx) => {
+    await asCaller(t.api, t.claims(t.fx.A, "owner"), async (tx) => {
       await expect(tx.query("SELECT created_at FROM app.person")).rejects.toMatchObject({
         code: "42501",
       });
@@ -415,7 +424,7 @@ describe("security review regressions", () => {
   });
 
   it("MEDIUM-6: front desk cannot link a guardian to a member outside its locations", async () => {
-    await withClaims(t.api, t.claims(t.fx.A, "front_desk"), async (tx) => {
+    await asCaller(t.api, t.claims(t.fx.A, "front_desk"), async (tx) => {
       await expect(
         tx.query("INSERT INTO app.guardian_link (guardian_person_id, member_id) VALUES ($1, $2)", [
           t.fx.A.people.guardian,
@@ -438,7 +447,7 @@ describe("security review regressions", () => {
       "INSERT INTO app.staff_location (org_id, staff_member_id, location_id) VALUES ($1,$2,$3)",
       [t.fx.A.orgId, sm.rows[0].id, t.fx.A.locations[1]],
     );
-    await withClaims(t.api, t.claims(t.fx.A, "trainer"), async (tx) => {
+    await asCaller(t.api, t.claims(t.fx.A, "trainer"), async (tx) => {
       const locs = await tx.query("SELECT DISTINCT location_id FROM app.staff_location");
       expect(locs.rows.map((r) => r.location_id)).toEqual([t.fx.A.locations[0]]);
       const names = await tx.query("SELECT display_name FROM app.staff_member");
@@ -449,7 +458,7 @@ describe("security review regressions", () => {
   });
 
   it("people cannot change their global email from request traffic", async () => {
-    await withClaims(t.api, t.claims(t.fx.A, "member"), async (tx) => {
+    await asCaller(t.api, t.claims(t.fx.A, "member"), async (tx) => {
       await expect(
         tx.query("UPDATE app.person SET email = 'x@demo.invalid'"),
       ).rejects.toMatchObject({ code: "42501" });

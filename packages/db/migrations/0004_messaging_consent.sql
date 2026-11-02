@@ -106,6 +106,31 @@ CREATE FUNCTION app.is_opt_out_keyword(p_body text) RETURNS boolean LANGUAGE sql
          IN ('STOP', 'STOPALL', 'UNSUBSCRIBE', 'CANCEL', 'END', 'QUIT', 'BAJA', 'CANCELAR', 'ALTO', 'PARAR')
 $$;
 
+-- Which consent sources a caller may record (builder review): members/guardians only through the portal;
+-- staff through the front desk or a paper/web form they transcribe; imports by the owner. 'keyword' comes only
+-- from the inbound pipeline (a system path), never from request traffic.
+CREATE FUNCTION app.check_consent_source(p_source app.consent_source) RETURNS void
+LANGUAGE plpgsql STABLE AS $$
+BEGIN
+  IF p_source = 'keyword'
+     OR (app.role() IN ('member', 'guardian') AND p_source <> 'member_portal')
+     OR (app.is_staff() AND p_source NOT IN ('front_desk', 'web_form', 'import'))
+     OR (p_source = 'import' AND app.role() IS DISTINCT FROM 'owner') THEN
+    RAISE EXCEPTION 'invalid_source' USING ERRCODE = '22023';
+  END IF;
+END $$;
+
+-- The brand must be the brand of the member's home location (builder review). [P] multi-brand memberships
+-- would relax this to "a brand of a location the membership covers".
+CREATE FUNCTION app.check_member_brand(p_member uuid, p_brand uuid) RETURNS void
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = app, pg_temp AS $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM app.member m JOIN app.location l ON l.id = m.home_location_id
+                  WHERE m.id = p_member AND l.brand_id = p_brand AND m.org_id = app.org_id()) THEN
+    RAISE EXCEPTION 'forbidden_brand' USING ERRCODE = '42501';
+  END IF;
+END $$;
+
 -- Grant or revoke ONE consent. Staff of the member's location, the member, or their guardian.
 CREATE FUNCTION app.set_consent(p_member uuid, p_brand uuid, p_channel app.channel, p_purpose app.msg_purpose,
                                 p_granted boolean, p_source app.consent_source, p_evidence text)
@@ -118,16 +143,11 @@ BEGIN
   IF v_org IS NULL OR NOT app.can_act_for_member(p_member) THEN
     RAISE EXCEPTION 'forbidden' USING ERRCODE = '42501';
   END IF;
-  IF NOT EXISTS (SELECT 1 FROM app.brand b WHERE b.id = p_brand AND b.org_id = v_org) THEN
-    RAISE EXCEPTION 'forbidden_brand' USING ERRCODE = '42501';
-  END IF;
+  PERFORM app.check_member_brand(p_member, p_brand);
+  PERFORM app.check_consent_source(p_source);
   -- A grant must carry evidence (who/how/when); a revocation never needs it.
   IF p_granted AND coalesce(btrim(p_evidence), '') = '' THEN
     RAISE EXCEPTION 'evidence_required' USING ERRCODE = '22023';
-  END IF;
-  -- 'keyword' revocations only come from the inbound pipeline; never accept a keyword-sourced GRANT.
-  IF p_granted AND p_source = 'keyword' THEN
-    RAISE EXCEPTION 'invalid_source' USING ERRCODE = '22023';
   END IF;
 
   INSERT INTO app.consent AS c (org_id, member_id, brand_id, channel, purpose, status, source, evidence, recorded_by,
@@ -160,6 +180,8 @@ BEGIN
   IF app.org_id() IS NULL OR NOT app.can_act_for_member(p_member) THEN
     RAISE EXCEPTION 'forbidden' USING ERRCODE = '42501';
   END IF;
+  PERFORM app.check_member_brand(p_member, p_brand);
+  PERFORM app.check_consent_source(p_source);
   UPDATE app.consent SET status = 'revoked', source = p_source, revoked_at = now(), updated_at = now(),
                          recorded_by = app.person_id()
    WHERE member_id = p_member AND brand_id = p_brand AND org_id = app.org_id() AND status = 'granted';
@@ -194,9 +216,7 @@ BEGIN
      OR NOT app.staff_can_see_member(p_member) THEN
     RAISE EXCEPTION 'forbidden' USING ERRCODE = '42501';
   END IF;
-  IF NOT EXISTS (SELECT 1 FROM app.brand b WHERE b.id = p_brand AND b.org_id = v_org) THEN
-    RAISE EXCEPTION 'forbidden_brand' USING ERRCODE = '42501';
-  END IF;
+  PERFORM app.check_member_brand(p_member, p_brand);
 
   SELECT m.home_location_id, l.timezone INTO v_loc, v_tz
     FROM app.member m JOIN app.location l ON l.id = m.home_location_id WHERE m.id = p_member;
@@ -262,6 +282,7 @@ GRANT UPDATE (handled) ON app.inbound_message TO app_authenticated;
 GRANT SELECT ON app.guardian_link, app.brand TO app_definer;
 GRANT SELECT, INSERT, UPDATE ON app.consent, app.outbound_message TO app_definer;
 GRANT SELECT ON app.message_policy TO app_definer;
+ALTER FUNCTION app.check_member_brand(uuid, uuid) OWNER TO app_definer;
 ALTER FUNCTION app.can_act_for_member(uuid) OWNER TO app_definer;
 ALTER FUNCTION app.set_consent(uuid, uuid, app.channel, app.msg_purpose, boolean, app.consent_source, text) OWNER TO app_definer;
 ALTER FUNCTION app.opt_out(uuid, uuid, app.consent_source) OWNER TO app_definer;

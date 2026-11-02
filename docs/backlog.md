@@ -4,9 +4,9 @@ Legend: ☐ not started · ◐ in progress · ☑ done (gate + review). Estimate
 
 | Epic | Status | Done | Remaining | Depends |
 |---|---|---|---|---|
-| E1 Identity, multi-tenancy, RBAC (6) | ◐ | Schema, RLS, 10 roles, JWT verify, audit, isolation matrix (59 cases) | IdP + token issuance, org switcher, staff admin API | — |
+| E1 Identity, multi-tenancy, RBAC (6) | ◐ | Schema, RLS + column grants, signed claims, 10 roles, JWT verify, audit triggers, isolation matrix; 2 security reviews closed | IdP + token issuance, org switcher, staff admin API | — |
 | E12 Platform, security, ops (6) | ◐ | Monorepo, gate, CI, local PG, secrets scan, live-key refusal | Envs, observability, backups drill, pentest | — |
-| E8 Messaging & consent (5) | ☐ | | Consent entity, channels, STOP/BAJA, quiet hours, inbox | E1 |
+| E8 Messaging & consent (5) | ◐ | Consent model, opt-out across channels, window scheduling, templates ES/EN, queue, inbox API | Provider adapters (Twilio SMS/WhatsApp, email), inbound webhook + keyword opt-out, delivery worker, WABA/A2P timing | E1 |
 | E2 Gym self-serve onboarding (5) | ☐ | | Wizard, Stripe Accounts v2 + embedded onboarding (test), CSV import | E1 |
 | E3 Catalog & pricing (4) | ☐ | | Products/prices synced to connected account, rules, IVU type | E2 |
 | E4 Subscriptions & billing (8) | ☐ | | Billing, freeze, IVU invoices, fee %, retries, test clocks | E3, E8 |

@@ -5,6 +5,7 @@ import { jwtVerify } from "jose";
 import { ZodError } from "zod";
 import { httpFromPg } from "./errors.js";
 import { memberRoutes } from "./routes/members.js";
+import { messagingRoutes } from "./routes/messaging.js";
 import { orgRoutes } from "./routes/org.js";
 
 export interface AppDeps {
@@ -71,5 +72,6 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   app.get("/health", async () => ({ ok: true }));
   await app.register(orgRoutes, { prefix: "/v1" });
   await app.register(memberRoutes, { prefix: "/v1" });
+  await app.register(messagingRoutes, { prefix: "/v1" });
   return app;
 }
