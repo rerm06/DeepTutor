@@ -21,6 +21,5 @@ export const MODULES: readonly AppModule[] = [
   engagement,
   finance,
   reports,
-  ,
   coach,
 ];
