@@ -1,0 +1,71 @@
+/* Module engagement: small additions on top of styles.css (tokens only, light + dark come from :root). */
+.eng-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+}
+.eng-stats__value {
+  font-family: var(--font-display);
+  font-size: 1.75rem;
+  font-weight: 600;
+}
+.eng-badges,
+.eng-posts {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.eng-posts {
+  flex-direction: column;
+}
+.eng-post {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: 12px;
+  overflow-wrap: anywhere;
+}
+.eng-post__meta,
+.eng-post__body {
+  margin: 0 0 8px;
+}
+.eng-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 24px;
+  margin-right: 16px;
+}
+.eng-check input {
+  width: 20px;
+  height: 20px;
+}
+.eng-num {
+  width: 6rem;
+  max-width: 100%;
+}
+.eng-progress {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.eng-progress progress {
+  flex: 1 1 120px;
+  max-width: 100%;
+  accent-color: var(--accent);
+}
+.eng-actions {
+  margin: 8px 0 16px;
+}
+.eng-subtitle {
+  font-size: 1.4rem;
+  margin-top: 24px;
+}
+tr[aria-current="true"] th,
+tr[aria-current="true"] td {
+  background: var(--accent-soft);
+}
