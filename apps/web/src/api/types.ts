@@ -175,12 +175,21 @@ export interface BrandTheme {
   logo_alt?: string;
   colors?: Partial<
     Record<
-      "accent" | "accent_hover" | "accent_text" | "header_bg" | "header_text" | "highlight",
+      | "accent"
+      | "accent_hover"
+      | "accent_text"
+      | "header_bg"
+      | "header_text"
+      | "highlight"
+      | "accent_dark"
+      | "accent_dark_text",
       string
     >
   >;
   tagline_es?: string;
   tagline_en?: string;
+  /** Default colour mode for this brand's console; a person's own choice on the device wins. */
+  mode?: "light" | "dark";
 }
 export interface Brand {
   id: string;

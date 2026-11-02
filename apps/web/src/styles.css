@@ -62,11 +62,19 @@
   --z-modal-backdrop: 40;
   --z-modal: 50;
   --z-toast: 60;
+  /* Chart series and member-status colours (validated: dataviz validate_palette, light surface #fff). */
+  --viz-1: #8a6d12;
+  --viz-2: #2f5bd3;
+  --viz-good: #1f8a4c;
+  --viz-info: #2f5bd3;
+  --viz-bad: #c23b2e;
+  --viz-other: #8a929e;
+  --viz-grid: #e3e6ea;
   color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #0f1114;
     --surface: #171a1f;
     --surface-2: #20242b;
@@ -103,7 +111,61 @@
     --chrome-bg: #0b0d10;
     --shadow-raised: none;
     color-scheme: dark;
+    /* Chart colours stepped for the dark surface #171a1f (validated separately, not a flip). */
+    --viz-1: #b08c2c;
+    --viz-2: #5a84d8;
+    --viz-good: #3fa66a;
+    --viz-info: #5a84d8;
+    --viz-bad: #d0574b;
+    --viz-other: #6b7380;
+    --viz-grid: #2a2f37;
   }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1114;
+  --surface: #171a1f;
+  --surface-2: #20242b;
+  --border: #353b45;
+  --border-strong: #6b7380;
+  --text: #e9ebef;
+  --text-muted: #a9b0bb;
+  --accent: #8ea6ff;
+  --accent-hover: #b3c3ff;
+  --accent-text: #0b1027;
+  --accent-soft: #1d2747;
+  --focus: #b3c3ff;
+
+  --ok-bg: #12351f;
+  --ok-text: #a8ebbb;
+  --ok-line: #3fae62;
+  --warn-bg: #3a2e05;
+  --warn-text: #ffdf7a;
+  --warn-line: #d4a514;
+  --blocked-bg: #451512;
+  --blocked-text: #ffb4ab;
+  --blocked-line: #e0574a;
+  --neutral-bg: #262a31;
+  --neutral-text: #cfd4dc;
+  --neutral-line: #6b7380;
+
+  --danger-bg: #ffb4ab;
+  --danger-bg-hover: #ffd2cc;
+  --danger-text: #2a0a07;
+
+  --banner-bg: #ffe28a;
+  --banner-text: #15181d;
+  --accent-fg: color-mix(in oklab, var(--accent) 45%, #ffffff);
+  --chrome-bg: #0b0d10;
+  --shadow-raised: none;
+  color-scheme: dark;
+  /* Chart colours stepped for the dark surface #171a1f (validated separately, not a flip). */
+  --viz-1: #b08c2c;
+  --viz-2: #5a84d8;
+  --viz-good: #3fa66a;
+  --viz-info: #5a84d8;
+  --viz-bad: #d0574b;
+  --viz-other: #6b7380;
+  --viz-grid: #2a2f37;
 }
 
 *,
@@ -1292,4 +1354,19 @@ textarea[aria-invalid="true"] {
 }
 .table .row-actions {
   flex-wrap: nowrap;
+}
+/* Square icon button (theme toggle and similar). */
+.icon-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid color-mix(in srgb, currentColor 30%, transparent);
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.icon-btn:hover {
+  background: color-mix(in srgb, currentColor 10%, transparent);
 }

@@ -139,6 +139,33 @@ export interface CheckInResult {
   member_id: string | null;
   full_name: string | null;
 }
+/** GET /v1/reports/executive — 12 months ending with the current month (America/Puerto_Rico). Money in cents. */
+export interface ExecKpi {
+  value: number;
+  prev: number;
+  series: number[];
+}
+export interface Executive {
+  as_of: string;
+  currency: string;
+  months: string[];
+  kpis: {
+    revenue_month_cents: ExecKpi;
+    active_members: ExecKpi;
+    net_profit_month_cents: ExecKpi;
+    checkins_today: ExecKpi;
+  };
+  revenue_vs_expenses: Array<{ month: string; revenue_cents: number; expenses_cents: number }>;
+  new_members: Array<{ month: string; joins: number; cancellations: number }>;
+  member_status: { active: number; expired: number; frozen: number; other: number };
+  sales_mix: Array<{
+    kind: string;
+    label_es: string;
+    label_en: string;
+    units: number;
+    revenue_cents: number;
+  }>;
+}
 export type CsvReport = "overdue" | "expiring" | "heatmap" | "ivu" | "sales" | "members";
 
 interface ListOf<T> {
@@ -154,6 +181,8 @@ function qs(params: Record<string, string | number | undefined>): string {
 /** Typed calls for /v1/reports/*. Every number is computed by the database under the caller's RLS. */
 export function reportsApi(api: ApiClient) {
   return {
+    executive: (locationId?: string) =>
+      api.request<Executive>("GET", `/reports/executive${qs({ location_id: locationId })}`),
     dashboard: (locationId?: string) =>
       api.request<Dashboard>("GET", `/reports/dashboard${qs({ location_id: locationId })}`),
     today: (locationId?: string) =>

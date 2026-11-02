@@ -3,6 +3,7 @@ import { ErrorNote, Loading, Section, TableWrap } from "../../components/ui";
 import { formatDateTime } from "../../lib/format";
 import { useAsync } from "../../lib/useAsync";
 import { useSession } from "../../session/SessionContext";
+import { ExecutiveOverview } from "./Executive";
 import { type Dashboard, count, money, pct, reportsApi } from "./api";
 import {
   CsvButton,
@@ -48,6 +49,9 @@ export function PanelScreen() {
         <LocationSelect locations={locs} value={loc} onChange={setLoc} tourId="rpt-location" />
       </div>
 
+      <ExecutiveOverview locationId={locId} />
+
+      <h2 className="exec__title exec__title--section">{t("exec.ops")}</h2>
       <QuickCheckIn locations={locs} locationId={loc} />
 
       {dash.loading && !dash.data ? <Loading /> : null}

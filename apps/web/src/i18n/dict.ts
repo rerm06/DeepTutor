@@ -14,6 +14,7 @@ const es = {
 
   "nav.label": "Secciones",
   "nav.menu": "Menú",
+  "theme.dark": "Modo oscuro",
   "nav.close": "Cerrar menú",
   "nav.group.today": "Operación de hoy",
   "nav.group.people": "Socios y prospectos",
@@ -275,6 +276,7 @@ const en: Dictionary = {
 
   "nav.label": "Sections",
   "nav.menu": "Menu",
+  "theme.dark": "Dark mode",
   "nav.close": "Close menu",
   "nav.group.today": "Today",
   "nav.group.people": "Members and leads",

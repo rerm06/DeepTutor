@@ -45,3 +45,31 @@ describe("brand theme guard (0015)", () => {
     });
   });
 });
+
+describe("brand colour mode (0020)", () => {
+  it("accepts light and dark, plus the dark accent pair", async () => {
+    for (const mode of ["light", "dark"]) {
+      await asCaller(t.api, t.claims(t.fx.A, "owner"), (tx) =>
+        tx.query(
+          `UPDATE app.brand SET theme = jsonb_build_object('mode', $2::text,
+             'colors', '{"accent":"#6D6128","accent_dark":"#D4A63E","accent_dark_text":"#111111"}'::jsonb)
+           WHERE id = $1`,
+          [t.fx.A.brandId, mode],
+        ),
+      );
+    }
+  });
+
+  it.each([
+    `{"mode":"neon"}`,
+    `{"mode":1}`,
+    `{"mode":"dark; x"}`,
+    `{"colors":{"accent_dark":"gold"}}`,
+  ])("rejects %s", async (theme) => {
+    await asCaller(t.api, t.claims(t.fx.A, "owner"), async (tx) => {
+      await expect(
+        tx.query("UPDATE app.brand SET theme = $2::jsonb WHERE id = $1", [t.fx.A.brandId, theme]),
+      ).rejects.toMatchObject({ code: "23514" });
+    });
+  });
+});

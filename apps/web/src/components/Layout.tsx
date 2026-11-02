@@ -4,6 +4,7 @@ import { useI18n } from "../i18n/I18nContext";
 import type { Lang, MessageKey } from "../i18n/dict";
 import { useBrandTheme } from "../lib/brandTheme";
 import { isMemberRole, navFor } from "../lib/roles";
+import { setPref, useMode } from "../lib/themeMode";
 import { MODULES } from "../modules/registry";
 import { allows } from "../modules/types";
 import { useSession } from "../session/SessionContext";
@@ -38,6 +39,31 @@ export function LangToggle() {
         </button>
       ))}
     </fieldset>
+  );
+}
+
+/** One button: dark on/off. The choice is stored on this device and wins over the brand's default. */
+export function ThemeToggle() {
+  const { t } = useI18n();
+  const mode = useMode();
+  const dark = mode === "dark";
+  return (
+    <button
+      type="button"
+      className="icon-btn"
+      aria-pressed={dark}
+      data-tour-id="theme-toggle"
+      onClick={() => setPref(dark ? "light" : "dark")}
+    >
+      <Icon
+        d={
+          dark
+            ? "M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"
+            : "M12 4V2M12 22v-2M4 12H2M22 12h-2M5.6 5.6 4.2 4.2M19.8 19.8l-1.4-1.4M5.6 18.4l-1.4 1.4M19.8 4.2l-1.4 1.4M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10Z"
+        }
+      />
+      <span className="sr-only">{t("theme.dark")}</span>
+    </button>
   );
 }
 
@@ -341,6 +367,7 @@ export function Layout({ children }: { children: ReactNode }) {
               ) : null}
             </div>
             <div className="topbar__tools">
+              <ThemeToggle />
               <LangToggle />
               {persona ? (
                 <button
