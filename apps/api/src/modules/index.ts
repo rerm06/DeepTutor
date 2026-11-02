@@ -6,6 +6,7 @@ import { routes as engagement } from "./engagement.js";
 import { routes as finance } from "./finance.js";
 import { routes as floor } from "./floor.js";
 import { routes as health } from "./health.js";
+import { routes as portal } from "./portal.js";
 import { routes as reports } from "./reports.js";
 import { routes as schedule } from "./schedule.js";
 import { routes as store } from "./store.js";
@@ -22,4 +23,5 @@ export async function moduleRoutes(app: FastifyInstance): Promise<void> {
   await app.register(finance, { prefix: "/v1" });
   await app.register(reports, { prefix: "/v1" });
   await app.register(coach, { prefix: "/v1" });
+  await app.register(portal, { prefix: "/v1" });
 }
