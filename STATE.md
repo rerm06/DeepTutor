@@ -7,6 +7,7 @@
 | Gate | PASS (lint, build, typecheck, 153 tests: 114 DB/RLS + 39 API) |
 | Gate spot-check | Weakening 2 policies → 27 failures; undoing 3 review fixes → 3 failures. Gate is live. |
 | Consecutive cycles without progress | 0 |
+| Loop status | **STOPPED** — hard stop: 3 fix attempts used in cycle 2 with findings still open. Awaiting human decision. |
 | Next epic | E8 slice 2 (provider adapters + inbound webhook + delivery worker), then E2 → E3 → E4 |
 
 ## Cycle log
@@ -37,7 +38,19 @@
   (staff revoke launders a member revocation), N3 (opt-out did not cover pairs without rows), N4 (consent_event
   missing from matrix, non-composite FKs), N5 (unchecked brand/location names). Fixed: no free-text variables at
   all, content screen covers plurals/bare domains/phones/non-Latin scripts, member-revocation rule reads the
-  append-only history, brand-level opt-out marker, composite FKs, names validated on write. Final check: in progress.
+  append-only history, brand-level opt-out marker, composite FKs, names validated on write.
+- Final check (attempt 3/3): every earlier finding CLOSED. New, OPEN:
+  - N-A (high): a member opting back in to ONE pair deletes the brand opt-out marker, so staff can then grant
+    pairs the member never chose (e.g. WhatsApp marketing).
+  - N-B (medium): a staff grant racing a member opt-out can commit after the opt-out (no shared per-member lock);
+    enqueue does not look at the opt-out marker.
+  - N-C (low): owner-entered names accept 7+ digit runs and bare domains (the latter silently breaks messaging).
+  - Proposed fix (needs approval for a 4th attempt): explicit brand-level opt-in action as the only way to lift
+    the marker; per-member advisory lock in set_consent/opt_out/enqueue; enqueue blocks while a marker stands;
+    name CHECK rejects domains and 7+ digit runs.
+  - Legal question behind N-A: after a full opt-out, does a member's re-consent to one channel/purpose restore
+    anything else? Proposed default: no — each pair needs its own new consent from the member. [VERIFICAR · TCPA]
+- Cycle 2 NOT accepted.
 - Carry to slice 2: the delivery worker must re-check consent at send time.
 
 ## Decisions awaiting the human
