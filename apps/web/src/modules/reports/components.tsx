@@ -69,7 +69,7 @@ export function Kpi({
   return (
     <div className={`rpt-kpi${tone ? ` rpt-kpi--${tone}` : ""}`}>
       <dt className="rpt-kpi__label">{label}</dt>
-      <dd className="rpt-kpi__value mono">{value}</dd>
+      <dd className="rpt-kpi__value">{value}</dd>
       {hint ? <dd className="rpt-kpi__hint">{hint}</dd> : null}
       {to ? (
         <dd className="rpt-kpi__link rpt-noprint">

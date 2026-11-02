@@ -5,8 +5,8 @@
   gap: 12px;
 }
 .eng-stats__value {
-  font-family: var(--font-display);
   font-size: 1.75rem;
+  font-variant-numeric: tabular-nums;
   font-weight: 600;
 }
 .eng-badges,

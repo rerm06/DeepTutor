@@ -28,6 +28,14 @@ export function groupByOrg(personas: Persona[]): OrgGroup[] {
   return [...groups.values()].sort((a, b) => a.org.localeCompare(b.org));
 }
 
+function initialsOf(name: string): string {
+  return name
+    .split(/\s+/)
+    .map((w) => w[0] ?? "")
+    .slice(0, 2)
+    .join("");
+}
+
 export function EntryScreen() {
   const { t, tv } = useI18n();
   const { api, login, lost } = useSession();
@@ -82,19 +90,43 @@ export function EntryScreen() {
                     data-tour-id="persona-pick"
                     aria-label={t("entry.enter", { name: p.display_name })}
                     aria-describedby={`persona-${p.id}-role`}
+                    aria-busy={busy === p.id}
                     disabled={busy !== null}
                     onClick={() => pick(p)}
                   >
-                    <span className="persona__name">{p.display_name}</span>
-                    <span className="persona__role" id={`persona-${p.id}-role`}>
-                      {tv("role", p.role, t("role.unknown", { role: p.role }))}
-                      {" · "}
-                      {p.home
-                        ? t("entry.home", { home: p.home })
-                        : p.role === "guardian" || p.role === "member"
-                          ? ""
-                          : t("entry.homeNone")}
+                    <span className="avatar persona__avatar" aria-hidden="true">
+                      {initialsOf(p.display_name)}
                     </span>
+                    <span className="persona__text">
+                      <span className="persona__name">{p.display_name}</span>
+                      <span className="persona__role" id={`persona-${p.id}-role`}>
+                        {[
+                          tv("role", p.role, t("role.unknown", { role: p.role })),
+                          p.home
+                            ? t("entry.home", { home: p.home })
+                            : p.role === "guardian" || p.role === "member"
+                              ? ""
+                              : t("entry.homeNone"),
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </span>
+                    </span>
+                    <svg
+                      className="icon persona__go"
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.75"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                      focusable="false"
+                    >
+                      <path d="m9 6 6 6-6 6" />
+                    </svg>
                   </button>
                 </li>
               ))}

@@ -51,17 +51,16 @@
   flex-direction: column;
   gap: 2px;
   padding: 12px;
-  border: 1px solid var(--border);
-  border-left: 4px solid var(--ok-line);
+  border: 1px solid var(--ok-line);
   border-radius: var(--radius);
-  background: var(--surface);
+  background: color-mix(in srgb, var(--ok-bg) 40%, var(--surface));
 }
 .billing-credit__name {
   font-weight: 700;
 }
 .billing-credit__count {
-  font-family: var(--font-display);
   font-size: 1.25rem;
+  font-variant-numeric: tabular-nums;
   font-weight: 700;
 }
 .billing-steps {
