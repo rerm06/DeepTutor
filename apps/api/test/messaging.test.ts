@@ -25,7 +25,7 @@ async function token(claims: Claims): Promise<string> {
 const auth = async (claims: Claims) => ({ authorization: `Bearer ${await token(claims)}` });
 
 // Only client-side variables; brand, name, location and link are filled by the database.
-const reminderVars = { class_name: "Spinning", date: "2026-11-03", time: "18:00" };
+const reminderVars = { date: "2026-11-03", time: "18:00" };
 const promoVars = { discount: "20%", date: "2026-11-30" };
 
 async function send(claims: Claims, payload: Record<string, unknown>) {
@@ -64,8 +64,8 @@ describe("server-side rendering (E8 review CRITICAL regressions)", () => {
   const fd = () => t.claims(t.fx.A, "front_desk");
   it("free text cannot be smuggled into a reminder through variables (400, nothing queued)", async () => {
     for (const vars of [
-      { ...reminderVars, class_name: "OFERTA 50%! Paga en http://evil.invalid" },
-      { ...reminderVars, class_name: "Spinning\nnutricionista IA" },
+      { ...reminderVars, class_name: "Visita gymbarato.com 2x1 hoy" },
+      { ...reminderVars, time: "18:00 http://evil.invalid" },
       { ...reminderVars, brand: "OtraMarca Gym" },
       { ...reminderVars, name: "x" },
       { ...reminderVars, date: "3 nov" },
@@ -75,12 +75,19 @@ describe("server-side rendering (E8 review CRITICAL regressions)", () => {
     }
   });
 
-  it("forbidden terms in otherwise valid variables are refused by the database", async () => {
-    const r = await send(fd(), {
-      ...reminderTo(t.fx.A.members[0]),
-      vars: { ...reminderVars, class_name: "Nutricionista" },
-    });
-    expect(r.statusCode).toBe(400);
+  it("forbidden content in owner-entered names is refused by the database screen at render time", async () => {
+    const loc = t.fx.A.locations[0];
+    const original = (await t.admin.query("SELECT name FROM app.location WHERE id = $1", [loc]))
+      .rows[0].name;
+    try {
+      for (const name of ["Nutricionistas Centro", "Sede 1 gymbarato.com"]) {
+        await t.admin.query("UPDATE app.location SET name = $2 WHERE id = $1", [loc, name]);
+        const r = await send(fd(), reminderTo(t.fx.A.members[0]));
+        expect(r.statusCode, name).toBe(400);
+      }
+    } finally {
+      await t.admin.query("UPDATE app.location SET name = $2 WHERE id = $1", [loc, original]);
+    }
   });
 
   it("brand, first name and location come from the database", async () => {
@@ -88,7 +95,7 @@ describe("server-side rendering (E8 review CRITICAL regressions)", () => {
     expect(r.statusCode).toBe(201);
     const row = await outbound(fd(), r.json().id);
     expect(row?.body).toBe(
-      "Demo A Fitness: Hola Demo, te recordamos tu clase de Spinning en Demo A Sede 1 el 2026-11-03 a las 18:00.",
+      "Demo A Fitness: Hola Demo, te recordamos tu clase en Demo A Sede 1 el 2026-11-03 a las 18:00.",
     );
   });
 });
@@ -104,7 +111,7 @@ describe("POST /v1/messages", () => {
     expect(new Date(body.scheduled_for).getTime()).toBeGreaterThan(0);
     const row = await outbound(fd, body.id);
     expect(row?.purpose).toBe("reminder");
-    expect(row?.body).toContain("Spinning");
+    expect(row?.body).toContain("2026-11-03");
   });
 
   it("a member without consent → stored as blocked with reason no_consent", async () => {

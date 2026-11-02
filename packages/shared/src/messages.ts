@@ -44,12 +44,4 @@ export const TEMPLATE_KEYS = [
 export type TemplateKey = (typeof TEMPLATE_KEYS)[number];
 
 /** Client-supplied variables (all others are server-side). Patterns mirror app.template_variable. */
-export const TEMPLATE_VARIABLES = [
-  "class_name",
-  "plan",
-  "date",
-  "time",
-  "amount",
-  "last4",
-  "discount",
-] as const;
+export const TEMPLATE_VARIABLES = ["date", "time", "amount", "last4", "discount"] as const;

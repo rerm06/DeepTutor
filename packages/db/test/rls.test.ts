@@ -25,6 +25,8 @@ const ORG_SCOPED_TABLES = [
   "message_policy",
   "outbound_message",
   "inbound_message",
+  "consent_event",
+  "brand_opt_out",
 ];
 
 function orgs(): Array<[string, OrgFixture, OrgFixture]> {

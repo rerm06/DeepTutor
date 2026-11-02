@@ -188,6 +188,17 @@ async function seedOrg(c: pg.Client, label: string): Promise<OrgFixture> {
       [orgId, brand, loc, member_id, status, reason, people.front_desk],
     );
   }
+  // History and brand opt-out rows so the isolation matrix covers these tables (E8 re-review N4).
+  await c.query(
+    `INSERT INTO app.consent_event (org_id, consent_id, member_id, brand_id, channel, purpose, status, source, evidence, recorded_by)
+     SELECT org_id, id, member_id, brand_id, channel, purpose, status, source, evidence, recorded_by FROM app.consent WHERE org_id = $1`,
+    [orgId],
+  );
+  const optedOut = await member(await person("optedout"), locations[1], `Demo optedout ${label}`);
+  await c.query(
+    "INSERT INTO app.brand_opt_out (org_id, member_id, brand_id, source, recorded_by) VALUES ($1,$2,$3,'front_desk',$4)",
+    [orgId, optedOut, brand, people.front_desk],
+  );
   await c.query(
     "INSERT INTO app.inbound_message (org_id, brand_id, location_id, channel, from_address, body) VALUES ($1,$2,$3,'sms','+17875550000','Demo hola')",
     [orgId, brand, locations[1]],

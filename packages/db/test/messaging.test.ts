@@ -14,7 +14,7 @@ afterAll(async () => {
 const ENQUEUE = `SELECT app.enqueue_message($1, $2, $3,
   CASE $4::text WHEN 'marketing' THEN 'promo.generic' ELSE 'class.reminder' END, 'es',
   CASE $4::text WHEN 'marketing' THEN '{"discount":"20%","date":"2026-11-30"}'
-                ELSE '{"class_name":"Spinning","date":"2026-11-03","time":"18:00"}' END::jsonb) AS id`;
+                ELSE '{"date":"2026-11-03","time":"18:00"}' END::jsonb) AS id`;
 /** Two statements on purpose: rows inserted by a function are not visible to the statement that called it. */
 async function enqueue(tx: Tx, args: unknown[]) {
   const { rows } = await tx.query<{ id: string }>(ENQUEUE, args);
@@ -458,5 +458,100 @@ describe("E8 review regressions", () => {
         tx.query("UPDATE app.message_policy SET window_start = '00:00', window_end = '23:59'"),
       ).rejects.toMatchObject({ code: "23514" });
     });
+  });
+});
+
+describe("E8 re-review regressions", () => {
+  const set = "SELECT app.set_consent($1, $2, $3, $4, $5, $6, $7) AS id";
+
+  it.each([
+    "Visita gymbarato.com hoy",
+    "Charla con nutricionistas",
+    "Pierde 10 kg ya",
+    "Clase nutriсionista", // Cyrillic с
+    "llama 787 555 0000",
+    "{{brand}}",
+  ])("N1: the content screen refuses %j", async (body) => {
+    const { rows } = await t.admin.query("SELECT app.has_forbidden_terms($1) AS r", [body]);
+    expect(rows[0].r).toBe(true);
+  });
+
+  it("N1: a normal rendered reminder and the payment link pass the screen", async () => {
+    for (const body of [
+      "Demo A Fitness: Hola Ana, te recordamos tu clase en Demo A Sede 1 el 2026-11-03 a las 18:00.",
+      "Demo A Fitness: Hola Ana, no pudimos procesar tu pago de $45.00. Actualiza tu método de pago en https://portal.gym-saas.invalid/pagos",
+    ]) {
+      const { rows } = await t.admin.query("SELECT app.has_forbidden_terms($1) AS r", [body]);
+      expect(rows[0].r, body).toBe(false);
+    }
+  });
+
+  it("N2: a staff revoke cannot launder a member's own revocation", async () => {
+    const { A } = t.fx;
+    await asCaller(t.api, t.claims(A, "member"), async (tx) => {
+      await tx.query(set, [
+        A.members[0],
+        A.brandId,
+        "sms",
+        "transactional",
+        true,
+        "member_portal",
+        "Demo",
+      ]);
+      await tx.query(set, [
+        A.members[0],
+        A.brandId,
+        "sms",
+        "transactional",
+        false,
+        "member_portal",
+        null,
+      ]);
+    });
+    await asCaller(t.api, t.claims(A, "chef"), (tx) =>
+      tx.query(set, [A.members[0], A.brandId, "sms", "transactional", false, "front_desk", null]),
+    );
+    await asCaller(t.api, t.claims(A, "front_desk"), async (tx) => {
+      await expect(
+        tx.query(set, [A.members[0], A.brandId, "sms", "transactional", true, "front_desk", "x"]),
+      ).rejects.toMatchObject({ code: "42501" });
+    });
+  });
+
+  it("N3: after a brand opt-out staff cannot grant any pair, even one that never had a row", async () => {
+    const { B } = t.fx;
+    await asCaller(t.api, t.claims(B, "member"), (tx) =>
+      tx.query("SELECT app.opt_out($1, $2, 'member_portal')", [B.members[0], B.brandId]),
+    );
+    await asCaller(t.api, t.claims(B, "front_desk"), async (tx) => {
+      await expect(
+        tx.query(set, [B.members[0], B.brandId, "whatsapp", "marketing", true, "front_desk", "x"]),
+      ).rejects.toMatchObject({ code: "42501" });
+    });
+    // The member opting back in lifts the marker.
+    await asCaller(t.api, t.claims(B, "member"), (tx) =>
+      tx.query(set, [
+        B.members[0],
+        B.brandId,
+        "email",
+        "reminder",
+        true,
+        "member_portal",
+        "Demo re-opt-in",
+      ]),
+    );
+    const m = await t.admin.query(
+      "SELECT count(*)::int AS n FROM app.brand_opt_out WHERE member_id = $1",
+      [B.members[0]],
+    );
+    expect(m.rows[0].n).toBe(0);
+  });
+
+  it("N5: names that render into messages reject braces and non-Latin scripts at write time", async () => {
+    for (const name of ["Demo {{x}}", "Демо Gym"]) {
+      await expect(
+        t.admin.query("UPDATE app.brand SET name = $2 WHERE id = $1", [t.fx.A.brandId, name]),
+      ).rejects.toMatchObject({ code: "23514" });
+    }
   });
 });

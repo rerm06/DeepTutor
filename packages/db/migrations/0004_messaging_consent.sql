@@ -24,6 +24,7 @@ CREATE TABLE app.consent (
   revoked_at timestamptz,
   updated_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (member_id, brand_id, channel, purpose),
+  UNIQUE (org_id, id),
   FOREIGN KEY (org_id, member_id) REFERENCES app.member (org_id, id),
   FOREIGN KEY (org_id, brand_id) REFERENCES app.brand (org_id, id),
   CHECK ((status = 'granted' AND granted_at IS NOT NULL) OR (status = 'revoked' AND revoked_at IS NOT NULL))
@@ -44,7 +45,7 @@ CREATE TABLE app.message_policy (
 CREATE TABLE app.consent_event (
   id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   org_id uuid NOT NULL,
-  consent_id uuid NOT NULL REFERENCES app.consent (id),
+  consent_id uuid NOT NULL,
   member_id uuid NOT NULL,
   brand_id uuid NOT NULL,
   channel app.channel NOT NULL,
@@ -54,11 +55,35 @@ CREATE TABLE app.consent_event (
   evidence text,
   recorded_by uuid NOT NULL,
   at timestamptz NOT NULL DEFAULT now(),
-  FOREIGN KEY (org_id, member_id) REFERENCES app.member (org_id, id)
+  FOREIGN KEY (org_id, consent_id) REFERENCES app.consent (org_id, id),
+  FOREIGN KEY (org_id, member_id) REFERENCES app.member (org_id, id),
+  FOREIGN KEY (org_id, brand_id) REFERENCES app.brand (org_id, id)
 );
 CREATE INDEX consent_event_member_idx ON app.consent_event (member_id, at DESC);
 
--- Platform template catalogue (global, read-only for request traffic). The DATABASE renders every message:
+-- Names that end up inside messages are validated when written (E8 re-review N5): letters, digits, spaces and
+-- light punctuation only, no braces, and no forbidden content. Rendering cannot expand placeholders from data.
+ALTER TABLE app.brand ADD CONSTRAINT brand_name_safe
+  CHECK (name ~ '^[A-Za-zÁÉÍÓÚÑÜáéíóúñü0-9 &''.-]{1,60}$');
+ALTER TABLE app.location ADD CONSTRAINT location_name_safe
+  CHECK (name ~ '^[A-Za-zÁÉÍÓÚÑÜáéíóúñü0-9 &''.-]{1,60}$');
+
+-- Brand-level opt-out marker (E8 re-review N3). While it stands, staff cannot record ANY grant for that member
+-- and brand (also for channel/purpose pairs that never had a row); only the member or guardian can opt back in.
+CREATE TABLE app.brand_opt_out (
+  org_id uuid NOT NULL,
+  member_id uuid NOT NULL,
+  brand_id uuid NOT NULL,
+  source app.consent_source NOT NULL,
+  recorded_by uuid NOT NULL,
+  at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (member_id, brand_id),
+  FOREIGN KEY (org_id, member_id) REFERENCES app.member (org_id, id),
+  FOREIGN KEY (org_id, brand_id) REFERENCES app.brand (org_id, id)
+);
+
+-- Platform template catalogue (global, read-only for request traffic). There are NO free-text client variables:
+-- class and plan names will be looked up by id once those tables exist (E3/E6), never typed by a caller. The DATABASE renders every message:
 -- purpose comes from here, brand/name/location/link are looked up server-side, and every other variable must
 -- match a strict pattern (E8 review CRITICAL: free-text variables let a sender inject marketing, health claims,
 -- forbidden terms and phishing links into a reminder).
@@ -76,18 +101,16 @@ CREATE TABLE app.template_variable (
   pattern text NOT NULL  -- anchored POSIX regex; no braces, newlines or URLs can pass any of them
 );
 INSERT INTO app.template_variable (name, pattern) VALUES
-  ('class_name', '^[[:alpha:][:digit:] .''-]{1,40}$'),
-  ('plan',       '^[[:alpha:][:digit:] .''-]{1,40}$'),
   ('date',       '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'),
   ('time',       '^([01][0-9]|2[0-3]):[0-5][0-9]$'),
   ('amount',     '^\$[0-9]{1,6}\.[0-9]{2}$'),
   ('last4',      '^[0-9]{4}$'),
   ('discount',   '^[1-9][0-9]?%$');
 INSERT INTO app.message_template (key, locale, purpose, body) VALUES
-  ('class.reminder', 'es', 'reminder', '{{brand}}: Hola {{name}}, te recordamos tu clase de {{class_name}} en {{location}} el {{date}} a las {{time}}.'),
-  ('class.reminder', 'en', 'reminder', '{{brand}}: Hi {{name}}, a reminder of your {{class_name}} class at {{location}} on {{date}} at {{time}}.'),
-  ('membership.renewal_notice', 'es', 'transactional', '{{brand}}: Hola {{name}}, tu membresía {{plan}} se renueva el {{date}} por {{amount}}.'),
-  ('membership.renewal_notice', 'en', 'transactional', '{{brand}}: Hi {{name}}, your {{plan}} membership renews on {{date}} for {{amount}}.'),
+  ('class.reminder', 'es', 'reminder', '{{brand}}: Hola {{name}}, te recordamos tu clase en {{location}} el {{date}} a las {{time}}.'),
+  ('class.reminder', 'en', 'reminder', '{{brand}}: Hi {{name}}, a reminder of your class at {{location}} on {{date}} at {{time}}.'),
+  ('membership.renewal_notice', 'es', 'transactional', '{{brand}}: Hola {{name}}, tu membresía se renueva el {{date}} por {{amount}}.'),
+  ('membership.renewal_notice', 'en', 'transactional', '{{brand}}: Hi {{name}}, your membership renews on {{date}} for {{amount}}.'),
   ('payment.failed', 'es', 'transactional', '{{brand}}: Hola {{name}}, no pudimos procesar tu pago de {{amount}}. Actualiza tu método de pago en {{link}}'),
   ('payment.failed', 'en', 'transactional', '{{brand}}: Hi {{name}}, we could not process your payment of {{amount}}. Update your payment method at {{link}}'),
   ('card.expiring', 'es', 'transactional', '{{brand}}: Hola {{name}}, tu tarjeta terminada en {{last4}} vence el {{date}}. Actualízala en {{link}}'),
@@ -166,10 +189,15 @@ $$;
 -- Health-claim and title guard on every rendered body (spec §6.7 Ley 82, §11 FDA/FTC). [P] list to be extended
 -- by legal review; matching is on whole words, case-insensitive.
 CREATE FUNCTION app.has_forbidden_terms(p_body text) RETURNS boolean LANGUAGE sql IMMUTABLE AS $$
-  SELECT p_body ~* '\m(nutricionista|dietista|nutritionist|dietitian|garantiza|garantizado|guarantee|guaranteed|cura|cure|curar|adelgaza|bajar[[:space:]]+[0-9]+|lose[[:space:]]+[0-9]+)\M'
-      -- At most one link, and only the server-built payment link at the very end of the message.
-      OR regexp_count(p_body, '(https?://|www\.)', 1, 'i') > 1
-      OR (p_body ~* '(https?://|www\.)' AND p_body !~ ' https://[a-z0-9.-]+/pagos$')
+  SELECT
+    -- Titles and health promises, singular or plural (Ley 82; FTC/FDA). [P] list extended by legal review.
+    p_body ~* '\m(nutricionistas?|dietistas?|nutritionists?|dietitians?|garantiza(do|da|n|mos)?|guarantee[ds]?|curas?|cures?|curar|adelgaza[rn]?|bajar[[:space:]]+[0-9]+|pierde[ns]?[[:space:]]+[0-9]+|lose[[:space:]]+[0-9]+)\M'
+    -- Characters outside Latin + Spanish letters, digits and basic punctuation (blocks homoglyphs, emoji tricks).
+    OR p_body ~ '[^A-Za-zÁÉÍÓÚÑÜáéíóúñü0-9 .,:;!?¿¡%$/@&''()+-]'
+    -- Phone-number-like sequences (callers must not inject contact routes).
+    OR p_body ~ '[0-9]{3}[ .-]?[0-9]{3}[ .-]?[0-9]{4}'
+    -- Links: only the server-built payment link, once, at the very end. Bare domains count as links.
+    OR regexp_count(regexp_replace(p_body, ' https://[a-z0-9.-]+/pagos$', ''), '([[:alnum:]-]+\.[[:alpha:]]{2,}|https?:|www\.)', 1, 'i') > 0
 $$;
 
 -- Render a catalogue template for a member. Server variables: brand, name (first name), location, link.
@@ -191,7 +219,7 @@ BEGIN
   IF body IS NULL THEN RAISE EXCEPTION 'unknown_template' USING ERRCODE = '22023'; END IF;
   IF jsonb_typeof(coalesce(p_vars, '{}'::jsonb)) <> 'object' THEN RAISE EXCEPTION 'invalid_vars' USING ERRCODE = '22023'; END IF;
 
-  SELECT regexp_replace(split_part(btrim(m.full_name), ' ', 1), '[^[:alpha:]''-]', '', 'g'), b.name, l.name, b.custom_domain
+  SELECT regexp_replace(split_part(btrim(m.full_name), ' ', 1), '[^A-Za-zÁÉÍÓÚÑÜáéíóúñü''-]', '', 'g'), b.name, l.name, b.custom_domain
     INTO v_name, v_brand, v_location, v_domain
     FROM app.member m JOIN app.location l ON l.id = m.home_location_id JOIN app.brand b ON b.id = p_brand
    WHERE m.id = p_member AND m.org_id = app.org_id() AND b.org_id = app.org_id();
@@ -274,10 +302,19 @@ BEGIN
   SELECT * INTO v_prev FROM app.consent
    WHERE member_id = p_member AND brand_id = p_brand AND channel = p_channel AND purpose = p_purpose
    FOR UPDATE;
-  -- A revocation made by the member (portal) or by keyword can only be undone by the member or guardian
-  -- (E8 review HIGH: staff could re-grant over a member's opt-out).
-  IF p_granted AND app.is_staff() AND v_prev.status = 'revoked' AND v_prev.source IN ('member_portal', 'keyword') THEN
-    RAISE EXCEPTION 'member_revoked' USING ERRCODE = '42501';
+  -- A revocation made by the member (portal) or by keyword can only be undone by the member or guardian.
+  -- Decided from the append-only history, not from consent.source, which a later staff revoke overwrites
+  -- (E8 re-review N2), and blocked outright while a brand-level opt-out stands (N3).
+  IF p_granted AND app.is_staff() THEN
+    IF EXISTS (SELECT 1 FROM app.brand_opt_out o WHERE o.member_id = p_member AND o.brand_id = p_brand) THEN
+      RAISE EXCEPTION 'member_opted_out' USING ERRCODE = '42501';
+    END IF;
+    IF (SELECT e.status FROM app.consent_event e
+         WHERE e.member_id = p_member AND e.brand_id = p_brand AND e.channel = p_channel AND e.purpose = p_purpose
+           AND e.source IN ('member_portal', 'keyword')
+         ORDER BY e.id DESC LIMIT 1) = 'revoked' THEN
+      RAISE EXCEPTION 'member_revoked' USING ERRCODE = '42501';
+    END IF;
   END IF;
 
   INSERT INTO app.consent AS c (org_id, member_id, brand_id, channel, purpose, status, source, evidence, recorded_by,
@@ -292,6 +329,11 @@ BEGIN
         revoked_at = CASE WHEN p_granted THEN NULL ELSE now() END,
         updated_at = now()
   RETURNING id INTO v_id;
+
+  -- The member (or guardian) granting again is the only way to lift a brand-level opt-out.
+  IF p_granted AND NOT app.is_staff() THEN
+    DELETE FROM app.brand_opt_out WHERE member_id = p_member AND brand_id = p_brand;
+  END IF;
 
   INSERT INTO app.consent_event (org_id, consent_id, member_id, brand_id, channel, purpose, status, source, evidence, recorded_by)
   VALUES (v_org, v_id, p_member, p_brand, p_channel, p_purpose,
@@ -335,6 +377,9 @@ BEGIN
     RETURNING 1
   )
   SELECT count(*) INTO v_n FROM hist;
+  INSERT INTO app.brand_opt_out (org_id, member_id, brand_id, source, recorded_by)
+  VALUES (app.org_id(), p_member, p_brand, p_source, app.person_id())
+  ON CONFLICT (member_id, brand_id) DO UPDATE SET source = EXCLUDED.source, recorded_by = EXCLUDED.recorded_by, at = now();
   -- Anything already queued for that brand and member is blocked too.
   UPDATE app.outbound_message SET status = 'blocked', block_reason = 'opted_out'
    WHERE member_id = p_member AND brand_id = p_brand AND org_id = app.org_id() AND status = 'queued';
@@ -404,10 +449,13 @@ ALTER TABLE app.consent          ENABLE ROW LEVEL SECURITY; ALTER TABLE app.cons
 ALTER TABLE app.message_policy   ENABLE ROW LEVEL SECURITY; ALTER TABLE app.message_policy   FORCE ROW LEVEL SECURITY;
 ALTER TABLE app.outbound_message ENABLE ROW LEVEL SECURITY; ALTER TABLE app.outbound_message FORCE ROW LEVEL SECURITY;
 ALTER TABLE app.inbound_message  ENABLE ROW LEVEL SECURITY; ALTER TABLE app.inbound_message  FORCE ROW LEVEL SECURITY;
+ALTER TABLE app.brand_opt_out    ENABLE ROW LEVEL SECURITY; ALTER TABLE app.brand_opt_out    FORCE ROW LEVEL SECURITY;
 ALTER TABLE app.consent_event    ENABLE ROW LEVEL SECURITY; ALTER TABLE app.consent_event    FORCE ROW LEVEL SECURITY;
 ALTER TABLE app.message_template ENABLE ROW LEVEL SECURITY; ALTER TABLE app.message_template FORCE ROW LEVEL SECURITY;
 ALTER TABLE app.template_variable ENABLE ROW LEVEL SECURITY; ALTER TABLE app.template_variable FORCE ROW LEVEL SECURITY;
 
+CREATE POLICY brand_opt_out_select ON app.brand_opt_out FOR SELECT
+  USING (org_id = (SELECT app.org_id()) AND app.can_act_for_member(member_id));
 CREATE POLICY consent_event_select ON app.consent_event FOR SELECT
   USING (org_id = (SELECT app.org_id()) AND app.can_act_for_member(member_id));
 -- The catalogue is global and read-only (platform content, not tenant data).
@@ -439,15 +487,16 @@ CREATE POLICY inbound_update ON app.inbound_message FOR UPDATE USING (
 
 -- ── Grants: reads plus the few writable columns; every other write goes through the definer functions.
 REVOKE ALL ON app.consent, app.message_policy, app.outbound_message, app.inbound_message, app.consent_event,
-  app.message_template, app.template_variable FROM PUBLIC;
+  app.message_template, app.template_variable, app.brand_opt_out FROM PUBLIC;
 GRANT SELECT ON app.consent, app.message_policy, app.outbound_message, app.inbound_message, app.consent_event,
-  app.message_template, app.template_variable TO app_authenticated;
+  app.message_template, app.template_variable, app.brand_opt_out TO app_authenticated;
 GRANT INSERT (window_start, window_end), UPDATE (window_start, window_end) ON app.message_policy TO app_authenticated;
 GRANT UPDATE (handled) ON app.inbound_message TO app_authenticated;
 
 GRANT SELECT ON app.guardian_link, app.brand TO app_definer;
 GRANT SELECT, INSERT, UPDATE ON app.consent, app.outbound_message TO app_definer;
 GRANT SELECT, INSERT ON app.consent_event TO app_definer;
+GRANT SELECT, INSERT, UPDATE, DELETE ON app.brand_opt_out TO app_definer;
 GRANT SELECT ON app.message_template, app.template_variable TO app_definer;
 ALTER FUNCTION app.render_message(text, text, uuid, uuid, jsonb) OWNER TO app_definer;
 GRANT SELECT ON app.message_policy TO app_definer;
