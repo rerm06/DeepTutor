@@ -366,7 +366,9 @@ describe("shape", () => {
       if (k !== "renewal_rate_pct") {
         for (const x of [v.value, v.prev, ...v.series]) expect(Number.isInteger(x), k).toBe(true);
         expect(v.value, k).toBe(v.series[n - 1]);
-        expect(v.prev, k).toBe(v.series[n === 14 ? 6 : 10]);
+        // Money KPIs compare month-to-date with the same days last month (tested below), not the full month.
+        if (!["revenue_month_cents", "net_profit_month_cents"].includes(k))
+          expect(v.prev, k).toBe(v.series[n === 14 ? 6 : 10]);
       }
     }
     expect(r.revenue_vs_expenses.map((x) => x.month)).toEqual(r.months);
@@ -595,7 +597,55 @@ describe("month boundaries are local (America/Puerto_Rico)", () => {
       (before.kpis.revenue_month_cents?.series[i] ?? 0);
     expect(d(10)).toBe(70001 + total);
     expect(d(11)).toBe(90001 - total);
-    expect(after.kpis.revenue_month_cents?.prev).toBe(after.kpis.revenue_month_cents?.series[10]);
+    // Both boundary instants are on last month's last day: inside the month-to-date comparison only when today is
+    // itself the last day of the month (then the window covers the whole of last month).
+    const lastDay = await q1<{ is_last: boolean }>(
+      `SELECT (now() AT TIME ZONE 'America/Puerto_Rico')::date
+              = (date_trunc('month', now() AT TIME ZONE 'America/Puerto_Rico') + interval '1 month - 1 day')::date
+              AS is_last`,
+      [],
+    );
+    const dPrev =
+      (after.kpis.revenue_month_cents?.prev ?? 0) - (before.kpis.revenue_month_cents?.prev ?? 0);
+    expect(dPrev).toBe(lastDay?.is_last ? 70001 + total : 0);
+  });
+
+  it("revenue and profit 'prev' = last month over the same days as this month-to-date", async () => {
+    const A = t.fx.A;
+    const inv = billingFx.A?.paidInvoice;
+    const before = await exec(A, "owner");
+    // Local noon on last month's 1st (always inside the window) and on the day after today's day-of-month last
+    // month (outside the window), when that day exists.
+    const days = await q1<{ inside: string; outside: string | null }>(
+      `WITH t AS (SELECT (now() AT TIME ZONE 'America/Puerto_Rico')::date AS today),
+            p AS (SELECT (date_trunc('month', today) - interval '1 month')::date AS pm,
+                         (today - date_trunc('month', today)::date) AS off FROM t)
+       SELECT ((pm + time '12:00') AT TIME ZONE 'America/Puerto_Rico')::text AS inside,
+              CASE WHEN pm + off + 1 < (pm + interval '1 month')::date
+                   THEN ((pm + off + 1 + time '12:00') AT TIME ZONE 'America/Puerto_Rico')::text END AS outside
+         FROM p`,
+      [],
+    );
+    const pay = (at: string, amount: number) =>
+      t.admin.query(
+        `INSERT INTO app.payment (org_id, invoice_id, member_id, location_id, method, amount_cents, idempotency_key,
+           recorded_by, received_at)
+         SELECT i.org_id, i.id, i.member_id, i.location_id, 'cash', $2, $3, $4, $5::timestamptz
+           FROM app.invoice i WHERE i.id = $1`,
+        [inv, amount, `exec-mtd-${rnd()}`, A.people.front_desk, at],
+      );
+    await pay(days?.inside as string, 4321);
+    if (days?.outside) await pay(days.outside, 8765);
+    const after = await exec(A, "owner");
+    const dPrev = (k: "revenue_month_cents" | "net_profit_month_cents") =>
+      (after.kpis[k]?.prev ?? 0) - (before.kpis[k]?.prev ?? 0);
+    expect(dPrev("revenue_month_cents")).toBe(4321);
+    expect(dPrev("net_profit_month_cents")).toBe(4321);
+    // The full-month series still counts both.
+    expect(
+      (after.kpis.revenue_month_cents?.series[10] ?? 0) -
+        (before.kpis.revenue_month_cents?.series[10] ?? 0),
+    ).toBe(4321 + (days?.outside ? 8765 : 0));
   });
 
   it("active members are reconstructed at each local month end (joins, cancellations, freezes, leads)", async () => {

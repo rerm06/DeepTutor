@@ -16,6 +16,8 @@
 --   expenses  = non-void finance expenses by spent_on + approved or paid bills by issued_on
 --               (= finance_pnl().expenses_cents + bills_cents; commissions and platform fees are NOT included).
 --   net profit = revenue − expenses (cash view, not the accrual P&L).
+--   revenue / net profit KPI "prev": last month over the same days as this month-to-date (1st .. same
+--               day-of-month, clamped), so a partial month is never compared with a full one. Series = full months.
 --   active members: value = member.status 'active' now (= report_dashboard.members_active); earlier points are
 --               reconstructed at each month end from member, subscription and freeze history [S]: joined by then,
 --               not a lead/trial today, not cancelled by then (members cancelled today with no cancelled
@@ -126,6 +128,10 @@ DECLARE
   v_rev bigint[];
   v_exp bigint[];
   v_net bigint[] := '{}';
+  v_pm_start date;      -- first day of last month (local)
+  v_pm_end date;        -- same day-of-month last month (clamped to its last day): month-to-date comparison
+  v_rev_pmtd bigint;
+  v_exp_pmtd bigint;
   v_act bigint[];
   v_chk bigint[];
   v_cls bigint[];
@@ -180,6 +186,38 @@ BEGIN
   FOR i IN 1 .. 12 LOOP
     v_net := v_net || (v_rev[i] - v_exp[i]);
   END LOOP;
+
+  -- The current month is month-to-date, so its "prev" is last month over the same days (1st .. same day-of-month,
+  -- clamped to last month's length), never last month's full total: Nov 1–2 is compared with Oct 1–2.
+  v_pm_start := (date_trunc('month', v_today) - interval '1 month')::date;
+  v_pm_end := least(v_pm_start + (v_today - date_trunc('month', v_today)::date),
+                    (date_trunc('month', v_today) - interval '1 day')::date);
+  WITH loc AS (
+    SELECT l.id, l.timezone FROM app.location l
+     WHERE l.org_id = app.org_id() AND app.can_see_location(l.id) AND (p_location IS NULL OR l.id = p_location)),
+  cash AS (
+    SELECT app.rpt_local(p.received_at, l.timezone)::date AS d, p.amount_cents::bigint AS c
+      FROM app.payment p JOIN loc l ON l.id = p.location_id
+     WHERE p.status = 'succeeded' AND p.received_at >= v_since
+    UNION ALL
+    SELECT app.rpt_local(s.completed_at, l.timezone)::date, s.total_cents::bigint
+      FROM app.sale s JOIN loc l ON l.id = s.location_id
+     WHERE s.status IN ('completed', 'refunded') AND s.completed_at >= v_since
+    UNION ALL
+    SELECT app.rpt_local(s.refunded_at, l.timezone)::date, -s.total_cents::bigint
+      FROM app.sale s JOIN loc l ON l.id = s.location_id
+     WHERE s.status = 'refunded' AND s.refunded_at >= v_since),
+  cost AS (
+    SELECT e.spent_on AS d, e.amount_cents::bigint AS c
+      FROM app.expense e JOIN loc l ON l.id = e.location_id
+     WHERE e.voided_at IS NULL AND e.spent_on >= v_pm_start
+    UNION ALL
+    SELECT b.issued_on, b.amount_cents::bigint
+      FROM app.bill b JOIN loc l ON l.id = b.location_id
+     WHERE b.status IN ('approved', 'paid') AND b.issued_on >= v_pm_start)
+  SELECT (SELECT coalesce(sum(c), 0) FROM cash WHERE d BETWEEN v_pm_start AND v_pm_end),
+         (SELECT coalesce(sum(c), 0) FROM cost WHERE d BETWEEN v_pm_start AND v_pm_end)
+    INTO v_rev_pmtd, v_exp_pmtd;
 
   -- Active members at each month end (last point = now). Member RLS: home location in scope.
   WITH loc AS (
@@ -310,9 +348,10 @@ BEGIN
     'currency', 'USD',
     'months', to_jsonb(v_months),
     'kpis', jsonb_build_object(
-      'revenue_month_cents', jsonb_build_object('value', v_rev[12], 'prev', v_rev[11], 'series', to_jsonb(v_rev)),
+      'revenue_month_cents', jsonb_build_object('value', v_rev[12], 'prev', v_rev_pmtd, 'series', to_jsonb(v_rev)),
       'active_members', jsonb_build_object('value', v_act[12], 'prev', v_act[11], 'series', to_jsonb(v_act)),
-      'net_profit_month_cents', jsonb_build_object('value', v_net[12], 'prev', v_net[11], 'series', to_jsonb(v_net)),
+      'net_profit_month_cents', jsonb_build_object('value', v_net[12], 'prev', v_rev_pmtd - v_exp_pmtd,
+                                                   'series', to_jsonb(v_net)),
       'checkins_today', jsonb_build_object('value', v_chk[14], 'prev', v_chk[7], 'series', to_jsonb(v_chk)),
       'classes_today', jsonb_build_object('value', v_cls[14], 'prev', v_cls[7], 'series', to_jsonb(v_cls)),
       'renewal_rate_pct', jsonb_build_object('value', v_ren_now, 'prev', v_ren_prev, 'series', to_jsonb(v_ren))),

@@ -617,3 +617,7 @@ BEGIN
     EXECUTE format('ALTER TABLE app.%I FORCE ROW LEVEL SECURITY', t);
   END LOOP;
 END $seed$;
+
+-- The history above is a bulk load: refresh planner statistics now so the first executive-dashboard call after the
+-- deploy does not plan against empty stats (measured locally: 13 s cold without, ~1 s with).
+ANALYZE;

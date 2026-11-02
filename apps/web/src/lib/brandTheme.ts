@@ -1,4 +1,4 @@
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useLayoutEffect, useState, useSyncExternalStore } from "react";
 import type { Brand, BrandTheme } from "../api/types";
 import { useApi, useSession } from "../session/SessionContext";
 import { type Mode, setBrandMode, useMode } from "./themeMode";
@@ -155,8 +155,8 @@ export function useBrandTheme(): Brand | null {
       cancelled = true;
     };
   }, [api, persona]);
-  // Re-apply the CSS variables whenever the brand or the resolved colour mode changes.
-  useEffect(() => {
+  // Re-apply the CSS variables whenever the brand or the resolved colour mode changes (before paint: no flash).
+  useLayoutEffect(() => {
     if (!brand) return;
     return applyTheme(brand.theme, document.documentElement, mode);
   }, [brand, mode]);

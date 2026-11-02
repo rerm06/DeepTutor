@@ -1,4 +1,13 @@
-import { type FormEvent, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import {
+  type FormEvent,
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Link, useParams } from "react-router-dom";
 import { useI18n } from "../../i18n/I18nContext";
 import { applyTheme, sanitizeTheme } from "../../lib/brandTheme";
@@ -129,14 +138,15 @@ export function JoinScreen() {
 
   const info = load.state === "ready" ? load.info : null;
   const mode = useMode();
-  // The public page wears the brand like the console does: its colours and its default colour mode.
-  useEffect(() => {
+  // The public page wears the brand like the console does: its colours and its default colour mode. Layout
+  // effects: applied before the first paint, so there is no flash of unbranded colours.
+  useLayoutEffect(() => {
     if (!info) return;
     const th = sanitizeTheme(info.brand.theme);
     setBrandMode(th.mode);
     return () => setBrandMode(undefined);
   }, [info]);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!info) return;
     return applyTheme(sanitizeTheme(info.brand.theme), document.documentElement, mode);
   }, [info, mode]);
