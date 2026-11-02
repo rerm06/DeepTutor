@@ -13,6 +13,8 @@ export interface DemoPersona {
     | "location_manager"
     | "front_desk"
     | "trainer"
+    | "nutritionist"
+    | "clinician"
     | "accountant"
     | "member"
     | "guardian";
@@ -95,6 +97,28 @@ export const DEMO_PERSONAS: readonly DemoPersona[] = [
     person_id: p(5, "a"),
     role: "trainer",
     display_name: "Ricardo Santos",
+    location_ids: [DEMO_IDS.locA1],
+    home: "Demo Sede San Juan",
+  },
+  {
+    id: "A-nutrition",
+    org: "A",
+    org_name: "Fitness R Us",
+    org_id: A,
+    person_id: p(7, "a"),
+    role: "nutritionist",
+    display_name: "Valeria Quiñones",
+    location_ids: [DEMO_IDS.locA1],
+    home: "Demo Sede San Juan",
+  },
+  {
+    id: "A-clinician",
+    org: "A",
+    org_name: "Fitness R Us",
+    org_id: A,
+    person_id: p(8, "a"),
+    role: "clinician",
+    display_name: "Rafael Benítez",
     location_ids: [DEMO_IDS.locA1],
     home: "Demo Sede San Juan",
   },
