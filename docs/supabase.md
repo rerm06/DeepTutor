@@ -17,6 +17,7 @@ applies nothing.
 ## Notes
 - Tables live in schema `app` (not `public`), so Supabase's auto REST API does not expose them; access stays
   through the API, which binds signed claims and drops to `app_authenticated` per transaction.
-- To point the deployed API at Supabase, set `GYM_DB_URL` in Netlify to the Supabase **session** pooler URL
-  (port 5432; transaction pooling breaks `SET LOCAL ROLE` + session-bound claim checks) [VERIFICAR in staging].
+- To point the deployed API at Supabase, set `GYM_DB_URL` in Netlify to a Supabase pooler URL. Start with the
+  session pooler (port 5432). Claims are signed per transaction (backend pid + transaction start) and applied with
+  `SET LOCAL ROLE`, so the transaction pooler (6543) should also work [VERIFICAR in staging before switching].
 - Run the Supabase security advisors after applying.
