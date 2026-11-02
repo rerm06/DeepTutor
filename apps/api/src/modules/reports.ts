@@ -418,4 +418,17 @@ export async function routes(app: FastifyInstance): Promise<void> {
       return rows[0];
     });
   });
+
+  // ── Executive dashboard (module exec, migration 0019): owner / location manager. One invoker read model
+  // returns the whole contract (KPIs with sparklines, revenue vs expenses, joins vs cancellations, status donut,
+  // sales mix); every number is already an integer (cents, counts) or a one-decimal percentage / null.
+  app.get("/reports/executive", async (req) => {
+    const q = LocQuery.parse(req.query);
+    return app.asCaller(req, async (tx) => {
+      const { rows } = await tx.query("SELECT app.report_executive($1) AS r", [
+        q.location_id ?? null,
+      ]);
+      return rows[0]?.r;
+    });
+  });
 }
