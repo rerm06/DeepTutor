@@ -48,7 +48,10 @@ export function navFor(role: string | null | undefined): NavItem[] {
 }
 
 export function homeFor(role: string | null | undefined): string {
-  return isMemberRole(role) ? ROUTES.myAccount : ROUTES.members;
+  if (isMemberRole(role)) return ROUTES.myAccount;
+  // Owners and managers land on the executive panel (reports module); everyone else on members.
+  if (role === "owner" || role === "location_manager") return "/staff/panel";
+  return ROUTES.members;
 }
 
 /** Opt in to React Router v7 behaviour now (silences the v6 deprecation warnings). */
