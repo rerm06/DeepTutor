@@ -1,0 +1,108 @@
+/* Module billing: only layout helpers on top of the core tokens and classes in src/styles.css. */
+.billing-table .num,
+.billing-lines .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.billing-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 4px 0;
+}
+.billing-pay {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: flex-end;
+}
+.billing-pay input {
+  max-width: 10ch;
+}
+.billing-pay .field:nth-of-type(3) input {
+  max-width: 18ch;
+}
+/* "Cobrar sesión" is the main action of the pay-per-session model: a highlighted, full-width-on-phone block. */
+.billing-quick {
+  border: 2px solid var(--accent);
+  background: var(--accent-soft);
+}
+.billing-cta {
+  min-height: 48px;
+  min-width: 12rem;
+  font-size: 1.0625rem;
+}
+@media (max-width: 480px) {
+  .billing-cta {
+    width: 100%;
+  }
+}
+.billing-credits {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: 12px;
+}
+.billing-credit {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--ok-line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.billing-credit__name {
+  font-weight: 700;
+}
+.billing-credit__count {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+.billing-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+.billing-steps p {
+  margin: 0;
+}
+.billing-sub {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+.billing-sub:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+.billing-price-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+fieldset.billing-steps {
+  margin: 0;
+  min-width: 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+  padding: 12px 0 0;
+}
+fieldset.billing-steps legend {
+  padding: 0;
+  float: left;
+  width: 100%;
+}
