@@ -1,0 +1,1 @@
+CREATE DATABASE gym OWNER app_owner;
