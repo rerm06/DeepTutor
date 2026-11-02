@@ -1,0 +1,270 @@
+/* Module signup ("Únete"). Public page outside the app shell; mobile first, 360 px without horizontal scroll. */
+
+.join {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  color: var(--text);
+}
+.join__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--header-bg, var(--chrome-bg));
+  color: var(--header-text, var(--chrome-text));
+}
+.join__brand {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  min-width: 0;
+}
+.join__logo {
+  display: block;
+  height: 40px;
+  width: auto;
+  max-width: 60vw;
+}
+.join__wordmark {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+.join__tagline {
+  font-size: 0.9375rem;
+  color: var(--chrome-muted);
+}
+.join__lang {
+  background: transparent;
+  color: inherit;
+  border-color: var(--chrome-line);
+  min-height: 44px;
+}
+.join__lang:hover:not(:disabled) {
+  background: var(--chrome-hover);
+  color: inherit;
+}
+.join__lang:focus-visible {
+  outline: 2px solid var(--chrome-focus);
+  outline-offset: 2px;
+}
+.join__main {
+  flex: 1;
+  width: 100%;
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 20px 16px 48px;
+  min-width: 0;
+}
+.join__layout {
+  display: grid;
+  gap: 20px;
+  grid-template-columns: minmax(0, 1fr);
+}
+@media (min-width: 900px) {
+  .join__layout {
+    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+    align-items: start;
+  }
+}
+.join__intro {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+.join__h2 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+.join__model {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.join__model li {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+}
+.join__model li::before {
+  content: "✓";
+  font-weight: 700;
+  color: var(--ok-text);
+}
+.join__model-strong {
+  font-weight: 700;
+}
+.join__card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+  padding: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-raised);
+}
+.join__summary:focus {
+  outline: none;
+}
+.join__summary:empty {
+  display: none;
+}
+.join__errors {
+  flex-direction: column;
+  align-items: flex-start;
+}
+.join__errors p,
+.join__errors ul {
+  margin: 0;
+}
+.join__errors a {
+  color: inherit;
+  font-weight: 600;
+}
+.join__fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.join__fieldset legend {
+  padding: 0;
+  margin-bottom: 6px;
+  font-weight: 600;
+  font-size: 0.9375rem;
+}
+.join__options {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+.join__option {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  min-height: 48px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-control);
+  cursor: pointer;
+}
+.join__option:has(input:checked) {
+  border-color: var(--accent);
+  border-width: 2px;
+  padding: 9px 11px;
+}
+.join__option > span {
+  display: flex;
+  flex-direction: column;
+}
+.join__option-name {
+  font-weight: 600;
+}
+.join__option-sub {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
+.join input[type="checkbox"],
+.join input[type="radio"] {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  min-height: 24px;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--accent);
+}
+.join__agreement {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.join__check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  min-height: 44px;
+  padding-top: 10px;
+}
+.join__check label {
+  cursor: pointer;
+  font-weight: 600;
+}
+.join__text summary {
+  cursor: pointer;
+  min-height: 24px;
+  color: var(--accent-fg);
+  font-weight: 600;
+}
+.join__text p,
+.join__consent {
+  margin: 6px 0 0 34px;
+  max-width: 65ch;
+}
+.join__submit {
+  min-height: 48px;
+  width: 100%;
+}
+@media (min-width: 600px) {
+  .join__submit {
+    width: auto;
+    align-self: flex-start;
+  }
+}
+
+/* Entry screen link and the one-time welcome note on /me/account. */
+.join-link {
+  margin-left: auto;
+}
+.join-welcome {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+  padding: 16px;
+  background: var(--surface);
+  border: 1px solid var(--ok-line);
+  border-radius: var(--radius);
+}
+.join-welcome__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+.join-welcome__title {
+  margin: 0;
+  font-size: 1.25rem;
+}
+.join-welcome p {
+  margin: 0;
+}
+.join-welcome__steps {
+  margin: 0;
+  padding-left: 1.5em;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.join-welcome__steps .btn {
+  white-space: normal;
+  min-height: 44px;
+}
+.join__done {
+  display: block;
+}

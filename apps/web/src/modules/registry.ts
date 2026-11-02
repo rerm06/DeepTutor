@@ -7,6 +7,7 @@ import { module as floor } from "./floor";
 import { module as health } from "./health";
 import { module as reports } from "./reports";
 import { module as schedule } from "./schedule";
+import { module as signup } from "./signup";
 import { module as store } from "./store";
 import type { AppModule } from "./types";
 
@@ -22,4 +23,5 @@ export const MODULES: readonly AppModule[] = [
   finance,
   reports,
   coach,
+  signup,
 ];

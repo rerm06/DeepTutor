@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { Layout } from "./components/Layout";
 import { canSeeAudit, homeFor, isMemberRole } from "./lib/roles";
 import { MODULES } from "./modules/registry";
+import { JoinScreen, JoinWelcome } from "./modules/signup";
 import { allows } from "./modules/types";
 import { AuditScreen } from "./screens/AuditScreen";
 import { EntryScreen } from "./screens/EntryScreen";
@@ -17,10 +18,19 @@ export function AppRoutes() {
   const { persona, role } = useSession();
 
   if (!persona) {
+    // Public routes need no session; /join/:orgId (module signup) lives outside the staff/member shell.
     return (
-      <Layout>
-        <EntryScreen />
-      </Layout>
+      <Routes>
+        <Route path="/join/:orgId" element={<JoinScreen />} />
+        <Route
+          path="*"
+          element={
+            <Layout>
+              <EntryScreen />
+            </Layout>
+          }
+        />
+      </Routes>
     );
   }
 
@@ -30,7 +40,15 @@ export function AppRoutes() {
       <Routes>
         {member ? (
           <>
-            <Route path="/me/account" element={<MyAccountScreen />} />
+            <Route
+              path="/me/account"
+              element={
+                <>
+                  <JoinWelcome />
+                  <MyAccountScreen />
+                </>
+              }
+            />
             <Route path="/me/consents" element={<MyConsentsScreen />} />
           </>
         ) : (

@@ -4,6 +4,7 @@ import type { Persona } from "../api/types";
 import { ErrorNote, LiveResult, Loading } from "../components/ui";
 import { useI18n } from "../i18n/I18nContext";
 import { useAsync } from "../lib/useAsync";
+import { JoinLink } from "../modules/signup";
 import { useSession } from "../session/SessionContext";
 
 interface OrgGroup {
@@ -81,6 +82,7 @@ export function EntryScreen() {
                 <span>{g.name}</span>
               )}
             </h2>
+            <JoinLink org={g.org} name={g.name} />
             <ul className="persona-list">
               {g.personas.map((p) => (
                 <li key={p.id}>

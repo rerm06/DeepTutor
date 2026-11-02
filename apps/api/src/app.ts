@@ -5,6 +5,7 @@ import { jwtVerify } from "jose";
 import { ZodError } from "zod";
 import { httpFromPg } from "./errors.js";
 import { moduleRoutes } from "./modules/index.js";
+import { publicRoutes as signupPublicRoutes, routes as signupRoutes } from "./modules/signup.js";
 import { demoRoutes } from "./routes/demo.js";
 import { memberRoutes } from "./routes/members.js";
 import { messagingRoutes } from "./routes/messaging.js";
@@ -42,6 +43,8 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   app.addHook("onRequest", async (req, reply) => {
     if (req.url === "/health") return;
     if (deps.demo && req.url.startsWith("/v1/demo/")) return;
+    // Public self-service sign-up (module signup): no token; only app_public definer functions are reachable.
+    if (req.url.startsWith("/v1/public/")) return;
     const header = req.headers.authorization;
     if (!header?.startsWith("Bearer ")) return reply.code(401).send({ error: "unauthenticated" });
     try {
@@ -78,6 +81,15 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   await app.register(orgRoutes, { prefix: "/v1" });
   await app.register(memberRoutes, { prefix: "/v1" });
   await app.register(moduleRoutes);
+  await app.register(signupRoutes, { prefix: "/v1" });
+  await app.register(signupPublicRoutes, {
+    prefix: "/v1/public",
+    db: deps.db,
+    jwtSecret: deps.jwtSecret,
+    jwtIssuer: deps.jwtIssuer,
+    jwtAudience: deps.jwtAudience,
+    demo: deps.demo ?? false,
+  });
   if (deps.demo) {
     await app.register(demoRoutes, {
       prefix: "/v1",
