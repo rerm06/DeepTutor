@@ -1,0 +1,117 @@
+/* Module crm. Uses the core tokens from styles.css; everything stacks at 360 px without page-level scroll. */
+.crm-board {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  align-items: start;
+  margin-top: 8px;
+}
+.crm-col {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-top: 4px solid var(--neutral-line);
+  border-radius: var(--radius);
+  padding: 8px;
+  min-width: 0;
+}
+.crm-col--trial,
+.crm-col--tour_booked {
+  border-top-color: var(--warn-line);
+}
+.crm-col--won {
+  border-top-color: var(--ok-line);
+}
+.crm-col--lost {
+  border-top-color: var(--blocked-line);
+}
+.crm-col__title {
+  font-size: 1rem;
+  margin: 0 0 8px;
+}
+.crm-col__count {
+  font-weight: 400;
+  color: var(--text-muted);
+}
+.crm-col__empty {
+  margin: 0;
+}
+.crm-cards,
+.crm-tasks,
+.crm-timeline,
+.crm-bars {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.crm-card,
+.crm-task {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px;
+  overflow-wrap: anywhere;
+}
+.crm-card__name {
+  font-size: 1rem;
+  margin: 0 0 4px;
+}
+.crm-card__meta,
+.crm-task__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: 0 0 8px;
+  font-size: 0.875rem;
+}
+.crm-move {
+  display: grid;
+  gap: 6px;
+}
+.crm-move select,
+.crm-move input {
+  width: 100%;
+  min-height: 44px;
+}
+.crm-tasks--overdue .crm-task {
+  border-left: 4px solid var(--blocked-line);
+}
+.crm-task__title {
+  margin: 0 0 4px;
+}
+.crm-newtask {
+  margin-bottom: 12px;
+}
+.crm-timeline__item {
+  border-left: 3px solid var(--border-strong);
+  padding: 2px 0 2px 10px;
+}
+.crm-timeline__item--stage_change {
+  border-left-color: var(--accent);
+}
+.crm-timeline__head,
+.crm-timeline__item p {
+  margin: 0;
+}
+.crm-timeline__body {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.crm-bar {
+  display: grid;
+  gap: 4px;
+}
+.crm-bar__track {
+  display: block;
+  height: 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.crm-bar__fill {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
