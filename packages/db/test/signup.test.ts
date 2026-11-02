@@ -197,6 +197,22 @@ describe("public join info", () => {
     ).toBe(false);
   });
 
+  it("passes the brand's colour mode and dark accent pair to the public page", async () => {
+    const o = await newOrg({ dropInCents: 1500 });
+    await t.admin.query(
+      `UPDATE app.brand SET theme = theme || '{"mode":"dark"}'::jsonb
+         || jsonb_build_object('colors', theme -> 'colors' || '{"accent_dark":"#C3B444","accent_dark_text":"#111111"}'::jsonb)
+        WHERE org_id = $1`,
+      [o.org],
+    );
+    const r = (await info(o.org)) as { brand: { theme: Record<string, unknown> } };
+    expect(r.brand.theme.mode).toBe("dark");
+    expect(r.brand.theme.colors).toMatchObject({
+      accent_dark: "#C3B444",
+      accent_dark_text: "#111111",
+    });
+  });
+
   it("returns null for an unknown org and for an org without open locations", async () => {
     expect(await info("00000000-0000-4000-8000-000000000999")).toBeNull();
     const o = await newOrg();

@@ -201,13 +201,15 @@ BEGIN
   SELECT coalesce(jsonb_object_agg(c.key, c.value), '{}'::jsonb) INTO v_colors
     FROM jsonb_each(CASE WHEN jsonb_typeof(v_brand.theme -> 'colors') = 'object'
                          THEN v_brand.theme -> 'colors' ELSE '{}'::jsonb END) c
-   WHERE c.key IN ('accent', 'accent_hover', 'accent_text', 'header_bg', 'header_text', 'highlight')
+   WHERE c.key IN ('accent', 'accent_hover', 'accent_text', 'header_bg', 'header_text', 'highlight',
+                   'accent_dark', 'accent_dark_text')
      AND jsonb_typeof(c.value) = 'string' AND c.value #>> '{}' ~ '^#[0-9A-Fa-f]{6}$';
   v_theme := jsonb_strip_nulls(jsonb_build_object(
     'logo_url', CASE WHEN v_brand.theme ->> 'logo_url' ~ '^/brand/[a-z0-9@._-]{1,80}$' THEN v_brand.theme ->> 'logo_url' END,
     'logo_alt', CASE WHEN v_brand.theme ->> 'logo_alt' ~ '^[A-Za-zÁÉÍÓÚÑÜáéíóúñü0-9 &''.-]{1,80}$' THEN v_brand.theme ->> 'logo_alt' END,
     'tagline_es', left(regexp_replace(v_brand.theme ->> 'tagline_es', '[[:cntrl:]<>{}]', '', 'g'), 120),
     'tagline_en', left(regexp_replace(v_brand.theme ->> 'tagline_en', '[[:cntrl:]<>{}]', '', 'g'), 120),
+    'mode', CASE WHEN v_brand.theme ->> 'mode' IN ('light', 'dark') THEN v_brand.theme ->> 'mode' END,
     'colors', CASE WHEN v_colors = '{}'::jsonb THEN NULL ELSE v_colors END));
 
   SELECT coalesce(jsonb_agg(jsonb_build_object('kind', a.kind, 'version', a.version, 'locale', a.locale,

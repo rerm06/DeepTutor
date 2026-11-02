@@ -2,6 +2,7 @@ import { type FormEvent, useCallback, useEffect, useId, useMemo, useRef, useStat
 import { Link, useParams } from "react-router-dom";
 import { useI18n } from "../../i18n/I18nContext";
 import { applyTheme, sanitizeTheme } from "../../lib/brandTheme";
+import { setBrandMode, useMode } from "../../lib/themeMode";
 import { useModuleT } from "../i18n";
 import { type JoinInfo, adoptSession, fetchJoinInfo, submitJoin } from "./api";
 import { type SignupKey, dict } from "./dict";
@@ -127,10 +128,18 @@ export function JoinScreen() {
   }, [orgId, tick]);
 
   const info = load.state === "ready" ? load.info : null;
+  const mode = useMode();
+  // The public page wears the brand like the console does: its colours and its default colour mode.
   useEffect(() => {
     if (!info) return;
-    return applyTheme(sanitizeTheme(info.brand.theme));
+    const th = sanitizeTheme(info.brand.theme);
+    setBrandMode(th.mode);
+    return () => setBrandMode(undefined);
   }, [info]);
+  useEffect(() => {
+    if (!info) return;
+    return applyTheme(sanitizeTheme(info.brand.theme), document.documentElement, mode);
+  }, [info, mode]);
 
   const theme = info ? sanitizeTheme(info.brand.theme) : null;
   const tagline = theme ? (lang === "en" ? theme.tagline_en : theme.tagline_es) : undefined;
