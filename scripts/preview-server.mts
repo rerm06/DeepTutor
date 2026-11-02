@@ -7,6 +7,7 @@ import { createServer } from "node:http";
 import { extname, join, normalize } from "node:path";
 import handler from "../netlify/functions/api.mts";
 
+const PORT = Number(process.env.PORT ?? 8888);
 const DIST = join(import.meta.dirname, "..", "apps", "web", "dist");
 const TYPES: Record<string, string> = {
   ".html": "text/html",
@@ -19,7 +20,7 @@ const TYPES: Record<string, string> = {
 };
 
 createServer(async (req, res) => {
-  const url = new URL(req.url ?? "/", "http://localhost:8888");
+  const url = new URL(req.url ?? "/", `http://localhost:${PORT}`);
   if (url.pathname.startsWith("/api/")) {
     const chunks: Buffer[] = [];
     for await (const c of req) chunks.push(c as Buffer);
@@ -43,4 +44,4 @@ createServer(async (req, res) => {
   }
   res.writeHead(200, { "content-type": TYPES[extname(file)] ?? "application/octet-stream" });
   res.end(body);
-}).listen(8888, () => console.log("preview on http://localhost:8888"));
+}).listen(PORT, () => console.log(`preview on http://localhost:${PORT}`));

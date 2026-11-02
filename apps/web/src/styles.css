@@ -1024,11 +1024,11 @@ a:hover {
   gap: 12px;
 }
 .page__title {
-  font-family: var(--font-display);
+  font-family: var(--font-body);
   font-size: 2.25rem;
   font-weight: 700;
-  line-height: 1.05;
-  letter-spacing: 0;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
 }
 .lede {
   margin: 0;
@@ -1042,9 +1042,9 @@ a:hover {
 .section {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: 16px;
   box-shadow: var(--shadow-raised);
-  padding: 20px;
+  padding: 22px;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -1058,8 +1058,14 @@ a:hover {
   align-items: center;
 }
 .section__title {
-  font-size: 1.125rem;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 1.25rem;
   font-weight: 700;
+}
+.section__title > .icon {
+  color: var(--gold-text);
 }
 
 .facts {
@@ -1165,11 +1171,11 @@ a:hover {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  min-height: 40px;
-  padding: 6px 14px;
+  min-height: 42px;
+  padding: 6px 16px;
   font: 600 0.9375rem var(--font-body);
   border: 1px solid var(--border-strong);
-  border-radius: var(--radius-control);
+  border-radius: 10px;
   background: var(--surface);
   color: var(--text);
   cursor: pointer;
@@ -1228,9 +1234,9 @@ textarea {
   color: var(--text);
   background: var(--surface);
   border: 1px solid var(--border-strong);
-  border-radius: var(--radius-control);
-  min-height: 40px;
-  padding: 6px 10px;
+  border-radius: 10px;
+  min-height: 42px;
+  padding: 6px 12px;
   width: 100%;
   max-width: 100%;
 }
@@ -1471,7 +1477,7 @@ textarea[aria-invalid="true"] {
   width: 100%;
   overflow-x: auto;
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: 14px;
   background: var(--surface);
 }
 .table {
@@ -1830,4 +1836,157 @@ textarea[aria-invalid="true"] {
   .shell--member .tabbar__wide {
     display: none !important;
   }
+}
+
+/* ── Design system v2 primitives (client design). Modules compose these; see apps/web/DESIGN.md. ── */
+.ds-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  gap: 16px;
+}
+.ds-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: 16px;
+}
+.ds-stat {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  min-height: 96px;
+  padding: 16px 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  min-width: 0;
+}
+.ds-stat > .icon {
+  color: var(--gold-text);
+}
+.ds-stat__text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.ds-stat__label {
+  font-size: 1rem;
+  color: var(--text-muted);
+}
+.ds-stat__value {
+  font-size: 1.875rem;
+  font-weight: 700;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.ds-stat__hint {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
+.ds-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
+  gap: 14px;
+}
+.ds-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 112px;
+  padding: 14px 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  color: var(--text);
+  font-size: 1.0625rem;
+  font-weight: 600;
+  text-align: center;
+  text-decoration: none;
+}
+.ds-tile > .icon {
+  color: var(--gold-text);
+}
+.ds-tile:hover {
+  color: var(--text);
+  border-color: var(--gold);
+}
+.ds-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 28px 16px;
+  text-align: center;
+  color: var(--text-muted);
+}
+.ds-empty > .icon {
+  color: var(--gold-text);
+  opacity: 0.9;
+}
+.ds-empty strong {
+  color: var(--text);
+  font-size: 1.125rem;
+}
+.ds-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  padding: 2px 12px;
+  border-radius: 999px;
+  background: var(--gold);
+  color: var(--accent-text);
+  font-weight: 700;
+  font-size: 0.8125rem;
+}
+.ds-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--gold);
+  color: var(--accent-text);
+  font: 700 1rem var(--font-body);
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.ds-cta:hover {
+  color: var(--accent-text);
+  filter: brightness(1.08);
+}
+.ds-cta:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.ds-media {
+  border-radius: 12px;
+  object-fit: cover;
+}
+.ds-bar {
+  display: block;
+  height: 7px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--text) 12%, transparent);
+  overflow: hidden;
+}
+.ds-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  background: var(--gold);
+}
+.ds-hero {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  padding: 28px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: linear-gradient(100deg, color-mix(in srgb, var(--gold) 14%, var(--surface)) 0%, var(--surface) 65%);
 }

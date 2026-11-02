@@ -48,3 +48,22 @@ panel is a drawer (menu button, Escape, scrim, page behind is `inert`); members 
 ## Motion
 150 ms colour/border transitions, 240 ms drawer slide, ease-out-quint. `prefers-reduced-motion` collapses all of
 it. No page-load choreography.
+
+## Design system v2 (client designs: staff "Panel del Gimnasio" and member "Portal del Socio")
+References: the client's two dashboard designs (dark, olive gold). Reference implementations: staff home
+`src/modules/reports/Home.tsx` + `reports.css` (home-*), member home `src/modules/memberhome/*`.
+
+Rules every screen follows:
+- Page: `<div className="page">`, `<h1 className="page__title">` (Barlow 700), optional `.lede`. One h1.
+- Surfaces: `.section` cards (16 px radius) with `.section__title` that starts with a gold `<Icon>` from
+  `components/icons.tsx`. No nested cards. No coloured side stripes.
+- Numbers: `.ds-stats` > `.ds-stat` (gold icon · label · value · hint). Progress: `.ds-bar > span`.
+- Actions: primary = `.btn btn--primary` (forms) or `.ds-cta` (gold pill, for the main call to action of a card);
+  secondary = `.btn`. Shortcut grids = `.ds-tiles` > `a.ds-tile` (gold icon + label).
+- Collections: tables keep `.table-wrap > table.table`; card lists use `.ds-grid`. Images `.ds-media`
+  (only own `/brand/*` assets; decorative images `alt=""`).
+- Empty states: `.ds-empty` (gold icon, one bold line, one helpful action). Loading: skeleton, not spinner.
+- Status: `.plate plate--ok|warn|blocked|neutral` (pill + dot) or `.ds-pill` (gold).
+- Colour only through tokens (`--surface`, `--surface-2`, `--border`, `--text`, `--text-muted`, `--gold`,
+  `--gold-text`, `--accent-text`, state tokens). Works in light and dark.
+- Copy ES/EN; WCAG 2.2 AA; 44 px touch targets; no horizontal scroll at 390 px.
