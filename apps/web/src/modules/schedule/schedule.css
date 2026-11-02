@@ -1,0 +1,136 @@
+/* Module schedule: week grid, session cards, check-in verdict, QR pass. Uses the core tokens only. */
+.sched-week {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 170px), 1fr));
+  gap: 12px;
+}
+.sched-day {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px;
+  min-width: 0;
+}
+.sched-day__title {
+  margin: 0 0 8px;
+  font-size: 1rem;
+  text-transform: capitalize;
+}
+.sched-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.sched-card {
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: 2px;
+  padding: 8px;
+  background: var(--surface);
+  overflow-wrap: anywhere;
+}
+.sched-card p {
+  margin: 0 0 4px;
+}
+.sched-card__time {
+  font-weight: 700;
+}
+.sched-card__name {
+  font-family: var(--font-display);
+  font-size: 1.125rem;
+  font-weight: 700;
+}
+.sched-checkin {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+  gap: 16px;
+}
+.sched-matches {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.sched-match {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.sched-match__who {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.sched-match .btn {
+  min-height: 44px;
+}
+.sched-result {
+  display: block;
+  min-height: 0;
+}
+.sched-result--ok,
+.sched-result--blocked {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+  margin: 12px 0;
+  border-left: 8px solid;
+  border-radius: 2px;
+}
+.sched-result--ok {
+  background: var(--ok-bg);
+  color: var(--ok-text);
+  border-color: var(--ok-line);
+}
+.sched-result--blocked {
+  background: var(--blocked-bg);
+  color: var(--blocked-text);
+  border-color: var(--blocked-line);
+}
+.sched-result__verdict {
+  font-family: var(--font-display);
+  font-size: 1.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.sched-result__who {
+  font-weight: 700;
+}
+.sched-qr {
+  margin: 16px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.sched-qr__img {
+  width: min(240px, 100%);
+  height: auto;
+  background: #ffffff;
+  padding: 8px;
+  border: 1px solid var(--border);
+}
+.sched-history {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
