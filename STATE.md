@@ -4,7 +4,7 @@
 |---|---|
 | Branch | `claude/gym-saas-f1` (orphan; move to its own repo when created) |
 | Last cycle | 2 — 2026-11-02 |
-| Gate | PASS (lint, build, typecheck, 139 tests: 96 DB/RLS + 43 API) |
+| Gate | PASS (lint, build, typecheck, 143 tests: 104 DB/RLS + 39 API) |
 | Gate spot-check | Weakening 2 policies → 27 failures; undoing 3 review fixes → 3 failures. Gate is live. |
 | Consecutive cycles without progress | 0 |
 | Next epic | E8 slice 2 (provider adapters + inbound webhook + delivery worker), then E2 → E3 → E4 |
@@ -27,7 +27,13 @@
 - API (builder agent): consents GET/PUT, opt-out, POST /messages (server-side templates ES/EN, purpose from the
   template), inbox. 29 API tests.
 - Found during the cycle: COMMIT on an aborted transaction silently rolls back; withClaims now raises.
-- Independent review of E8: in progress.
+- Independent review of E8: 1 critical (template-variable injection: marketing, forbidden terms and phishing links
+  inside a reminder), 4 high (single revoke left queue, non-FOH staff could grant, staff could override a member's
+  opt-out, enqueue/opt-out race), 2 medium, 2 low. All fixed (attempt 1/3): the DATABASE now renders every message
+  from a catalogue with server-side brand/name/location/link and pattern-checked variables, then screens the body
+  for forbidden terms and foreign links; consent history is append-only; consent row read FOR SHARE.
+  Mutation check: disabling the pattern/forbidden check fails 2 tests. Re-verification: in progress.
+- Carry to slice 2: the delivery worker must re-check consent at send time.
 
 ## Decisions awaiting the human
 - Destination repository (create e.g. `rerm06/gym-saas`, empty, and say its name).

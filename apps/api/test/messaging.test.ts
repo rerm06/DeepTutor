@@ -1,15 +1,6 @@
 import { withClaims } from "@gym/db";
 import { type TestDb, createTestDb } from "@gym/db/testing";
-import {
-  type Claims,
-  MESSAGE_LOCALES,
-  MESSAGE_TEMPLATES,
-  OPT_OUT_LINE,
-  TEMPLATE_KEYS,
-  TemplateError,
-  renderTemplate,
-  templateVariables,
-} from "@gym/shared";
+import type { Claims } from "@gym/shared";
 import type { FastifyInstance } from "fastify";
 import { SignJWT } from "jose";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -33,21 +24,9 @@ async function token(claims: Claims): Promise<string> {
 }
 const auth = async (claims: Claims) => ({ authorization: `Bearer ${await token(claims)}` });
 
-const reminderVars = {
-  brand: "Demo A Fitness",
-  name: "Demo",
-  class_name: "Spinning",
-  location: "Demo A Sede 1",
-  date: "3 nov",
-  time: "6:00 p. m.",
-};
-const promoVars = {
-  brand: "Demo A Fitness",
-  name: "Demo",
-  offer: "2x1 en clases grupales",
-  location: "Demo A Sede 1",
-  date: "30 nov",
-};
+// Only client-side variables; brand, name, location and link are filled by the database.
+const reminderVars = { class_name: "Spinning", date: "2026-11-03", time: "18:00" };
+const promoVars = { discount: "20%", date: "2026-11-30" };
 
 async function send(claims: Claims, payload: Record<string, unknown>) {
   return app.inject({ method: "POST", url: "/v1/messages", headers: await auth(claims), payload });
@@ -81,70 +60,36 @@ afterAll(async () => {
   await t?.drop();
 });
 
-describe("renderTemplate (unit)", () => {
-  it("renders a template with its catalogue purpose", () => {
-    const r = renderTemplate("class.reminder", "es", reminderVars);
-    expect(r.purpose).toBe("reminder");
-    expect(r.body).toBe(
-      "Demo A Fitness: Hola Demo, te recordamos tu clase de Spinning en Demo A Sede 1 el 3 nov a las 6:00 p. m..",
-    );
-  });
-
-  it("throws on a missing variable", () => {
-    const { time: _omit, ...partial } = reminderVars;
-    expect(() => renderTemplate("class.reminder", "en", partial)).toThrow(TemplateError);
-    expect(() => renderTemplate("class.reminder", "en", { ...reminderVars, time: "  " })).toThrow(
-      /missing variable: time/,
-    );
-  });
-
-  it("throws on an unknown key, including prototype names", () => {
-    for (const key of ["nope", "toString", "__proto__", "constructor"]) {
-      expect(() => renderTemplate(key, "es", {})).toThrow(TemplateError);
+describe("server-side rendering (E8 review CRITICAL regressions)", () => {
+  const fd = () => t.claims(t.fx.A, "front_desk");
+  it("free text cannot be smuggled into a reminder through variables (400, nothing queued)", async () => {
+    for (const vars of [
+      { ...reminderVars, class_name: "OFERTA 50%! Paga en http://evil.invalid" },
+      { ...reminderVars, class_name: "Spinning\nnutricionista IA" },
+      { ...reminderVars, brand: "OtraMarca Gym" },
+      { ...reminderVars, name: "x" },
+      { ...reminderVars, date: "3 nov" },
+    ]) {
+      const r = await send(fd(), { ...reminderTo(t.fx.A.members[0]), vars });
+      expect(r.statusCode, JSON.stringify(vars)).toBe(400);
     }
   });
 
-  it("throws on an unknown locale", () => {
-    expect(() => renderTemplate("class.reminder", "fr", reminderVars)).toThrow(TemplateError);
+  it("forbidden terms in otherwise valid variables are refused by the database", async () => {
+    const r = await send(fd(), {
+      ...reminderTo(t.fx.A.members[0]),
+      vars: { ...reminderVars, class_name: "Nutricionista" },
+    });
+    expect(r.statusCode).toBe(400);
   });
 
-  it("does not expand placeholders found inside variable values", () => {
-    const r = renderTemplate("class.reminder", "en", { ...reminderVars, name: "{{brand}}" });
-    expect(r.body).toContain("Hi {{brand}},");
-  });
-
-  it("marketing templates end with the opt-out line in both locales", () => {
-    const es = renderTemplate("promo.generic", "es", promoVars);
-    const en = renderTemplate("promo.generic", "en", promoVars);
-    expect(es.purpose).toBe("marketing");
-    expect(es.body.endsWith("Responde BAJA para no recibir más mensajes.")).toBe(true);
-    expect(en.body.endsWith("Reply STOP to unsubscribe.")).toBe(true);
-    for (const key of TEMPLATE_KEYS) {
-      const tpl = MESSAGE_TEMPLATES[key];
-      if (tpl.purpose !== "marketing") continue;
-      for (const loc of MESSAGE_LOCALES)
-        expect(tpl.body[loc].endsWith(OPT_OUT_LINE[loc])).toBe(true);
-    }
-  });
-
-  it("every template exists in ES and EN with the same placeholders and no forbidden terms", () => {
-    expect(TEMPLATE_KEYS).toEqual(
-      expect.arrayContaining([
-        "class.reminder",
-        "membership.renewal_notice",
-        "payment.failed",
-        "card.expiring",
-        "promo.generic",
-      ]),
+  it("brand, first name and location come from the database", async () => {
+    const r = await send(fd(), reminderTo(t.fx.A.members[0]));
+    expect(r.statusCode).toBe(201);
+    const row = await outbound(fd(), r.json().id);
+    expect(row?.body).toBe(
+      "Demo A Fitness: Hola Demo, te recordamos tu clase de Spinning en Demo A Sede 1 el 2026-11-03 a las 18:00.",
     );
-    for (const key of TEMPLATE_KEYS) {
-      expect(templateVariables(key, "es").sort()).toEqual(templateVariables(key, "en").sort());
-      for (const loc of MESSAGE_LOCALES) {
-        expect(MESSAGE_TEMPLATES[key].body[loc]).not.toMatch(
-          /nutricionista|dietista|nutritionist|dietitian/i,
-        );
-      }
-    }
   });
 });
 
@@ -159,7 +104,7 @@ describe("POST /v1/messages", () => {
     expect(new Date(body.scheduled_for).getTime()).toBeGreaterThan(0);
     const row = await outbound(fd, body.id);
     expect(row?.purpose).toBe("reminder");
-    expect(row?.body).toBe(renderTemplate("class.reminder", "es", reminderVars).body);
+    expect(row?.body).toContain("Spinning");
   });
 
   it("a member without consent → stored as blocked with reason no_consent", async () => {
@@ -212,11 +157,11 @@ describe("POST /v1/messages", () => {
     const fd = t.claims(t.fx.A, "front_desk");
     const unknown = await send(fd, { ...reminderTo(t.fx.A.members[0]), template_key: "free.text" });
     expect(unknown.statusCode).toBe(400);
-    expect(unknown.json().error).toBe("unknown_template");
+    expect(unknown.json().error).toBe("invalid_input");
     const { time: _omit, ...partial } = reminderVars;
     const missing = await send(fd, { ...reminderTo(t.fx.A.members[0]), vars: partial });
     expect(missing.statusCode).toBe(400);
-    expect(missing.json().error).toBe("missing_variable");
+    expect(missing.json().error).toBe("invalid_input"); // refused by the database renderer
   });
 
   it("invalid input (bad uuid, channel, locale, oversized var) → 400", async () => {

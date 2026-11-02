@@ -3,14 +3,15 @@ import {
   MESSAGE_CHANNELS,
   MESSAGE_LOCALES,
   MESSAGE_PURPOSES,
-  TemplateError,
-  renderTemplate,
+  TEMPLATE_KEYS,
+  TEMPLATE_VARIABLES,
 } from "@gym/shared";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 
 // E8 · Messaging and consent. Consent rules, location scope and auditing live in the SQL definer functions
-// (migration 0004); this layer validates input and renders bodies server-side from the template catalogue.
+// (migration 0004). Messages are rendered by the database from its template catalogue; this layer only validates
+// shape. Variable values are pattern-checked again in SQL (defence in depth).
 
 const IdParams = z.object({ id: z.string().uuid() });
 const Channel = z.enum(MESSAGE_CHANNELS);
@@ -36,11 +37,16 @@ const MessageBody = z
     member_id: z.string().uuid(),
     brand_id: z.string().uuid(),
     channel: Channel,
-    template_key: z.string().min(1).max(64),
+    template_key: z.enum(TEMPLATE_KEYS),
     locale: z.enum(MESSAGE_LOCALES),
     vars: z
-      .record(z.string().max(64), z.string().max(200))
-      .refine((v) => Object.keys(v).length <= 20, { message: "too many variables" })
+      .record(
+        z.enum(TEMPLATE_VARIABLES),
+        z
+          .string()
+          .max(40)
+          .regex(/^[^\r\n{}<>]*$/),
+      )
       .default({}),
   })
   .strict();
@@ -90,26 +96,10 @@ export async function messagingRoutes(app: FastifyInstance): Promise<void> {
 
   app.post("/messages", async (req, reply) => {
     const b = MessageBody.parse(req.body);
-    let rendered: ReturnType<typeof renderTemplate>;
-    try {
-      // Purpose and body come from the catalogue only, never from the client.
-      rendered = renderTemplate(b.template_key, b.locale, b.vars);
-    } catch (err) {
-      if (err instanceof TemplateError) return reply.code(400).send({ error: err.code });
-      throw err;
-    }
     const row = await app.asCaller(req, async (tx) => {
       const { rows: ids } = await tx.query<{ id: string }>(
-        "SELECT app.enqueue_message($1, $2, $3, $4, $5, $6, $7) AS id",
-        [
-          b.member_id,
-          b.brand_id,
-          b.channel,
-          rendered.purpose,
-          rendered.templateKey,
-          rendered.locale,
-          rendered.body,
-        ],
+        "SELECT app.enqueue_message($1, $2, $3, $4, $5, $6) AS id",
+        [b.member_id, b.brand_id, b.channel, b.template_key, b.locale, JSON.stringify(b.vars)],
       );
       const { rows } = await tx.query<{
         id: string;

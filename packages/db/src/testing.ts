@@ -167,6 +167,10 @@ async function seedOrg(c: pg.Client, label: string): Promise<OrgFixture> {
     "INSERT INTO app.guardian_link (org_id, guardian_person_id, member_id) VALUES ($1,$2,$3)",
     [orgId, people.guardian, wardMember],
   );
+  await c.query(
+    "INSERT INTO app.message_policy (org_id, window_start, window_end) VALUES ($1, '09:00', '20:00')",
+    [orgId],
+  );
   // Messaging fixtures: m1 consents to SMS reminders; one queued and one blocked message; one inbound at loc 2.
   await c.query(
     `INSERT INTO app.consent (org_id, member_id, brand_id, channel, purpose, status, source, evidence, recorded_by, granted_at)
