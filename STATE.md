@@ -59,6 +59,10 @@
   right layer → regression → mutation → sweep → record). Used by the next cycle once the loop restarts.
 
 ### Deployment — Netlify (demo), 2026-11-02
+- 23:13 UTC, deploy 6ae918fe92cb0b15cb3ea764 (commit 10a3974): home/shell matched to the client's Fitness R Us
+  design, dark gold brand mode, executive dashboard data with 12 months of synthetic history, public "Únete"
+  sign-up, Agentes IA and Ayuda y Academia pages. 6 migrations applied (0018 signup, 0019 exec, 0020 brand modes);
+  36 migrations now pinned.
 - 17:24 UTC, deploy 6ae8c71917b5852830c6fdc4 (commit 543ab97): all 10 modules + coach + brand + security
   hardening; 23 migrations applied. New web shell (grouped sidebar, drawer, member quick bar).
 - Rule learned: an earlier upload failed because 0002 had been edited after being applied. Applied migrations are
