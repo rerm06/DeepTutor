@@ -59,6 +59,11 @@
   right layer → regression → mutation → sweep → record). Used by the next cycle once the loop restarts.
 
 ### Deployment — Netlify (demo), 2026-11-02
+- 17:24 UTC, deploy 6ae8c71917b5852830c6fdc4 (commit 543ab97): all 10 modules + coach + brand + security
+  hardening; 23 migrations applied. New web shell (grouped sidebar, drawer, member quick bar).
+- Rule learned: an earlier upload failed because 0002 had been edited after being applied. Applied migrations are
+  pinned by SHA-256 in netlify/database/applied-migrations.sha256 and checked by the gate; add lines after
+  every deploy that applies migrations.
 - Live: https://gym-saas-f1.netlify.app (site id bb60191b-2229-45a9-b6e0-b91233307fdd). SPA + API function (/api/*,
   pre-bundled with esbuild) + Netlify Database with the mirrored migrations and the synthetic demo seed.
 - Verified live: personas, demo sessions, isolation (A front desk 6 members, A owner 9, B owner 2, member 1),
