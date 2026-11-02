@@ -21,6 +21,10 @@ const ORG_SCOPED_TABLES = [
   "staff_location",
   "guardian_link",
   "audit_log",
+  "consent",
+  "message_policy",
+  "outbound_message",
+  "inbound_message",
 ];
 
 function orgs(): Array<[string, OrgFixture, OrgFixture]> {
@@ -256,7 +260,7 @@ describe("security review regressions", () => {
       const cols = await tx.query(
         "SELECT column_name FROM information_schema.columns WHERE table_schema='app' AND table_name='person'",
       );
-      expect(cols.rows.map((r) => r.column_name).sort()).toEqual(["created_at", "email", "id"]);
+      expect(cols.rows.map((r) => r.column_name).sort()).toEqual(["email", "id"]);
     });
     const a = await t.admin.query("SELECT full_name, phone FROM app.member WHERE id = $1", [
       t.fx.A.members[0],
@@ -302,13 +306,14 @@ describe("security review regressions", () => {
         org_id: t.fx.B.orgId,
         app_role: "owner",
         location_ids: [],
+        exp: Math.floor(Date.now() / 1000) + 600,
       });
       await tx.query("SELECT set_config('request.jwt.claims', $1, true)", [forged]);
       expect((await tx.query("SELECT app.org_id() AS o")).rows[0].o).toBeNull();
       expect((await tx.query("SELECT 1 FROM app.member")).rowCount).toBe(0);
       // A signature made with a wrong key is rejected as well.
       await tx.query("SELECT set_config('request.jwt.claims_sig', $1, true)", [
-        signClaims(forged, Buffer.alloc(32, 1)),
+        signClaims(forged, Buffer.alloc(32, 1), 0, "0"),
       ]);
       expect((await tx.query("SELECT 1 FROM app.organization")).rowCount).toBe(0);
     });
@@ -322,19 +327,91 @@ describe("security review regressions", () => {
     });
   });
 
-  it("MEDIUM-5: audit rows cannot be inserted directly or backdated", async () => {
+  it("MEDIUM-5 / N3: audit rows cannot be inserted, backdated or forged by request traffic", async () => {
     await withClaims(t.api, t.claims(t.fx.A, "member"), async (tx) => {
       await tx.query("SAVEPOINT s");
       await expect(
         tx.query("INSERT INTO app.audit_log (action, entity, at) VALUES ('x', 'y', '2001-01-01')"),
       ).rejects.toMatchObject({ code: "42501" });
       await tx.query("ROLLBACK TO SAVEPOINT s");
-      await tx.query("SELECT app.audit('member.self', 'member', NULL, NULL, '{}')");
+      await expect(
+        tx.query("SELECT app.audit('member.status', 'member', NULL, $1, '{}')", [
+          t.fx.A.locations[1],
+        ]),
+      ).rejects.toMatchObject({ code: "42501" });
     });
-    const r = await t.admin.query(
-      "SELECT at > now() - interval '1 minute' AS fresh, actor_role FROM app.audit_log WHERE action = 'member.self'",
+  });
+
+  it("member changes are audited by trigger with the real actor and time", async () => {
+    await withClaims(t.api, t.claims(t.fx.A, "front_desk"), (tx) =>
+      tx.query("UPDATE app.member SET status = 'frozen' WHERE id = $1", [t.fx.A.members[0]]),
     );
-    expect(r.rows[0]).toEqual({ fresh: true, actor_role: "member" });
+    const r = await t.admin.query(
+      "SELECT actor_role, meta, at > now() - interval '1 minute' AS fresh FROM app.audit_log WHERE action = 'member.update' AND entity_id = $1",
+      [t.fx.A.members[0]],
+    );
+    expect(r.rows[0]).toEqual({
+      actor_role: "front_desk",
+      meta: { status: "frozen" },
+      fresh: true,
+    });
+  });
+
+  it("N1: a captured claims/signature pair cannot be replayed in another transaction", async () => {
+    const captured = await withClaims(t.api, t.claims(t.fx.B, "owner"), async (tx) => {
+      const r = await tx.query(
+        "SELECT current_setting('request.jwt.claims') AS c, current_setting('request.jwt.claims_sig') AS s",
+      );
+      return r.rows[0] as { c: string; s: string };
+    });
+    await withClaims(t.api, t.claims(t.fx.A, "member"), async (tx) => {
+      await tx.query(
+        "SELECT set_config('request.jwt.claims', $1, true), set_config('request.jwt.claims_sig', $2, true)",
+        [captured.c, captured.s],
+      );
+      expect((await tx.query("SELECT app.org_id() AS o")).rows[0].o).toBeNull();
+      expect((await tx.query("SELECT 1 FROM app.member")).rowCount).toBe(0);
+    });
+  });
+
+  it("N1: expired claims are rejected inside Postgres even with a valid signature", async () => {
+    const expired = { ...t.claims(t.fx.A, "owner"), exp: Math.floor(Date.now() / 1000) - 1 };
+    await withClaims(t.api, expired, async (tx) => {
+      expect((await tx.query("SELECT 1 FROM app.organization")).rowCount).toBe(0);
+    });
+  });
+
+  it("N2: staff rows are created only through add_staff, which exposes nothing", async () => {
+    await withClaims(t.api, t.claims(t.fx.A, "owner"), async (tx) => {
+      await tx.query("SAVEPOINT s");
+      await expect(
+        tx.query(
+          "INSERT INTO app.staff_member (person_id, role, display_name) VALUES ($1, 'trainer', 'x')",
+          [t.fx.B.people.owner],
+        ),
+      ).rejects.toMatchObject({ code: "42501" });
+      await tx.query("ROLLBACK TO SAVEPOINT s");
+      await tx.query(
+        "SELECT app.add_staff('new.coach@demo.invalid', 'Demo Coach', 'trainer', NULL)",
+      );
+      const names = await tx.query(
+        "SELECT display_name FROM app.staff_member WHERE display_name = 'Demo Coach'",
+      );
+      expect(names.rowCount).toBe(1);
+    });
+    await withClaims(t.api, t.claims(t.fx.A, "location_manager"), async (tx) => {
+      await expect(
+        tx.query("SELECT app.add_staff('x@demo.invalid', 'X', 'trainer', NULL)"),
+      ).rejects.toMatchObject({ code: "42501" });
+    });
+  });
+
+  it("person.created_at is not readable by request traffic", async () => {
+    await withClaims(t.api, t.claims(t.fx.A, "owner"), async (tx) => {
+      await expect(tx.query("SELECT created_at FROM app.person")).rejects.toMatchObject({
+        code: "42501",
+      });
+    });
   });
 
   it("MEDIUM-6: front desk cannot link a guardian to a member outside its locations", async () => {

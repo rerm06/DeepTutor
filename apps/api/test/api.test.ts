@@ -64,7 +64,7 @@ describe("authentication", () => {
 
 describe("token lifetime (security review MEDIUM-7)", () => {
   it("rejects a token without exp", async () => {
-    const noExp = await new SignJWT({ ...t.claims(t.fx.A, "owner") })
+    const noExp = await new SignJWT({ ...t.claims(t.fx.A, "owner"), exp: undefined })
       .setProtectedHeader({ alg: "HS256" })
       .setIssuer(ISS)
       .setAudience(AUD)
@@ -171,7 +171,7 @@ describe("tenancy through the API", () => {
     });
     expect(r.statusCode).toBe(200);
     const log = await app.inject({ url: "/v1/audit-log", headers: h });
-    expect(log.json().data.some((e: { action: string }) => e.action === "member.status")).toBe(
+    expect(log.json().data.some((e: { action: string }) => e.action === "member.update")).toBe(
       true,
     );
   });

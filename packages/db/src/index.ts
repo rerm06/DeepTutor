@@ -15,8 +15,9 @@ export function createDb(connectionString: string, claimsKeyHex: string): Db {
   return { pool: new pg.Pool({ connectionString, max: 10 }), claimsKey };
 }
 
-export function signClaims(json: string, key: Buffer): string {
-  return createHmac("sha256", key).update(json, "utf8").digest("hex");
+/** HMAC over `claims|backend pid|transaction start µs` — must match app.claims() in migration 0001. */
+export function signClaims(json: string, key: Buffer, pid: number, txStartMicros: string): string {
+  return createHmac("sha256", key).update(`${json}|${pid}|${txStartMicros}`, "utf8").digest("hex");
 }
 
 /**
@@ -35,9 +36,14 @@ export async function withClaims<T>(
   try {
     await client.query("BEGIN");
     await client.query("SET LOCAL ROLE app_authenticated");
+    // Bind the signature to this backend and this transaction so a captured pair cannot be replayed.
+    const ctx = await client.query<{ pid: number; ts: string }>(
+      "SELECT pg_backend_pid() AS pid, (extract(epoch FROM transaction_timestamp()) * 1000000)::bigint::text AS ts",
+    );
+    const { pid, ts } = ctx.rows[0] as { pid: number; ts: string };
     await client.query(
       "SELECT set_config('request.jwt.claims', $1, true), set_config('request.jwt.claims_sig', $2, true)",
-      [json, signClaims(json, db.claimsKey)],
+      [json, signClaims(json, db.claimsKey, pid, ts)],
     );
     const result = await fn(client);
     await client.query("COMMIT");
@@ -50,16 +56,4 @@ export async function withClaims<T>(
   }
 }
 
-/** Append an audit row as the caller; actor, role, org and timestamp are forced by app.audit(). */
-export async function audit(
-  tx: Tx,
-  entry: { action: string; entity: string; entityId?: string; locationId?: string; meta?: unknown },
-): Promise<void> {
-  await tx.query("SELECT app.audit($1, $2, $3, $4, $5)", [
-    entry.action,
-    entry.entity,
-    entry.entityId ?? null,
-    entry.locationId ?? null,
-    JSON.stringify(entry.meta ?? {}),
-  ]);
-}
+// Auditing is done inside Postgres (definer functions and triggers); request code never writes audit rows.

@@ -25,6 +25,7 @@ function withDb(url: string, db: string, user?: string, password?: string): stri
 
 export interface OrgFixture {
   orgId: string;
+  brandId: string;
   locations: [string, string];
   /** person id per role; staff roles are assigned to locations[0] (owner/accountant are org-wide). */
   people: Record<Role, string>;
@@ -80,6 +81,7 @@ export async function createTestDb(): Promise<TestDb> {
     org_id: org.orgId,
     app_role: role,
     location_ids: role === "member" || role === "guardian" ? [] : [org.locations[0]],
+    exp: Math.floor(Date.now() / 1000) + 600,
   });
 
   return {
@@ -165,7 +167,28 @@ async function seedOrg(c: pg.Client, label: string): Promise<OrgFixture> {
     "INSERT INTO app.guardian_link (org_id, guardian_person_id, member_id) VALUES ($1,$2,$3)",
     [orgId, people.guardian, wardMember],
   );
-  return { orgId, locations, people, members: [m1, m2] };
+  // Messaging fixtures: m1 consents to SMS reminders; one queued and one blocked message; one inbound at loc 2.
+  await c.query(
+    `INSERT INTO app.consent (org_id, member_id, brand_id, channel, purpose, status, source, evidence, recorded_by, granted_at)
+     VALUES ($1,$2,$3,'sms','reminder','granted','front_desk','Demo fixture',$4, now())`,
+    [orgId, m1, brand, people.front_desk],
+  );
+  for (const [member_id, loc, status, reason] of [
+    [m1, locations[0], "queued", null],
+    [m2, locations[1], "blocked", "no_consent"],
+  ] as const) {
+    await c.query(
+      `INSERT INTO app.outbound_message (org_id, brand_id, location_id, member_id, channel, purpose, template_key, locale,
+         body, status, block_reason, scheduled_for, created_by)
+       VALUES ($1,$2,$3,$4,'sms','reminder','class.reminder','es','Demo',$5,$6, now(), $7)`,
+      [orgId, brand, loc, member_id, status, reason, people.front_desk],
+    );
+  }
+  await c.query(
+    "INSERT INTO app.inbound_message (org_id, brand_id, location_id, channel, from_address, body) VALUES ($1,$2,$3,'sms','+17875550000','Demo hola')",
+    [orgId, brand, locations[1]],
+  );
+  return { orgId, brandId: brand, locations, people, members: [m1, m2] };
 }
 
 async function seed(c: pg.Client): Promise<Fixture> {

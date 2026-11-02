@@ -122,8 +122,9 @@ REVOKE ALL ON ALL TABLES IN SCHEMA app_private FROM PUBLIC;
 GRANT USAGE ON SCHEMA app TO app_authenticated;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA app TO app_authenticated;
 
-GRANT SELECT ON app.organization, app.legal_entity, app.brand, app.location, app.person, app.member,
+GRANT SELECT ON app.organization, app.legal_entity, app.brand, app.location, app.member,
   app.staff_member, app.staff_location, app.guardian_link, app.audit_log TO app_authenticated;
+GRANT SELECT (id, email) ON app.person TO app_authenticated;  -- not created_at: it would hint prior registration
 
 GRANT UPDATE (name) ON app.organization TO app_authenticated;                       -- saas_plan: platform only
 GRANT INSERT (legal_name, hacienda_merchant_no) ON app.legal_entity TO app_authenticated;
@@ -133,7 +134,8 @@ GRANT UPDATE (name, theme, custom_domain) ON app.brand TO app_authenticated;
 GRANT INSERT (brand_id, legal_entity_id, name, timezone, municipality) ON app.location TO app_authenticated;
 GRANT UPDATE (name, timezone, municipality) ON app.location TO app_authenticated;
 GRANT UPDATE (status, member_no, home_location_id, full_name, phone) ON app.member TO app_authenticated; -- never person_id/org_id
-GRANT INSERT (person_id, role, display_name, license_no) ON app.staff_member TO app_authenticated;
+-- Staff rows are created only through app.add_staff() (security re-review N2: a person_id grant let an owner
+-- link any global person and read their email).
 GRANT UPDATE (display_name, license_no, active) ON app.staff_member TO app_authenticated; -- license_verified_at: platform only
 GRANT INSERT (staff_member_id, location_id), DELETE ON app.staff_location TO app_authenticated;
 GRANT INSERT (guardian_person_id, member_id) ON app.guardian_link TO app_authenticated;

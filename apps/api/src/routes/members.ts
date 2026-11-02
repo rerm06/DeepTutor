@@ -1,4 +1,3 @@
-import { audit } from "@gym/db";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 
@@ -49,17 +48,8 @@ export async function memberRoutes(app: FastifyInstance): Promise<void> {
         "UPDATE app.member SET status = $2 WHERE id = $1 RETURNING id, home_location_id",
         [id, b.status],
       );
-      const row = rows[0];
-      if (row) {
-        await audit(tx, {
-          action: "member.status",
-          entity: "member",
-          entityId: row.id,
-          locationId: row.home_location_id,
-          meta: b,
-        });
-      }
-      return row;
+      // The member_audit trigger records the change; nothing to do here.
+      return rows[0];
     });
     // RLS makes another org's (or another location's) member indistinguishable from a missing one.
     if (!updated) return reply.code(404).send({ error: "not_found" });

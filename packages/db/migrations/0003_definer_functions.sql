@@ -6,6 +6,7 @@ GRANT USAGE ON SCHEMA app_private TO app_definer;
 GRANT SELECT ON app_private.claims_key TO app_definer;
 GRANT SELECT, INSERT ON app.person TO app_definer;
 GRANT SELECT, INSERT ON app.member TO app_definer;
+GRANT SELECT, INSERT ON app.staff_member TO app_definer;
 GRANT SELECT ON app.location TO app_definer;
 GRANT INSERT ON app.audit_log TO app_definer;
 
@@ -65,9 +66,56 @@ BEGIN
   RETURN v_member;
 END $$;
 
+-- Add a staff member by email (owner only). Mirrors register_member: links an existing global person without
+-- exposing anything another organisation stored.
+CREATE FUNCTION app.add_staff(p_email text, p_display_name text, p_role app.role_name, p_license_no text)
+RETURNS uuid
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = app, pg_temp AS $$
+DECLARE
+  v_person uuid;
+  v_staff uuid;
+BEGIN
+  IF app.org_id() IS NULL OR app.role() IS DISTINCT FROM 'owner' THEN
+    RAISE EXCEPTION 'forbidden' USING ERRCODE = '42501';
+  END IF;
+  IF p_role IN ('member', 'guardian') THEN RAISE EXCEPTION 'invalid_role' USING ERRCODE = '22023'; END IF;
+  IF p_email IS NULL OR p_email !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$' OR length(p_email) > 254 THEN
+    RAISE EXCEPTION 'invalid_email' USING ERRCODE = '22023';
+  END IF;
+  SELECT id INTO v_person FROM app.person WHERE lower(email) = lower(p_email);
+  IF v_person IS NULL THEN
+    INSERT INTO app.person (email) VALUES (p_email) RETURNING id INTO v_person;
+  END IF;
+  INSERT INTO app.staff_member (org_id, person_id, role, display_name, license_no)
+  VALUES (app.org_id(), v_person, p_role, p_display_name, p_license_no)
+  RETURNING id INTO v_staff;
+  PERFORM app.audit('staff.add', 'staff_member', v_staff::text, NULL, jsonb_build_object('role', p_role));
+  RETURN v_staff;
+END $$;
+
+-- Every change to a member row is audited by trigger, so no request path can forget it or forge it
+-- (security re-review N3: app.audit() is no longer callable by request traffic).
+CREATE FUNCTION app.member_audit_trigger() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = app, pg_temp AS $$
+BEGIN
+  IF app.org_id() IS NOT NULL THEN
+    PERFORM app.audit('member.update', 'member', NEW.id::text, NEW.home_location_id,
+      jsonb_strip_nulls(jsonb_build_object(
+        'status', CASE WHEN NEW.status IS DISTINCT FROM OLD.status THEN NEW.status END,
+        'home_location_id', CASE WHEN NEW.home_location_id IS DISTINCT FROM OLD.home_location_id THEN NEW.home_location_id END)));
+  END IF;
+  RETURN NEW;
+END $$;
+CREATE TRIGGER member_audit AFTER UPDATE ON app.member FOR EACH ROW EXECUTE FUNCTION app.member_audit_trigger();
+
+ALTER FUNCTION app.add_staff(text, text, app.role_name, text) OWNER TO app_definer;
+ALTER FUNCTION app.member_audit_trigger() OWNER TO app_definer;
+REVOKE ALL ON FUNCTION app.add_staff(text, text, app.role_name, text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION app.add_staff(text, text, app.role_name, text) TO app_authenticated;
 ALTER FUNCTION app.audit(text, text, text, uuid, jsonb) OWNER TO app_definer;
 ALTER FUNCTION app.register_member(text, text, text, uuid) OWNER TO app_definer;
 REVOKE ALL ON FUNCTION app.audit(text, text, text, uuid, jsonb) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.register_member(text, text, text, uuid) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION app.audit(text, text, text, uuid, jsonb) TO app_authenticated;
+-- app.audit() is internal: callable only by other app_definer functions and triggers.
+REVOKE EXECUTE ON FUNCTION app.audit(text, text, text, uuid, jsonb) FROM app_authenticated;
 GRANT EXECUTE ON FUNCTION app.register_member(text, text, text, uuid) TO app_authenticated;

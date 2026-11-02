@@ -20,20 +20,34 @@ CREATE TABLE app_private.claims_key (
   key bytea NOT NULL CHECK (length(key) >= 32)
 );
 
+-- The signature covers claims || '|' || backend pid || '|' || transaction start (µs since epoch), so a captured
+-- pair is useless in any other transaction or session (security re-review N1). `exp` inside the claims is enforced.
 CREATE FUNCTION app.claims() RETURNS jsonb
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = app_private, pg_temp AS $$
 DECLARE
   v_claims text := coalesce(current_setting('request.jwt.claims', true), '');
   v_sig text := coalesce(current_setting('request.jwt.claims_sig', true), '');
   v_key bytea;
+  v_json jsonb;
+  v_payload text;
 BEGIN
   IF v_claims = '' OR v_sig = '' THEN RETURN '{}'::jsonb; END IF;
   SELECT key INTO v_key FROM app_private.claims_key;
-  IF v_key IS NULL OR encode(app_private.hmac(convert_to(v_claims, 'UTF8'), v_key, 'sha256'), 'hex') <> v_sig THEN
+  IF v_key IS NULL THEN RETURN '{}'::jsonb; END IF;
+  v_payload := v_claims || '|' || pg_backend_pid()::text || '|'
+               || (extract(epoch FROM transaction_timestamp()) * 1000000)::bigint::text;
+  IF encode(app_private.hmac(convert_to(v_payload, 'UTF8'), v_key, 'sha256'), 'hex') <> v_sig THEN
     RETURN '{}'::jsonb;
   END IF;
-  RETURN v_claims::jsonb;
+  v_json := v_claims::jsonb;
+  IF NOT (v_json ? 'exp') OR to_timestamp((v_json ->> 'exp')::double precision) <= transaction_timestamp() THEN
+    RETURN '{}'::jsonb;
+  END IF;
+  RETURN v_json;
+EXCEPTION WHEN others THEN
+  RETURN '{}'::jsonb;  -- malformed JSON or exp: fail closed
 END $$;
+
 CREATE FUNCTION app.org_id() RETURNS uuid LANGUAGE sql STABLE AS $$
   SELECT nullif(app.claims() ->> 'org_id', '')::uuid
 $$;
