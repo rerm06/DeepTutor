@@ -844,3 +844,67 @@ textarea[aria-invalid="true"] {
     border: 1px solid CanvasText;
   }
 }
+
+/* ── White-label brand (theme from GET /v1/brand; values sanitised in lib/brandTheme.ts) ── */
+.topbar {
+  background: var(--header-bg, var(--surface));
+  color: var(--header-text, var(--text));
+}
+:root[data-branded="true"] .topbar {
+  border-bottom: 3px solid var(--accent);
+}
+:root[data-branded="true"] .topbar .topbar__who,
+:root[data-branded="true"] .topbar .topbar__who * {
+  color: var(--header-text, inherit);
+}
+:root[data-branded="true"] .topbar a {
+  color: var(--header-text, var(--accent));
+}
+.brandmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.brandmark__logo {
+  display: block;
+  height: 36px;
+  width: auto;
+  max-width: min(260px, 60vw);
+}
+.brandmark__tagline {
+  font: 600 13px / 1.2 var(--font-body);
+  color: var(--header-text, var(--text-muted));
+  opacity: 0.9;
+}
+@media (max-width: 520px) {
+  .brandmark__tagline {
+    display: none;
+  }
+  .brandmark__logo {
+    height: 28px;
+  }
+}
+.org-group__logo {
+  display: block;
+  height: 40px;
+  width: auto;
+  max-width: 100%;
+  background: #000;
+  border-radius: 6px;
+  padding: 4px 8px;
+}
+/* Visually hidden labels inside scrollable tables are absolutely positioned; anchor them to the wrapper so they
+   cannot extend the page width on phones (found at 375 px: document width 443 px). */
+.table-wrap {
+  position: relative;
+}
+/* Branded dark header: ghost buttons and links use the header text colour (gold on black fails AA). */
+:root[data-branded="true"] .topbar .btn--ghost {
+  color: var(--header-text, var(--accent));
+  text-decoration: underline;
+}
+:root[data-branded="true"] .topbar .btn--ghost:hover:not(:disabled) {
+  color: var(--header-text);
+  background: rgba(255, 255, 255, 0.12);
+}

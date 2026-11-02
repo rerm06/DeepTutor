@@ -9,13 +9,19 @@ import { useSession } from "../session/SessionContext";
 interface OrgGroup {
   org: string;
   name: string;
+  logo: string | null;
   personas: Persona[];
 }
 
 export function groupByOrg(personas: Persona[]): OrgGroup[] {
   const groups = new Map<string, OrgGroup>();
   for (const p of personas) {
-    const g = groups.get(p.org) ?? { org: p.org, name: p.org_name, personas: [] };
+    const g = groups.get(p.org) ?? {
+      org: p.org,
+      name: p.org_name,
+      logo: p.org_logo_url ?? null,
+      personas: [],
+    };
     g.personas.push(p);
     groups.set(p.org, g);
   }
@@ -61,7 +67,11 @@ export function EntryScreen() {
           <section key={g.org} className="org-group" aria-labelledby={`org-${g.org}`}>
             <h2 id={`org-${g.org}`} className="org-group__title">
               <span className="org-group__code">{t("entry.org", { org: g.org })}</span>
-              <span>{g.name}</span>
+              {g.logo ? (
+                <img className="org-group__logo" src={g.logo} alt={g.name} height={40} />
+              ) : (
+                <span>{g.name}</span>
+              )}
             </h2>
             <ul className="persona-list">
               {g.personas.map((p) => (
@@ -79,7 +89,11 @@ export function EntryScreen() {
                     <span className="persona__role" id={`persona-${p.id}-role`}>
                       {tv("role", p.role, t("role.unknown", { role: p.role }))}
                       {" · "}
-                      {p.home ? t("entry.home", { home: p.home }) : t("entry.homeNone")}
+                      {p.home
+                        ? t("entry.home", { home: p.home })
+                        : p.role === "guardian" || p.role === "member"
+                          ? ""
+                          : t("entry.homeNone")}
                     </span>
                   </button>
                 </li>

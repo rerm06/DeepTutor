@@ -1,5 +1,6 @@
 import type {
   AuditEntry,
+  Brand,
   Consent,
   ConsentChange,
   DemoSession,
@@ -222,6 +223,7 @@ export function createApiClient(options: ApiClientOptions = {}) {
 
     personas: () => request<ListOf<Persona>>("GET", "/demo/personas"),
     me: () => request<Me>("GET", "/me"),
+    brands: () => request<ListOf<Brand>>("GET", "/brand"),
     locations: () => request<ListOf<Location>>("GET", "/locations"),
     auditLog: () => request<ListOf<AuditEntry>>("GET", "/audit-log"),
     members: (locationId?: string) =>

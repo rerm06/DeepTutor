@@ -16,6 +16,8 @@ export interface Persona {
   id: string;
   org: "A" | "B";
   org_name: string;
+  /** Logo of the organisation's brand for the entry screen (served from /brand/). */
+  org_logo_url?: string | null;
   role: Role | string;
   display_name: string;
   home: string | null;
@@ -165,4 +167,23 @@ export interface InboxItem {
 
 export interface ListOf<T> {
   data: T[];
+}
+
+export interface BrandTheme {
+  logo_url?: string;
+  icon_url?: string;
+  logo_alt?: string;
+  colors?: Partial<
+    Record<
+      "accent" | "accent_hover" | "accent_text" | "header_bg" | "header_text" | "highlight",
+      string
+    >
+  >;
+  tagline_es?: string;
+  tagline_en?: string;
+}
+export interface Brand {
+  id: string;
+  name: string;
+  theme: BrandTheme;
 }

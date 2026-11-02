@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { NavLink } from "react-router-dom";
 import { useI18n } from "../i18n/I18nContext";
 import type { Lang } from "../i18n/dict";
+import { useBrandTheme } from "../lib/brandTheme";
 import { navFor } from "../lib/roles";
 import { MODULES } from "../modules/registry";
 import { allows } from "../modules/types";
@@ -45,6 +46,12 @@ export function Layout({ children }: { children: ReactNode }) {
   const { persona, role, logout } = useSession();
   const items = navFor(role);
   const moduleItems = MODULES.flatMap((m) => m.nav.filter((n) => allows(n.audience, role)));
+  const brand = useBrandTheme();
+  const tagline = brand
+    ? lang === "en"
+      ? brand.theme.tagline_en
+      : brand.theme.tagline_es
+    : undefined;
 
   return (
     <div className="shell">
@@ -54,7 +61,19 @@ export function Layout({ children }: { children: ReactNode }) {
       <DemoBanner />
       <header className="topbar">
         <div className="topbar__brand">
-          <span className="wordmark">{t("app.name")}</span>
+          {brand?.theme.logo_url ? (
+            <span className="brandmark">
+              <img
+                className="brandmark__logo"
+                src={brand.theme.logo_url}
+                alt={brand.theme.logo_alt ?? brand.name}
+                height={36}
+              />
+              {tagline ? <span className="brandmark__tagline">{tagline}</span> : null}
+            </span>
+          ) : (
+            <span className="wordmark">{brand?.name ?? t("app.name")}</span>
+          )}
           {persona ? (
             <span className="topbar__who">
               <span className="sr-only">{t("session.as")} </span>

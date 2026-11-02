@@ -1,4 +1,4 @@
-import { DEMO_PERSONAS } from "@gym/shared";
+import { DEMO_ORG_LOGOS, DEMO_PERSONAS } from "@gym/shared";
 import type { FastifyInstance } from "fastify";
 import { SignJWT } from "jose";
 import { z } from "zod";
@@ -23,6 +23,7 @@ export async function demoRoutes(app: FastifyInstance, opts: DemoOptions): Promi
     id: p.id,
     org: p.org,
     org_name: p.org_name,
+    org_logo_url: DEMO_ORG_LOGOS[p.org],
     role: p.role,
     display_name: p.display_name,
     home: p.home,

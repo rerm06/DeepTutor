@@ -21,6 +21,12 @@ export interface DemoPersona {
   home: string | null;
 }
 
+/** Public branding for the demo entry screen (the logged-in UI reads the theme from GET /v1/brand). */
+export const DEMO_ORG_LOGOS: Record<"A" | "B", string | null> = {
+  A: "/brand/fitnessrus-logo.png",
+  B: null,
+};
+
 const A = "a0000000-0000-4000-8000-000000000001";
 const B = "b0000000-0000-4000-8000-000000000001";
 export const DEMO_IDS = {
@@ -40,7 +46,7 @@ export const DEMO_PERSONAS: readonly DemoPersona[] = [
   {
     id: "A-owner",
     org: "A",
-    org_name: "Demo Gym Norte",
+    org_name: "Fitness R Us",
     org_id: A,
     person_id: p(1, "a"),
     role: "owner",
@@ -51,7 +57,7 @@ export const DEMO_PERSONAS: readonly DemoPersona[] = [
   {
     id: "A-manager",
     org: "A",
-    org_name: "Demo Gym Norte",
+    org_name: "Fitness R Us",
     org_id: A,
     person_id: p(2, "a"),
     role: "location_manager",
@@ -62,7 +68,7 @@ export const DEMO_PERSONAS: readonly DemoPersona[] = [
   {
     id: "A-front",
     org: "A",
-    org_name: "Demo Gym Norte",
+    org_name: "Fitness R Us",
     org_id: A,
     person_id: p(3, "a"),
     role: "front_desk",
@@ -73,7 +79,7 @@ export const DEMO_PERSONAS: readonly DemoPersona[] = [
   {
     id: "A-front2",
     org: "A",
-    org_name: "Demo Gym Norte",
+    org_name: "Fitness R Us",
     org_id: A,
     person_id: p(4, "a"),
     role: "front_desk",
@@ -84,7 +90,7 @@ export const DEMO_PERSONAS: readonly DemoPersona[] = [
   {
     id: "A-trainer",
     org: "A",
-    org_name: "Demo Gym Norte",
+    org_name: "Fitness R Us",
     org_id: A,
     person_id: p(5, "a"),
     role: "trainer",
@@ -95,7 +101,7 @@ export const DEMO_PERSONAS: readonly DemoPersona[] = [
   {
     id: "A-accountant",
     org: "A",
-    org_name: "Demo Gym Norte",
+    org_name: "Fitness R Us",
     org_id: A,
     person_id: p(6, "a"),
     role: "accountant",
@@ -106,7 +112,7 @@ export const DEMO_PERSONAS: readonly DemoPersona[] = [
   {
     id: "A-member",
     org: "A",
-    org_name: "Demo Gym Norte",
+    org_name: "Fitness R Us",
     org_id: A,
     person_id: p(10, "a"),
     role: "member",
@@ -117,7 +123,7 @@ export const DEMO_PERSONAS: readonly DemoPersona[] = [
   {
     id: "A-guardian",
     org: "A",
-    org_name: "Demo Gym Norte",
+    org_name: "Fitness R Us",
     org_id: A,
     person_id: p(20, "a"),
     role: "guardian",

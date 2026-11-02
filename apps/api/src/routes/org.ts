@@ -14,6 +14,16 @@ export async function orgRoutes(app: FastifyInstance): Promise<void> {
     }),
   );
 
+  // White-label theme of the caller's organisation (logo, colours, tagline). RLS: brand_select = whole org.
+  app.get("/brand", async (req) =>
+    app.asCaller(req, async (tx) => {
+      const { rows } = await tx.query(
+        "SELECT id, name, theme FROM app.brand ORDER BY created_at LIMIT 20",
+      );
+      return { data: rows };
+    }),
+  );
+
   app.get("/locations", async (req) =>
     app.asCaller(req, async (tx) => {
       const { rows } = await tx.query(
