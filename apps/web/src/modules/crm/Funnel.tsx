@@ -1,10 +1,14 @@
 import { type FormEvent, useId, useMemo, useState } from "react";
-import { ErrorNote, Loading, Section, TableWrap } from "../../components/ui";
+import { Link } from "react-router-dom";
+import { Icon } from "../../components/icons";
+import { ErrorNote, Loading, TableWrap } from "../../components/ui";
 import { useI18n } from "../../i18n/I18nContext";
 import { useAsync } from "../../lib/useAsync";
 import { useSession } from "../../session/SessionContext";
+import { CRM_ROUTES, Stat } from "./LeadsBoard";
 import { type FunnelRow, LEAD_STAGES, crmApi, isoDay } from "./api";
 import { useCrmT } from "./dict";
+import { CRM_D, CrmSection } from "./parts";
 import "./crm.css";
 
 const COUNT_STAGES = LEAD_STAGES;
@@ -42,10 +46,12 @@ export function FunnelScreen() {
   }
 
   return (
-    <div className="page">
-      <h1 className="page__title">{t("funnel.title")}</h1>
-      <p className="lede">{t("funnel.lede")}</p>
-      <form className="toolbar" onSubmit={apply}>
+    <div className="page crm">
+      <div className="crm-head">
+        <h1 className="page__title">{t("funnel.title")}</h1>
+        <p className="lede">{t("funnel.lede")}</p>
+      </div>
+      <form className="toolbar crm-toolbar" onSubmit={apply}>
         <div className="field">
           <label htmlFor={ids.from}>{t("funnel.from")}</label>
           <input
@@ -83,6 +89,7 @@ export function FunnelScreen() {
         </div>
         <div className="form__actions">
           <button type="submit" className="btn btn--primary" data-tour-id="crm-funnel-apply">
+            <Icon d={CRM_D.funnel} size={20} />
             {t("funnel.apply")}
           </button>
         </div>
@@ -90,9 +97,97 @@ export function FunnelScreen() {
 
       {funnel.loading ? <Loading /> : null}
       {funnel.error ? <ErrorNote code={funnel.error} onRetry={funnel.reload} /> : null}
-      {funnel.data && rows.length === 0 ? <p className="muted">{t("funnel.empty")}</p> : null}
+      {funnel.data && rows.length === 0 ? (
+        <div className="section">
+          <div className="ds-empty">
+            <Icon d={CRM_D.funnel} size={36} />
+            <strong>{t("funnel.empty")}</strong>
+            <Link className="btn" to={CRM_ROUTES.leads}>
+              {t("funnel.toLeads")}
+            </Link>
+          </div>
+        </div>
+      ) : null}
       {rows.length > 0 ? (
         <>
+          <div className="ds-stats">
+            <Stat
+              icon={<Icon name="crm" size={34} />}
+              label={t("funnel.stat.total")}
+              value={totals.total}
+            />
+            <Stat
+              icon={<Icon name="checkCircle" size={34} />}
+              label={t("funnel.stat.won")}
+              value={totals.won}
+            />
+            <Stat
+              icon={<Icon d={CRM_D.xCircle} size={34} />}
+              label={t("funnel.stat.lost")}
+              value={totals.lost}
+            />
+            <Stat
+              icon={<Icon d={CRM_D.percent} size={34} />}
+              label={t("funnel.col.conversion")}
+              value={`${pct(totals.won, totals.total).toFixed(1)} %`}
+            />
+          </div>
+          <div className="crm-funnel">
+            <CrmSection title={t("funnel.stages")} d={CRM_D.funnel}>
+              <ul className="crm-bars">
+                {COUNT_STAGES.map((s) => {
+                  const n = totals[s];
+                  const w = totals.total ? (100 * n) / totals.total : 0;
+                  return (
+                    <li key={s} className={`crm-bar crm-bar--${s}`}>
+                      <span className="sr-only">
+                        {t("funnel.stageLabel", { stage: t(`stage.${s}`), n, total: totals.total })}
+                      </span>
+                      <span className="crm-bar__row" aria-hidden="true">
+                        <span className="crm-bar__name">{t(`stage.${s}`)}</span>
+                        <span className="crm-bar__num">{n}</span>
+                      </span>
+                      <span className="crm-bar__track" aria-hidden="true">
+                        <span className="crm-bar__fill" style={{ width: `${w}%` }} />
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </CrmSection>
+            <CrmSection title={t("funnel.bars")} icon="chart">
+              <ul className="crm-bars">
+                {rows.map((r) => {
+                  const label = `${locName.get(r.location_id) ?? "—"} · ${t(`source.${r.source}`)}`;
+                  return (
+                    <li key={`${r.location_id}:${r.source}`} className="crm-bar">
+                      <span className="crm-bar__label sr-only">
+                        {t("funnel.barLabel", {
+                          label,
+                          pct: r.conversion_pct.toFixed(1),
+                          won: r.won,
+                          total: r.total,
+                        })}
+                      </span>
+                      <span className="crm-bar__row" aria-hidden="true">
+                        <span className="crm-bar__name">{label}</span>
+                        <span className="crm-bar__num">
+                          {r.conversion_pct.toFixed(1)} %
+                          <small>{t("funnel.ofTotal", { won: r.won, total: r.total })}</small>
+                        </span>
+                      </span>
+                      <span className="crm-bar__track" aria-hidden="true">
+                        <span
+                          className="crm-bar__fill"
+                          style={{ width: `${Math.min(100, Math.max(0, r.conversion_pct))}%` }}
+                        />
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </CrmSection>
+          </div>
           <TableWrap label={t("funnel.title")}>
             <table className="table" data-tour-id="crm-funnel-table">
               <thead>
@@ -139,31 +234,6 @@ export function FunnelScreen() {
               </tfoot>
             </table>
           </TableWrap>
-          <Section title={t("funnel.bars")} level={2}>
-            <ul className="crm-bars">
-              {rows.map((r) => {
-                const label = `${locName.get(r.location_id) ?? "—"} · ${t(`source.${r.source}`)}`;
-                return (
-                  <li key={`${r.location_id}:${r.source}`} className="crm-bar">
-                    <span className="crm-bar__label">
-                      {t("funnel.barLabel", {
-                        label,
-                        pct: r.conversion_pct.toFixed(1),
-                        won: r.won,
-                        total: r.total,
-                      })}
-                    </span>
-                    <span className="crm-bar__track" aria-hidden="true">
-                      <span
-                        className="crm-bar__fill"
-                        style={{ width: `${Math.min(100, Math.max(0, r.conversion_pct))}%` }}
-                      />
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
-          </Section>
         </>
       ) : null}
     </div>

@@ -1,7 +1,8 @@
-import { type FormEvent, useEffect, useId, useMemo, useState } from "react";
+import { type FormEvent, type ReactNode, useEffect, useId, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { type ErrorCode, toErrorCode } from "../../api/client";
 import type { Location } from "../../api/types";
+import { Icon } from "../../components/icons";
 import { ErrorNote, LiveResult, Loading } from "../../components/ui";
 import { useI18n } from "../../i18n/I18nContext";
 import { formatDateTime } from "../../lib/format";
@@ -18,6 +19,7 @@ import {
   crmApi,
 } from "./api";
 import { useCrmT } from "./dict";
+import { Avatar, CRM_D, CountPill } from "./parts";
 import "./crm.css";
 
 export const CRM_ROUTES = {
@@ -42,11 +44,16 @@ export function LeadsBoard() {
   const newFormId = useId();
   const locs = locations.data?.data ?? [];
   const rows = leads.data?.data ?? [];
+  const won = rows.filter((l) => l.stage === "won").length;
+  const lost = rows.filter((l) => l.stage === "lost").length;
 
   return (
-    <div className="page">
+    <div className="page crm">
       <div className="page__head">
-        <h1 className="page__title">{t("leads.title")}</h1>
+        <div className="crm-head">
+          <h1 className="page__title">{t("leads.title")}</h1>
+          <p className="lede">{t("leads.lede")}</p>
+        </div>
         <button
           type="button"
           className="btn btn--primary"
@@ -55,13 +62,38 @@ export function LeadsBoard() {
           aria-controls={newFormId}
           onClick={() => setShowNew((v) => !v)}
         >
+          <Icon name="userPlus" size={20} />
           {t("leads.new")}
         </button>
       </div>
-      <p className="lede">{t("leads.lede")}</p>
+
+      {leads.data ? (
+        <div className="ds-stats">
+          <Stat
+            icon={<Icon name="crm" size={34} />}
+            label={t("leads.stat.total")}
+            value={rows.length}
+          />
+          <Stat
+            icon={<Icon d={CRM_D.activity} size={34} />}
+            label={t("leads.stat.active")}
+            value={rows.length - won - lost}
+          />
+          <Stat
+            icon={<Icon name="checkCircle" size={34} />}
+            label={t("leads.stat.won")}
+            value={won}
+          />
+          <Stat
+            icon={<Icon d={CRM_D.xCircle} size={34} />}
+            label={t("leads.stat.lost")}
+            value={lost}
+          />
+        </div>
+      ) : null}
 
       {showNew ? (
-        <div id={newFormId}>
+        <div id={newFormId} className="section crm-newlead">
           <NewLeadForm
             locations={locs}
             onCreated={(msg) => {
@@ -72,7 +104,7 @@ export function LeadsBoard() {
         </div>
       ) : null}
 
-      <div className="toolbar">
+      <div className="toolbar crm-toolbar">
         <div className="field">
           <label htmlFor={filterId}>{t("leads.filterLocation")}</label>
           <select
@@ -89,6 +121,9 @@ export function LeadsBoard() {
             ))}
           </select>
         </div>
+        {leads.data ? (
+          <p className="muted crm-toolbar__count">{t("leads.count", { n: rows.length })}</p>
+        ) : null}
       </div>
 
       <LiveResult>{announce}</LiveResult>
@@ -97,7 +132,6 @@ export function LeadsBoard() {
       {leads.loading ? <Loading /> : null}
       {leads.data ? (
         <>
-          <p className="muted">{t("leads.count", { n: rows.length })}</p>
           <div className="crm-board" data-tour-id="crm-board">
             {LEAD_STAGES.map((stage) => (
               <StageColumn
@@ -117,6 +151,30 @@ export function LeadsBoard() {
   );
 }
 
+/** Key number tile (`.ds-stat`): gold icon · label · value. Values come from data the screen already loaded. */
+export function Stat({
+  icon,
+  label,
+  value,
+  hint,
+}: {
+  icon: ReactNode;
+  label: string;
+  value: ReactNode;
+  hint?: string;
+}) {
+  return (
+    <div className="ds-stat">
+      {icon}
+      <div className="ds-stat__text">
+        <span className="ds-stat__label">{label}</span>
+        <span className="ds-stat__value">{value}</span>
+        {hint ? <span className="ds-stat__hint">{hint}</span> : null}
+      </div>
+    </div>
+  );
+}
+
 function StageColumn({
   stage,
   leads,
@@ -131,10 +189,12 @@ function StageColumn({
   return (
     <section className={`crm-col crm-col--${stage}`} aria-labelledby={headingId}>
       <h2 id={headingId} className="crm-col__title">
-        {t(`stage.${stage}`)} <span className="crm-col__count">({leads.length})</span>
+        <span className="crm-col__dot" aria-hidden="true" />
+        {t(`stage.${stage}`)}
+        <CountPill n={leads.length} />
       </h2>
       {leads.length === 0 ? (
-        <p className="muted crm-col__empty">{t("leads.empty")}</p>
+        <p className="crm-col__empty">{t("leads.empty")}</p>
       ) : (
         <ul
           className="crm-cards"
@@ -182,22 +242,33 @@ function LeadCard({ lead, onMoved }: { lead: Lead; onMoved: (msg: string) => voi
 
   return (
     <article className="crm-card">
-      <h3 className="crm-card__name">
-        <Link to={CRM_ROUTES.lead(lead.id)} aria-label={t("leads.open", { name: lead.full_name })}>
-          {lead.full_name}
-        </Link>
-      </h3>
+      <div className="crm-card__head">
+        <Avatar name={lead.full_name} />
+        <div className="crm-card__who">
+          <h3 className="crm-card__name">
+            <Link
+              to={CRM_ROUTES.lead(lead.id)}
+              aria-label={t("leads.open", { name: lead.full_name })}
+            >
+              {lead.full_name}
+            </Link>
+          </h3>
+          <span className="crm-chip">
+            <span className="sr-only">{t("leads.source")}: </span>
+            {t(`source.${lead.source}`)}
+          </span>
+        </div>
+      </div>
       <p className="crm-card__meta">
         <span>
-          {t("leads.source")}: {t(`source.${lead.source}`)}
-        </span>
-        <span>
+          <Icon name="users" size={16} />
           {t("leads.owner")}: {lead.owner_name ?? t("leads.noOwner")}
         </span>
         <span className="muted">
+          <Icon d={CRM_D.clock} size={16} />
           {t("leads.since", { when: formatDateTime(lead.stage_changed_at, lang) })}
         </span>
-        {lead.lost_reason ? <span className="muted">{lead.lost_reason}</span> : null}
+        {lead.lost_reason ? <span className="crm-card__lost">{lead.lost_reason}</span> : null}
       </p>
       {lead.stage !== "won" ? (
         <form className="crm-move" onSubmit={move}>
@@ -235,7 +306,7 @@ function LeadCard({ lead, onMoved }: { lead: Lead; onMoved: (msg: string) => voi
           ) : null}
           <button
             type="submit"
-            className="btn btn--ghost"
+            className="btn"
             disabled={busy || !canMove}
             data-tour-id="crm-lead-move"
           >
@@ -321,7 +392,8 @@ export function NewLeadForm({
 
   return (
     <form className="form form--boxed" onSubmit={submit} noValidate aria-labelledby={id("title")}>
-      <h2 id={id("title")} className="form__title">
+      <h2 id={id("title")} className="section__title">
+        <Icon name="userPlus" size={22} />
         {t("form.title")}
       </h2>
       <p className="note note--warn" id={id("consent")} data-tour-id="crm-consent-note">
