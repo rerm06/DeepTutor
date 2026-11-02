@@ -6,7 +6,7 @@ echo "== secrets scan"; ! git grep --untracked -nE '(sk_live_|rk_live_|whsec_[A-
 echo "== forbidden terms (spec §6.7: AI is never a 'nutricionista')"; ! git grep --untracked -niE 'agente nutricionista|ai nutritionist|nutricionista (virtual|ia|con ia)' -- 'apps' 'packages' 'services' 2>/dev/null
 echo "== netlify migrations mirror"; bash scripts/sync-netlify-migrations.sh --check
 echo "== lint"; pnpm -s lint
-echo "== build"; pnpm -r --reporter=append-only build
+echo "== build"; pnpm -r --reporter=append-only build && node scripts/bundle-function.mjs
 echo "== typecheck"; pnpm -s typecheck
 if [ -z "${TEST_PG_ADMIN_URL:-}" ]; then
   url="$(bash scripts/pg-local.sh start)"   # separate assignment so a failed start aborts the gate
