@@ -1,16 +1,18 @@
 import { type FormEvent, useId, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { type ErrorCode, toErrorCode } from "../../api/client";
-import { ErrorNote, LiveResult, Loading, Plate, Section } from "../../components/ui";
+import { Icon } from "../../components/icons";
+import { ErrorNote, LiveResult, Loading, Plate } from "../../components/ui";
 import { useI18n } from "../../i18n/I18nContext";
 import { formatDateTime } from "../../lib/format";
 import { ROUTES } from "../../lib/roles";
 import { useAsync } from "../../lib/useAsync";
 import { useSession } from "../../session/SessionContext";
-import { CRM_ROUTES } from "./LeadsBoard";
+import { CRM_ROUTES, Stat } from "./LeadsBoard";
 import { TaskList } from "./Tasks";
 import { ACTIVITY_KINDS, type Activity, type LeadDetail as LeadRecord, crmApi } from "./api";
 import { useCrmT } from "./dict";
+import { Avatar, CRM_D, CrmSection } from "./parts";
 import "./crm.css";
 
 export function LeadDetailScreen() {
@@ -25,105 +27,152 @@ export function LeadDetailScreen() {
   const locName = locations.data?.data.find((x) => x.id === l?.location_id)?.name;
 
   return (
-    <div className="page">
-      <p>
+    <div className="page crm">
+      <p className="crm-back">
         <Link to={CRM_ROUTES.leads} className="back-link">
+          <Icon d="M19 12H5M11 6l-6 6 6 6" size={18} />
           {t("detail.back")}
         </Link>
       </p>
-      <h1 className="page__title">{l ? l.full_name : t("detail.data")}</h1>
+      <div className="crm-lead-head">
+        {l ? <Avatar name={l.full_name} size="lg" /> : null}
+        <div className="crm-head">
+          <h1 className="page__title">{l ? l.full_name : t("detail.data")}</h1>
+          {l ? (
+            <p className="crm-lead-head__meta">
+              <Plate tone={stageTone(l.stage)}>{t(`stage.${l.stage}`)}</Plate>
+              <span className="crm-chip">
+                <span className="sr-only">{t("leads.source")}: </span>
+                {t(`source.${l.source}`)}
+              </span>
+            </p>
+          ) : null}
+        </div>
+      </div>
       <LiveResult>{announce}</LiveResult>
       {lead.loading ? <Loading /> : null}
       {lead.error ? <ErrorNote code={lead.error} onRetry={lead.reload} /> : null}
       {l ? (
         <>
-          <Section title={t("detail.data")}>
-            <dl className="facts">
-              <div>
-                <dt>{t("detail.stage")}</dt>
-                <dd>
-                  <Plate
-                    tone={l.stage === "won" ? "ok" : l.stage === "lost" ? "blocked" : "neutral"}
-                  >
-                    {t(`stage.${l.stage}`)}
-                  </Plate>
-                  {l.lost_reason ? <span className="cell-note">{l.lost_reason}</span> : null}
-                </dd>
-              </div>
-              <div>
-                <dt>{t("leads.source")}</dt>
-                <dd>{t(`source.${l.source}`)}</dd>
-              </div>
-              <div>
-                <dt>{t("form.location")}</dt>
-                <dd>{locName ?? "—"}</dd>
-              </div>
-              <div>
-                <dt>{t("leads.owner")}</dt>
-                <dd>{l.owner_name ?? t("leads.noOwner")}</dd>
-              </div>
-              <div>
-                <dt>{t("form.email")}</dt>
-                <dd className="mono">{l.email ?? "—"}</dd>
-              </div>
-              <div>
-                <dt>{t("form.phone")}</dt>
-                <dd className="mono">{l.phone ?? "—"}</dd>
-              </div>
-              {l.notes ? (
+          <div className="ds-stats">
+            <Stat
+              icon={<Icon d={CRM_D.activity} size={34} />}
+              label={t("detail.stat.activities")}
+              value={l.activities.length}
+            />
+            <Stat
+              icon={<Icon d={CRM_D.clock} size={34} />}
+              label={t("detail.stat.since")}
+              value={
+                <span className="crm-stat-text">{formatDateTime(l.stage_changed_at, lang)}</span>
+              }
+            />
+            <Stat
+              icon={<Icon name="calendar" size={34} />}
+              label={t("detail.stat.created")}
+              value={<span className="crm-stat-text">{formatDateTime(l.created_at, lang)}</span>}
+            />
+          </div>
+          <div className="crm-detail">
+            <CrmSection title={t("detail.data")} icon="doc">
+              <dl className="facts">
                 <div>
-                  <dt>{t("form.notes")}</dt>
-                  <dd>{l.notes}</dd>
-                </div>
-              ) : null}
-              {l.member_id ? (
-                <div>
-                  <dt>{t("detail.member")}</dt>
+                  <dt>{t("detail.stage")}</dt>
                   <dd>
-                    <Link to={ROUTES.member(l.member_id)}>{t("detail.openMember")}</Link>
+                    <Plate tone={stageTone(l.stage)}>{t(`stage.${l.stage}`)}</Plate>
+                    {l.lost_reason ? <span className="cell-note">{l.lost_reason}</span> : null}
                   </dd>
                 </div>
-              ) : null}
-            </dl>
-            <p className="help">{t("form.consentNote")}</p>
-          </Section>
+                <div>
+                  <dt>{t("leads.source")}</dt>
+                  <dd>{t(`source.${l.source}`)}</dd>
+                </div>
+                <div>
+                  <dt>{t("form.location")}</dt>
+                  <dd>{locName ?? "—"}</dd>
+                </div>
+                <div>
+                  <dt>{t("leads.owner")}</dt>
+                  <dd>{l.owner_name ?? t("leads.noOwner")}</dd>
+                </div>
+                <div>
+                  <dt>{t("form.email")}</dt>
+                  <dd className="mono">{l.email ?? "—"}</dd>
+                </div>
+                <div>
+                  <dt>{t("form.phone")}</dt>
+                  <dd className="mono">{l.phone ?? "—"}</dd>
+                </div>
+                {l.notes ? (
+                  <div>
+                    <dt>{t("form.notes")}</dt>
+                    <dd>{l.notes}</dd>
+                  </div>
+                ) : null}
+                {l.member_id ? (
+                  <div>
+                    <dt>{t("detail.member")}</dt>
+                    <dd>
+                      <Link to={ROUTES.member(l.member_id)}>{t("detail.openMember")}</Link>
+                    </dd>
+                  </div>
+                ) : null}
+              </dl>
+              <p className="help">{t("form.consentNote")}</p>
+            </CrmSection>
 
-          {l.stage !== "won" ? (
-            <ConvertPanel
-              lead={l}
-              onConverted={(msg) => {
-                setAnnounce(msg);
-                lead.reload();
-              }}
+            {l.stage !== "won" ? (
+              <ConvertPanel
+                lead={l}
+                onConverted={(msg) => {
+                  setAnnounce(msg);
+                  lead.reload();
+                }}
+              />
+            ) : null}
+
+            <CrmSection title={t("detail.timeline")} icon="chat">
+              <AddActivity
+                leadId={l.id}
+                onAdded={(msg) => {
+                  setAnnounce(msg);
+                  lead.reload();
+                }}
+              />
+              <Timeline activities={l.activities} lang={lang} />
+            </CrmSection>
+
+            <TaskList
+              title={t("nav.tasks")}
+              filter={{ leadId: l.id }}
+              create={{ locationId: l.location_id, leadId: l.id }}
+              level={2}
             />
-          ) : null}
-
-          <Section title={t("detail.timeline")}>
-            <AddActivity
-              leadId={l.id}
-              onAdded={(msg) => {
-                setAnnounce(msg);
-                lead.reload();
-              }}
-            />
-            <Timeline activities={l.activities} lang={lang} />
-          </Section>
-
-          <TaskList
-            title={t("nav.tasks")}
-            filter={{ leadId: l.id }}
-            create={{ locationId: l.location_id, leadId: l.id }}
-            level={2}
-          />
+          </div>
         </>
       ) : null}
     </div>
   );
 }
 
+const stageTone = (s: LeadRecord["stage"]) =>
+  s === "won"
+    ? "ok"
+    : s === "lost"
+      ? "blocked"
+      : s === "trial" || s === "tour_booked"
+        ? "warn"
+        : "neutral";
+
 function Timeline({ activities, lang }: { activities: Activity[]; lang: "es" | "en" }) {
   const { t } = useCrmT();
-  if (activities.length === 0) return <p className="muted">{t("detail.timelineEmpty")}</p>;
+  if (activities.length === 0)
+    return (
+      <div className="ds-empty">
+        <Icon name="chat" size={36} />
+        <strong>{t("detail.timelineEmpty")}</strong>
+      </div>
+    );
   return (
     <ol className="crm-timeline" data-tour-id="crm-timeline">
       {activities.map((a) => (
@@ -178,7 +227,7 @@ function AddActivity({ leadId, onAdded }: { leadId: string; onAdded: (msg: strin
   }
 
   return (
-    <form className="form form--boxed" onSubmit={submit} aria-labelledby={ids.title}>
+    <form className="form crm-subform" onSubmit={submit} aria-labelledby={ids.title}>
       <h3 id={ids.title} className="form__title">
         {t("detail.addActivity")}
       </h3>
@@ -252,7 +301,7 @@ function ConvertPanel({
   }
 
   return (
-    <Section title={t("detail.convert")}>
+    <CrmSection title={t("detail.convert")} icon="userPlus">
       <p id={helpId} className="help">
         {t("detail.convertHelp")}
       </p>
@@ -277,12 +326,13 @@ function ConvertPanel({
         ) : (
           <button
             type="button"
-            className="btn btn--primary"
+            className="ds-cta"
             disabled={!lead.email}
             aria-describedby={helpId}
             onClick={() => setConfirming(true)}
             data-tour-id="crm-lead-convert"
           >
+            <Icon name="userPlus" size={20} />
             {t("detail.convert")}
           </button>
         )}
@@ -294,6 +344,6 @@ function ConvertPanel({
       ) : error ? (
         <ErrorNote code={error} />
       ) : null}
-    </Section>
+    </CrmSection>
   );
 }

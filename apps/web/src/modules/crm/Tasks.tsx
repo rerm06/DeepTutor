@@ -1,19 +1,33 @@
 import { type FormEvent, useEffect, useId, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { type ErrorCode, toErrorCode } from "../../api/client";
-import { ErrorNote, LiveResult, Loading, Plate, Section, type Tone } from "../../components/ui";
+import { Icon, type IconName } from "../../components/icons";
+import { ErrorNote, LiveResult, Loading, Plate, type Tone } from "../../components/ui";
 import { formatDateTime } from "../../lib/format";
 import { ROUTES } from "../../lib/roles";
 import { useAsync } from "../../lib/useAsync";
 import { useSession } from "../../session/SessionContext";
-import { CRM_ROUTES } from "./LeadsBoard";
+import { CRM_ROUTES, Stat } from "./LeadsBoard";
 import { type StaffOption, type Task, type TaskStatus, crmApi, isManager, taskBucket } from "./api";
 import { useCrmT } from "./dict";
+import { CRM_D, CountPill, CrmSection } from "./parts";
 import "./crm.css";
 
 const BUCKETS = ["overdue", "today", "upcoming", "closed"] as const;
+type Bucket = (typeof BUCKETS)[number];
 const statusTone = (s: TaskStatus): Tone =>
   s === "done" ? "ok" : s === "cancelled" ? "neutral" : "warn";
+const dueTone: Record<Exclude<Bucket, "closed">, Tone> = {
+  overdue: "blocked",
+  today: "warn",
+  upcoming: "neutral",
+};
+const BUCKET_ICON: Record<Bucket, { icon?: IconName; d?: string }> = {
+  overdue: { d: CRM_D.clock },
+  today: { icon: "calendar" },
+  upcoming: { icon: "calendarPlus" },
+  closed: { icon: "checkCircle" },
+};
 
 /** "Tareas": my tasks grouped by due state. Managers can widen to every task of their locations. */
 export function TasksScreen() {
@@ -23,12 +37,14 @@ export function TasksScreen() {
   const [mine, setMine] = useState(true);
   const mineId = useId();
   return (
-    <div className="page">
-      <h1 className="page__title">{t("tasks.title")}</h1>
-      <p className="lede">{t("tasks.lede")}</p>
+    <div className="page crm">
+      <div className="crm-head">
+        <h1 className="page__title">{t("tasks.title")}</h1>
+        <p className="lede">{t("tasks.lede")}</p>
+      </div>
       {manager ? (
         <div className="toolbar">
-          <div className="field field--inline">
+          <div className="field field--inline crm-check">
             <input
               id={mineId}
               type="checkbox"
@@ -43,6 +59,7 @@ export function TasksScreen() {
       <TaskList
         filter={{ mine: manager ? mine : true }}
         grouped
+        stats
         level={2}
         create={manager ? {} : undefined}
       />
@@ -68,12 +85,15 @@ export function TaskList({
   title,
   filter,
   grouped = false,
+  stats = false,
   create,
   level = 2,
 }: {
   title?: string;
   filter: { mine?: boolean; memberId?: string; leadId?: string };
   grouped?: boolean;
+  /** Show the overdue / today / upcoming counts as `.ds-stats` (real counts of the loaded tasks). */
+  stats?: boolean;
   /** When set, managers get a "new task" form prefilled with these targets. */
   create?: { locationId?: string; leadId?: string; memberId?: string };
   level?: 2 | 3;
@@ -88,9 +108,22 @@ export function TaskList({
   );
   const rows = tasks.data?.data ?? [];
   const now = new Date();
+  const count = (b: Bucket) => rows.filter((r) => taskBucket(r, now) === b).length;
   const body = (
     <>
       <LiveResult>{announce}</LiveResult>
+      {stats && tasks.data ? (
+        <div className="ds-stats">
+          {(["overdue", "today", "upcoming"] as const).map((b) => (
+            <Stat
+              key={b}
+              icon={<Icon name={BUCKET_ICON[b].icon} d={BUCKET_ICON[b].d} size={34} />}
+              label={t(`tasks.${b}`)}
+              value={count(b)}
+            />
+          ))}
+        </div>
+      ) : null}
       {create ? (
         <NewTaskForm
           target={create}
@@ -102,26 +135,44 @@ export function TaskList({
       ) : null}
       {tasks.loading ? <Loading /> : null}
       {tasks.error ? <ErrorNote code={tasks.error} onRetry={tasks.reload} /> : null}
-      {tasks.data && rows.length === 0 ? <p className="muted">{t("tasks.empty")}</p> : null}
+      {tasks.data && rows.length === 0 ? (
+        <div className="ds-empty">
+          <Icon name="checkCircle" size={36} />
+          <strong>{t("tasks.empty")}</strong>
+        </div>
+      ) : null}
       {grouped
         ? BUCKETS.map((b) => {
             const inBucket = rows.filter((r) => taskBucket(r, now) === b);
             return inBucket.length ? (
-              <Section key={b} title={`${t(`tasks.${b}`)} (${inBucket.length})`} level={3}>
+              <CrmSection
+                key={b}
+                title={
+                  <>
+                    {t(`tasks.${b}`)}
+                    <CountPill n={inBucket.length} />
+                  </>
+                }
+                icon={BUCKET_ICON[b].icon}
+                d={BUCKET_ICON[b].d}
+                level={3}
+                className={`crm-bucket crm-bucket--${b}`}
+              >
                 <Items
                   rows={inBucket}
-                  overdue={b === "overdue"}
+                  now={now}
                   onChanged={(m) => {
                     setAnnounce(m);
                     tasks.reload();
                   }}
                 />
-              </Section>
+              </CrmSection>
             ) : null;
           })
         : rows.length > 0 && (
             <Items
               rows={rows}
+              now={now}
               onChanged={(m) => {
                 setAnnounce(m);
                 tasks.reload();
@@ -131,9 +182,9 @@ export function TaskList({
     </>
   );
   return title ? (
-    <Section title={title} level={level}>
+    <CrmSection title={title} icon="checkCircle" level={level} className="crm">
       {body}
-    </Section>
+    </CrmSection>
   ) : (
     body
   );
@@ -141,25 +192,33 @@ export function TaskList({
 
 function Items({
   rows,
-  overdue = false,
+  now,
   onChanged,
 }: {
   rows: Task[];
-  overdue?: boolean;
+  now: Date;
   onChanged: (msg: string) => void;
 }) {
   return (
-    <ul className={`crm-tasks${overdue ? " crm-tasks--overdue" : ""}`}>
+    <ul className="crm-tasks">
       {rows.map((task) => (
         <li key={task.id}>
-          <TaskItem task={task} onChanged={onChanged} />
+          <TaskItem task={task} bucket={taskBucket(task, now)} onChanged={onChanged} />
         </li>
       ))}
     </ul>
   );
 }
 
-function TaskItem({ task, onChanged }: { task: Task; onChanged: (msg: string) => void }) {
+function TaskItem({
+  task,
+  bucket,
+  onChanged,
+}: {
+  task: Task;
+  bucket: Bucket;
+  onChanged: (msg: string) => void;
+}) {
   const { t, lang } = useCrmT();
   const { api } = useSession();
   const [busy, setBusy] = useState(false);
@@ -180,30 +239,42 @@ function TaskItem({ task, onChanged }: { task: Task; onChanged: (msg: string) =>
 
   return (
     <article className="crm-task">
-      <p className="crm-task__title">
-        <strong>{task.title}</strong>{" "}
-        <Plate tone={statusTone(task.status)}>{t(`status.${task.status}`)}</Plate>
-      </p>
-      <p className="crm-task__meta">
-        <span>{t("tasks.due", { when: formatDateTime(task.due_at, lang) })}</span>
-        {task.assignee_name ? (
-          <span>{t("tasks.assignee", { name: task.assignee_name })}</span>
-        ) : null}
-        {task.lead_id && task.lead_name ? (
+      <div className="crm-task__body">
+        <p className="crm-task__title">
+          <strong>{task.title}</strong>{" "}
+          {bucket === "closed" ? (
+            <Plate tone={statusTone(task.status)}>{t(`status.${task.status}`)}</Plate>
+          ) : (
+            <Plate tone={dueTone[bucket]}>{t(`due.${bucket}`)}</Plate>
+          )}
+        </p>
+        <p className="crm-task__meta">
           <span>
-            <Link to={CRM_ROUTES.lead(task.lead_id)}>
-              {t("tasks.lead", { name: task.lead_name })}
-            </Link>
+            <Icon d={CRM_D.clock} size={16} />
+            {t("tasks.due", { when: formatDateTime(task.due_at, lang) })}
           </span>
-        ) : null}
-        {task.member_id && task.member_name ? (
-          <span>
-            <Link to={ROUTES.member(task.member_id)}>
-              {t("tasks.member", { name: task.member_name })}
-            </Link>
-          </span>
-        ) : null}
-      </p>
+          {task.assignee_name ? (
+            <span>
+              <Icon name="users" size={16} />
+              {t("tasks.assignee", { name: task.assignee_name })}
+            </span>
+          ) : null}
+          {task.lead_id && task.lead_name ? (
+            <span>
+              <Link to={CRM_ROUTES.lead(task.lead_id)}>
+                {t("tasks.lead", { name: task.lead_name })}
+              </Link>
+            </span>
+          ) : null}
+          {task.member_id && task.member_name ? (
+            <span>
+              <Link to={ROUTES.member(task.member_id)}>
+                {t("tasks.member", { name: task.member_name })}
+              </Link>
+            </span>
+          ) : null}
+        </p>
+      </div>
       <div className="row-actions">
         {task.status === "open" ? (
           <>
@@ -331,10 +402,11 @@ function NewTaskForm({
         onClick={() => setOpen((v) => !v)}
         data-tour-id="crm-task-new"
       >
+        <Icon name="calendarPlus" size={20} />
         {t("tasks.new")}
       </button>
       {open ? (
-        <form id={id("form")} className="form form--boxed" onSubmit={submit}>
+        <form id={id("form")} className="form crm-subform" onSubmit={submit}>
           <div className="form__grid">
             {!fixedLocation ? (
               <div className="field">
