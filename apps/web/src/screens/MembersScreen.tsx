@@ -2,12 +2,12 @@ import { type FormEvent, useId, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { type ErrorCode, toErrorCode } from "../api/client";
 import { type Location, MEMBER_STATUSES, type Member, type MemberStatus } from "../api/types";
+import { Icon } from "../components/icons";
 import {
   ErrorNote,
   LiveResult,
   Loading,
   Plate,
-  Section,
   TableWrap,
   memberStatusTone,
 } from "../components/ui";
@@ -15,6 +15,7 @@ import { useI18n } from "../i18n/I18nContext";
 import { ROUTES, canManageMembers } from "../lib/roles";
 import { useAsync } from "../lib/useAsync";
 import { useSession } from "../session/SessionContext";
+import { Card, Empty, Stat, useCoreCopy } from "./kit";
 
 export function filterMembers(members: Member[], term: string): Member[] {
   const q = term.trim().toLocaleLowerCase();
@@ -26,6 +27,7 @@ export function filterMembers(members: Member[], term: string): Member[] {
 
 export function MembersScreen() {
   const { t } = useI18n();
+  const c = useCoreCopy();
   const { api, role } = useSession();
   const manage = canManageMembers(role);
   const [locationId, setLocationId] = useState("");
@@ -40,12 +42,18 @@ export function MembersScreen() {
 
   const locs = locations.data?.data ?? [];
   const locName = useMemo(() => new Map(locs.map((l) => [l.id, l.name])), [locs]);
-  const rows = filterMembers(members.data?.data ?? [], search);
+  const all = members.data?.data ?? [];
+  const rows = filterMembers(all, search);
+  const active = all.filter((m) => m.status === "active").length;
+  const attention = all.filter((m) => m.status === "past_due" || m.status === "frozen").length;
 
   return (
-    <div className="page">
+    <div className="page core-page">
       <div className="page__head">
-        <h1 className="page__title">{t("members.title")}</h1>
+        <div className="core-head">
+          <h1 className="page__title">{t("members.title")}</h1>
+          <p className="lede">{c("members.lede")}</p>
+        </div>
         {manage ? (
           <button
             type="button"
@@ -55,10 +63,24 @@ export function MembersScreen() {
             aria-controls={newFormId}
             onClick={() => setShowNew((v) => !v)}
           >
+            <Icon name="userPlus" size={20} />
             {t("members.new")}
           </button>
         ) : null}
       </div>
+
+      {members.data ? (
+        <div className="ds-stats">
+          <Stat icon="users" label={c("members.shown")} value={all.length} />
+          <Stat icon="checkCircle" label={c("members.active")} value={active} />
+          <Stat
+            icon="alert"
+            label={c("members.attention")}
+            value={attention}
+            hint={c("members.attentionHint")}
+          />
+        </div>
+      ) : null}
 
       {manage && showNew ? (
         <div id={newFormId}>
@@ -71,80 +93,82 @@ export function MembersScreen() {
         </div>
       ) : null}
 
-      <div className="toolbar">
-        <div className="field">
-          <label htmlFor={filterId}>{t("members.filterLocation")}</label>
-          <select
-            id={filterId}
-            value={locationId}
-            onChange={(e) => setLocationId(e.target.value)}
-            data-tour-id="member-filter-location"
-          >
-            <option value="">{t("common.all")}</option>
-            {locs.map((l) => (
-              <option key={l.id} value={l.id}>
-                {l.name}
-              </option>
-            ))}
-          </select>
+      <Card icon="idCard" title={c("members.directory")} tourId="member-directory">
+        <div className="toolbar">
+          <div className="field">
+            <label htmlFor={filterId}>{t("members.filterLocation")}</label>
+            <select
+              id={filterId}
+              value={locationId}
+              onChange={(e) => setLocationId(e.target.value)}
+              data-tour-id="member-filter-location"
+            >
+              <option value="">{t("common.all")}</option>
+              {locs.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="field field--grow">
+            <label htmlFor={searchId}>{t("members.search")}</label>
+            <input
+              id={searchId}
+              type="search"
+              value={search}
+              autoComplete="off"
+              onChange={(e) => setSearch(e.target.value)}
+              data-tour-id="member-search"
+            />
+          </div>
         </div>
-        <div className="field field--grow">
-          <label htmlFor={searchId}>{t("members.search")}</label>
-          <input
-            id={searchId}
-            type="search"
-            value={search}
-            autoComplete="off"
-            onChange={(e) => setSearch(e.target.value)}
-            data-tour-id="member-search"
-          />
-        </div>
-      </div>
 
-      <LiveResult>{announce}</LiveResult>
-      {locations.error ? <ErrorNote code={locations.error} onRetry={locations.reload} /> : null}
-      {members.error ? <ErrorNote code={members.error} onRetry={members.reload} /> : null}
-      {members.loading ? <Loading /> : null}
+        <LiveResult>{announce}</LiveResult>
+        {locations.error ? <ErrorNote code={locations.error} onRetry={locations.reload} /> : null}
+        {members.error ? <ErrorNote code={members.error} onRetry={members.reload} /> : null}
+        {members.loading ? <Loading /> : null}
 
-      {members.data ? (
-        <>
-          <p className="muted" aria-live="polite">
-            {t("members.count", { n: rows.length })}
-          </p>
-          {rows.length === 0 ? (
-            <p className="muted">{t("members.empty")}</p>
-          ) : (
-            <TableWrap label={t("members.title")}>
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th scope="col">{t("members.col.no")}</th>
-                    <th scope="col">{t("members.col.name")}</th>
-                    <th scope="col">{t("members.col.email")}</th>
-                    <th scope="col">{t("members.col.location")}</th>
-                    <th scope="col">{t("members.col.status")}</th>
-                    <th scope="col">{t("members.col.actions")}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((m) => (
-                    <MemberRow
-                      key={m.id}
-                      member={m}
-                      locationName={locName.get(m.home_location_id) ?? ""}
-                      manage={manage}
-                      onChanged={(msg) => {
-                        setAnnounce(msg);
-                        members.reload();
-                      }}
-                    />
-                  ))}
-                </tbody>
-              </table>
-            </TableWrap>
-          )}
-        </>
-      ) : null}
+        {members.data ? (
+          <>
+            <p className="muted" aria-live="polite">
+              {t("members.count", { n: rows.length })}
+            </p>
+            {rows.length === 0 ? (
+              <Empty icon="users" title={t("members.empty")} />
+            ) : (
+              <TableWrap label={t("members.title")}>
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th scope="col">{t("members.col.no")}</th>
+                      <th scope="col">{t("members.col.name")}</th>
+                      <th scope="col">{t("members.col.email")}</th>
+                      <th scope="col">{t("members.col.location")}</th>
+                      <th scope="col">{t("members.col.status")}</th>
+                      <th scope="col">{t("members.col.actions")}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((m) => (
+                      <MemberRow
+                        key={m.id}
+                        member={m}
+                        locationName={locName.get(m.home_location_id) ?? ""}
+                        manage={manage}
+                        onChanged={(msg) => {
+                          setAnnounce(msg);
+                          members.reload();
+                        }}
+                      />
+                    ))}
+                  </tbody>
+                </table>
+              </TableWrap>
+            )}
+          </>
+        ) : null}
+      </Card>
     </div>
   );
 }
@@ -275,7 +299,7 @@ function NewMemberForm({
   }
 
   return (
-    <Section title={t("members.new.title")}>
+    <Card icon="userPlus" title={t("members.new.title")}>
       <form className="form" onSubmit={submit} aria-describedby={ids.hint}>
         <p id={ids.hint} className="muted">
           {t("members.new.demoHint")}
@@ -355,6 +379,6 @@ function NewMemberForm({
         </LiveResult>
         {error ? <ErrorNote code={error} /> : null}
       </form>
-    </Section>
+    </Card>
   );
 }

@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { type ErrorCode, toErrorCode } from "../api/client";
 import type { Persona } from "../api/types";
+import { Icon } from "../components/icons";
 import { ErrorNote, LiveResult, Loading } from "../components/ui";
 import { useI18n } from "../i18n/I18nContext";
 import { useAsync } from "../lib/useAsync";
 import { JoinLink } from "../modules/signup";
 import { useSession } from "../session/SessionContext";
+import { Empty, GoldIcon, Stat, initialsOf, useCoreCopy } from "./kit";
 
 interface OrgGroup {
   org: string;
@@ -29,20 +31,14 @@ export function groupByOrg(personas: Persona[]): OrgGroup[] {
   return [...groups.values()].sort((a, b) => a.org.localeCompare(b.org));
 }
 
-function initialsOf(name: string): string {
-  return name
-    .split(/\s+/)
-    .map((w) => w[0] ?? "")
-    .slice(0, 2)
-    .join("");
-}
-
 export function EntryScreen() {
   const { t, tv } = useI18n();
   const { api, login, lost } = useSession();
   const personas = useAsync(() => api.personas(), [api]);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<ErrorCode | null>(null);
+  const c = useCoreCopy();
+  const groups = groupByOrg(personas.data?.data ?? []);
 
   async function pick(p: Persona) {
     setBusy(p.id);
@@ -56,9 +52,12 @@ export function EntryScreen() {
   }
 
   return (
-    <div className="page">
-      <h1 className="page__title">{t("entry.title")}</h1>
-      <p className="lede">{t("entry.intro")}</p>
+    <div className="page core-page">
+      <header className="core-head">
+        <h1 className="page__title">{t("entry.title")}</h1>
+        <p className="lede">{t("entry.intro")}</p>
+        <span className="core-head__rule" aria-hidden="true" />
+      </header>
       {lost ? <p className="note note--warn">{t("session.lost")}</p> : null}
       <LiveResult>
         {busy ? t("entry.starting") : null}
@@ -68,21 +67,38 @@ export function EntryScreen() {
       {personas.loading ? <Loading /> : null}
       {personas.error ? <ErrorNote code={personas.error} onRetry={personas.reload} /> : null}
       {personas.data && personas.data.data.length === 0 ? (
-        <p className="muted">{t("entry.empty")}</p>
+        <Empty icon="users" title={t("entry.empty")} />
+      ) : null}
+
+      {groups.length > 0 ? (
+        <div className="ds-stats">
+          <Stat icon="building" label={c("entry.orgs")} value={groups.length} />
+          <Stat
+            icon="users"
+            label={c("entry.personas")}
+            value={personas.data?.data.length ?? 0}
+            hint={c("entry.personasHint")}
+          />
+        </div>
       ) : null}
 
       <div className="org-groups">
-        {groupByOrg(personas.data?.data ?? []).map((g) => (
-          <section key={g.org} className="org-group" aria-labelledby={`org-${g.org}`}>
-            <h2 id={`org-${g.org}`} className="org-group__title">
-              <span className="org-group__code">{t("entry.org", { org: g.org })}</span>
-              {g.logo ? (
-                <img className="org-group__logo" src={g.logo} alt={g.name} height={40} />
-              ) : (
-                <span>{g.name}</span>
-              )}
-            </h2>
-            <JoinLink org={g.org} name={g.name} />
+        {groups.map((g) => (
+          <section key={g.org} className="section org-group" aria-labelledby={`org-${g.org}`}>
+            <div className="section__head">
+              <h2 id={`org-${g.org}`} className="section__title org-group__title">
+                <GoldIcon icon="building" size={24} />
+                <span className="org-group__code">{t("entry.org", { org: g.org })}</span>
+                {g.logo ? (
+                  <img className="org-group__logo" src={g.logo} alt={g.name} height={40} />
+                ) : (
+                  <span>{g.name}</span>
+                )}
+              </h2>
+              <div className="section__actions">
+                <JoinLink org={g.org} name={g.name} />
+              </div>
+            </div>
             <ul className="persona-list">
               {g.personas.map((p) => (
                 <li key={p.id}>
@@ -114,21 +130,7 @@ export function EntryScreen() {
                           .join(" · ")}
                       </span>
                     </span>
-                    <svg
-                      className="icon persona__go"
-                      width="20"
-                      height="20"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.75"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      aria-hidden="true"
-                      focusable="false"
-                    >
-                      <path d="m9 6 6 6-6 6" />
-                    </svg>
+                    <Icon name="chevronRight" className="persona__go" />
                   </button>
                 </li>
               ))}
