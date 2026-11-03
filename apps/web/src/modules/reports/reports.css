@@ -1104,3 +1104,252 @@
     display: none;
   }
 }
+
+/* ── Report screens + front desk "Hoy" (design system v2: segmented sub-nav, one-row filters, .ds-stats summary,
+   tidy statement tables). Appended so the home, exec and viz rules above stay untouched. ── */
+.rpt-head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.rpt-pagehead {
+  align-items: flex-start;
+}
+.rpt-pagehead > .btn {
+  min-height: 44px;
+}
+
+/* Sub-navigation as the client's segmented control (gold active option). */
+.rpt-subnav ul {
+  gap: 4px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+.rpt-subnav__link {
+  min-height: 44px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text);
+  transition: background-color 150ms var(--ease-out), color 150ms var(--ease-out);
+}
+.rpt-subnav__link:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+.rpt-subnav__link[aria-current="page"],
+.rpt-subnav__link[aria-current="page"]:hover {
+  background: var(--gold);
+  color: var(--accent-text);
+}
+
+/* Filters: one row on one surface; labels above, controls and buttons share the bottom line. */
+.rpt-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px 16px;
+  padding: 16px 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: var(--shadow-raised);
+  min-width: 0;
+}
+.rpt-filters__form {
+  display: contents;
+}
+.rpt-filters .field {
+  flex: 1 1 165px;
+  max-width: 240px;
+  min-width: 0;
+}
+.rpt-filters input,
+.rpt-filters select,
+.rpt-filters .btn {
+  min-height: 44px;
+}
+.rpt-filters .form__actions {
+  flex: none;
+}
+.rpt-filters .rpt-csv .live:empty {
+  display: none;
+}
+.rpt .btn > .icon,
+.rpt-quick .btn:not(.btn--primary) > .icon {
+  color: var(--gold-text);
+}
+@media (max-width: 560px) {
+  .rpt-filters {
+    padding: 14px 16px;
+  }
+  .rpt-filters .field {
+    flex: 1 1 100%;
+    max-width: none;
+  }
+}
+
+/* Summary figures (.ds-stat uses a <dl>). */
+.rpt-stats .ds-stat__text,
+.rpt-stats .ds-stat__text dd {
+  margin: 0;
+}
+.rpt-stats .ds-stat__value {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 560px) {
+  .rpt-stats {
+    gap: 10px;
+  }
+  .rpt-stats .ds-stat {
+    min-height: 0;
+    padding: 12px 16px;
+  }
+}
+.rpt-stat--warn .ds-stat__label::after {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-left: 8px;
+  border-radius: 50%;
+  background: var(--warn-line);
+  vertical-align: middle;
+}
+.rpt-stat__link a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  font-weight: 600;
+  color: var(--gold-text);
+}
+
+/* Tables: right-aligned Barlow figures, subtle rules, emphasised totals. */
+.rpt .table .rpt-num {
+  font-variant-numeric: tabular-nums;
+}
+.rpt-money {
+  font-weight: 600;
+}
+.rpt-table tbody tr > * {
+  border-bottom-color: color-mix(in srgb, var(--border) 55%, transparent);
+}
+.rpt-table tfoot th,
+.rpt-table tfoot td {
+  padding-top: 12px;
+  padding-bottom: 12px;
+  font-weight: 700;
+  border-top: 2px solid var(--border-strong);
+  background: color-mix(in srgb, var(--gold) 10%, var(--surface));
+}
+.rpt-table tbody th[scope="row"] {
+  white-space: nowrap;
+}
+.rpt-table tbody th[scope="row"] .plate {
+  font-size: 0.875rem;
+}
+
+/* Joins / cancellations bars in the .ds-bar shape. */
+.rpt-bar__track {
+  height: 7px;
+  border: 0;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--text) 12%, transparent);
+  overflow: hidden;
+}
+.rpt-bar__fill {
+  border-radius: 4px;
+  background: var(--gold);
+}
+.rpt-bar__fill--out {
+  background: var(--blocked-line);
+}
+.rpt-bar__n {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Today's classes: time pill and booked-of-capacity bar (the number always shown). */
+.rpt-time {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 10px;
+  border-radius: 8px;
+  background: var(--time-pill-bg);
+  color: var(--time-pill-text);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.rpt-cap {
+  display: grid;
+  gap: 6px;
+  min-width: 120px;
+  max-width: 220px;
+}
+.rpt-cap__n {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Quick check-in results. */
+.rpt-quick__row {
+  min-height: 56px;
+  padding: 8px 8px 8px 14px;
+  border-radius: 12px;
+}
+.rpt-quick__links .btn,
+.rpt-quick__row .btn {
+  min-height: 44px;
+}
+
+/* Municipality configuration (owner). */
+.rpt-list {
+  list-style: none;
+  padding: 0;
+  gap: 0;
+}
+.rpt-list li {
+  padding: 10px 0;
+  line-height: 1.9;
+  border-bottom: 1px solid var(--border);
+}
+.rpt-list li:last-child {
+  border-bottom: 0;
+}
+.rpt-config-form .btn,
+.rpt-config-form input,
+.rpt-config-form select {
+  min-height: 44px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rpt-subnav__link {
+    transition: none;
+  }
+}
+@media print {
+  .rpt-table tfoot th,
+  .rpt-table tfoot td {
+    background: none;
+  }
+}
+/* Front desk "Hoy" on phones: the four counts sit two by two; names in the overdue table stay on one line. */
+@media (max-width: 560px) {
+  .rpt-today .rpt-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .rpt-today .rpt-stats .ds-stat {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+}
+.rpt .table tbody th[scope="row"] a {
+  white-space: nowrap;
+}

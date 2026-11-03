@@ -1,11 +1,12 @@
 import { useId, useState } from "react";
 import type { ErrorCode } from "../../api/client";
-import { ErrorNote, LiveResult, Loading, Section, TableWrap } from "../../components/ui";
+import { Icon } from "../../components/icons";
+import { ErrorNote, LiveResult, Loading, TableWrap } from "../../components/ui";
 import { formatDateTime } from "../../lib/format";
 import { useAsync } from "../../lib/useAsync";
 import type { JournalExport } from "./api";
 import { useFinT } from "./dict";
-import { act, downloadCsv, money, thisMonth, useFin } from "./shared";
+import { FinEmpty, FinSection, act, downloadCsv, money, thisMonth, useFin } from "./shared";
 
 const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
 
@@ -47,7 +48,7 @@ export function ExportTab() {
 
   return (
     <>
-      <Section title={t("exp.title")}>
+      <FinSection icon="download" title={t("exp.title")}>
         <p className="help">{t("exp.help")}</p>
         <div className="toolbar">
           <div className="field field--inline">
@@ -67,6 +68,7 @@ export function ExportTab() {
             disabled={busy}
             data-tour-id="fin-export-generate"
           >
+            <Icon name="download" size={18} />
             {t("exp.generate")}
           </button>
         </div>
@@ -86,8 +88,8 @@ export function ExportTab() {
           <li>{t("exp.notePayroll")}</li>
           <li>{t("exp.noteCpa")}</li>
         </ul>
-      </Section>
-      <Section title={t("exp.history")} level={3}>
+      </FinSection>
+      <FinSection icon="folder" title={t("exp.history")} level={3}>
         {list.loading ? <Loading /> : null}
         {list.error ? <ErrorNote code={list.error} onRetry={list.reload} /> : null}
         {list.data && list.data.data.length > 0 ? (
@@ -113,8 +115,8 @@ export function ExportTab() {
                       {x.period.slice(0, 7)}
                     </th>
                     <td>{formatDateTime(x.generated_at, lang)}</td>
-                    <td className="fin-num mono">{x.line_count}</td>
-                    <td className="fin-num mono">{money(x.debit_total_cents, lang)}</td>
+                    <td className="fin-num">{x.line_count}</td>
+                    <td className="fin-num fin-amount">{money(x.debit_total_cents, lang)}</td>
                     <td>
                       <button
                         type="button"
@@ -122,6 +124,7 @@ export function ExportTab() {
                         onClick={() => download(x.id)}
                         aria-label={t("exp.downloadLabel", { file: x.filename })}
                       >
+                        <Icon name="download" size={18} />
                         {t("exp.download")}
                       </button>
                     </td>
@@ -132,9 +135,9 @@ export function ExportTab() {
           </TableWrap>
         ) : null}
         {list.data && list.data.data.length === 0 ? (
-          <p className="muted">{t("exp.empty")}</p>
+          <FinEmpty icon="folder" text={t("exp.empty")} />
         ) : null}
-      </Section>
+      </FinSection>
     </>
   );
 }

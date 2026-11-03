@@ -1,25 +1,31 @@
 import { useId, useState } from "react";
-import { ErrorNote, Loading, Section, TableWrap } from "../../components/ui";
+import { ErrorNote, Loading, TableWrap } from "../../components/ui";
 import { useAsync } from "../../lib/useAsync";
 import { useSession } from "../../session/SessionContext";
 import type { PnlRow } from "./api";
 import { type FinKey, useFinT } from "./dict";
-import { money, thisMonth, useFin } from "./shared";
+import { FinSection, FinStat, money, thisMonth, useFin } from "./shared";
 
 const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
 type Metric = keyof Omit<PnlRow, "location_id" | "location_name">;
-const ROWS: { key: Metric; strong?: boolean }[] = [
-  { key: "membership_revenue_cents" },
-  { key: "other_billing_revenue_cents" },
-  { key: "store_revenue_cents" },
-  { key: "revenue_cents", strong: true },
-  { key: "expenses_cents" },
-  { key: "bills_cents" },
-  { key: "commissions_cents" },
-  { key: "platform_fees_cents" },
-  { key: "costs_cents", strong: true },
-  { key: "net_cents", strong: true },
+/** Statement layout: detail lines indented, subtotals ruled above, the net result double-ruled. */
+const ROWS: { key: Metric; kind: "line" | "subtotal" | "total" }[] = [
+  { key: "membership_revenue_cents", kind: "line" },
+  { key: "other_billing_revenue_cents", kind: "line" },
+  { key: "store_revenue_cents", kind: "line" },
+  { key: "revenue_cents", kind: "subtotal" },
+  { key: "expenses_cents", kind: "line" },
+  { key: "bills_cents", kind: "line" },
+  { key: "commissions_cents", kind: "line" },
+  { key: "platform_fees_cents", kind: "line" },
+  { key: "costs_cents", kind: "subtotal" },
+  { key: "net_cents", kind: "total" },
 ];
+const ROW_CLASS = {
+  line: "fin-line",
+  subtotal: "fin-strong fin-subtotal",
+  total: "fin-strong fin-total",
+};
 const CASH: Metric[] = ["cash_in_cents", "cash_out_cents"];
 
 /** P&L by location and consolidated for one month (accrual), plus the cash view and liabilities. */
@@ -40,9 +46,37 @@ export function PnlTab() {
       cols.push({ id: "all", name: t("pnl.consolidated"), row: pnl.data.consolidated });
   }
 
+  const sum = pnl.data?.consolidated;
+  const sumHint =
+    pnl.data && pnl.data.locations.length > 1
+      ? t("pnl.consolidated")
+      : (pnl.data?.locations[0]?.location_name ?? undefined);
+
   return (
     <>
-      <Section title={t("pnl.title")}>
+      {sum ? (
+        <div className="ds-stats fin-stats-row">
+          <FinStat
+            icon="coin"
+            label={t("pnl.revenue_cents")}
+            value={money(sum.revenue_cents, lang)}
+            hint={sumHint}
+          />
+          <FinStat
+            icon="receipt"
+            label={t("pnl.costs_cents")}
+            value={money(sum.costs_cents, lang)}
+            hint={sumHint}
+          />
+          <FinStat
+            icon="chart"
+            label={t("pnl.net_cents")}
+            value={money(sum.net_cents, lang)}
+            hint={sumHint}
+          />
+        </div>
+      ) : null}
+      <FinSection icon="doc" title={t("pnl.title")}>
         <div className="toolbar">
           <div className="field field--inline">
             <label htmlFor={monthId}>{t("pnl.month")}</label>
@@ -61,7 +95,7 @@ export function PnlTab() {
         {pnl.error ? <ErrorNote code={pnl.error} onRetry={pnl.reload} /> : null}
         {pnl.data ? (
           <TableWrap label={t("pnl.title")}>
-            <table className="table fin-pnl" data-testid="fin-pnl">
+            <table className="table fin-statement fin-pnl" data-testid="fin-pnl">
               <caption className="sr-only">{t("pnl.caption", { month })}</caption>
               <thead>
                 <tr>
@@ -75,10 +109,10 @@ export function PnlTab() {
               </thead>
               <tbody>
                 {ROWS.map((r) => (
-                  <tr key={r.key} className={r.strong ? "fin-strong" : undefined}>
+                  <tr key={r.key} className={ROW_CLASS[r.kind]}>
                     <th scope="row">{t(`pnl.${r.key}` as FinKey)}</th>
                     {cols.map((c) => (
-                      <td key={c.id} className="fin-num mono">
+                      <td key={c.id} className="fin-num">
                         {money(c.row[r.key], lang)}
                       </td>
                     ))}
@@ -89,12 +123,12 @@ export function PnlTab() {
           </TableWrap>
         ) : null}
         <p className="help">{t("pnl.basisNote")}</p>
-      </Section>
+      </FinSection>
 
       {pnl.data ? (
-        <Section title={t("pnl.cashTitle")} level={3}>
+        <FinSection icon="card" title={t("pnl.cashTitle")} level={3}>
           <TableWrap label={t("pnl.cashTitle")}>
-            <table className="table">
+            <table className="table fin-statement">
               <thead>
                 <tr>
                   <th scope="col">{t("pnl.line")}</th>
@@ -110,7 +144,7 @@ export function PnlTab() {
                   <tr key={k}>
                     <th scope="row">{t(`pnl.${k}` as FinKey)}</th>
                     {cols.map((c) => (
-                      <td key={c.id} className="fin-num mono">
+                      <td key={c.id} className="fin-num">
                         {money(c.row[k], lang)}
                       </td>
                     ))}
@@ -120,26 +154,26 @@ export function PnlTab() {
             </table>
           </TableWrap>
           <p className="help">{t("pnl.cashNote")}</p>
-        </Section>
+        </FinSection>
       ) : null}
 
-      <Section title={t("liab.title")} level={3}>
+      <FinSection icon="layers" title={t("liab.title")} level={3}>
         {liab.loading ? <Loading /> : null}
         {liab.error ? <ErrorNote code={liab.error} onRetry={liab.reload} /> : null}
         {liab.data ? (
-          <dl className="facts fin-stats">
+          <dl className="fin-figures">
             <div>
               <dt>{t("liab.prepaid")}</dt>
-              <dd className="mono">{money(liab.data.totals.prepaid_periods_cents, lang)}</dd>
+              <dd>{money(liab.data.totals.prepaid_periods_cents, lang)}</dd>
             </div>
             <div>
               <dt>{t("liab.credits")}</dt>
-              <dd className="mono">{money(liab.data.totals.unused_credits_cents, lang)}</dd>
+              <dd>{money(liab.data.totals.unused_credits_cents, lang)}</dd>
             </div>
             {liab.data.points ? (
               <div>
                 <dt>{t("liab.points")}</dt>
-                <dd className="mono">
+                <dd>
                   {t("liab.pointsValue", {
                     points: liab.data.points.outstanding_points,
                     members: liab.data.points.members_with_balance,
@@ -153,7 +187,7 @@ export function PnlTab() {
           {t("liab.note")}
           {role === "location_manager" ? ` ${t("liab.managerNote")}` : ""}
         </p>
-      </Section>
+      </FinSection>
     </>
   );
 }

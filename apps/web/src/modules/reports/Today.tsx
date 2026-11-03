@@ -1,9 +1,17 @@
 import { useMemo, useState } from "react";
-import { ErrorNote, Loading, Section, TableWrap } from "../../components/ui";
+import { ErrorNote, Loading, TableWrap } from "../../components/ui";
 import { useAsync } from "../../lib/useAsync";
 import { useSession } from "../../session/SessionContext";
 import { count, reportsApi } from "./api";
-import { Kpi, KpiGroup, LocationSelect, OverdueTable, QuickCheckIn } from "./components";
+import {
+  LocationSelect,
+  OverdueTable,
+  QuickCheckIn,
+  RptEmpty,
+  RptSection,
+  RptStat,
+  RptStats,
+} from "./components";
 import { useReportsT } from "./dict";
 import "./reports.css";
 
@@ -27,11 +35,13 @@ export function TodayScreen() {
   const d = today.data;
 
   return (
-    <div className="page rpt">
-      <h1 className="page__title">{t("today.title")}</h1>
-      <p className="lede">{t("today.lede")}</p>
+    <div className="page rpt rpt-today">
+      <div className="rpt-head">
+        <h1 className="page__title">{t("today.title")}</h1>
+        <p className="lede">{t("today.lede")}</p>
+      </div>
       {locs.length > 1 ? (
-        <div className="toolbar">
+        <div className="toolbar rpt-filters">
           <LocationSelect
             locations={locs}
             value={loc}
@@ -47,20 +57,33 @@ export function TodayScreen() {
       {today.error ? <ErrorNote code={today.error} onRetry={today.reload} /> : null}
       {d ? (
         <>
-          <KpiGroup title={t("today.title")}>
-            <Kpi label={t("today.checkIns")} value={count(d.check_ins_today, lang)} />
-            <Kpi label={t("today.members")} value={count(d.check_ins_members_today, lang)} />
-            <Kpi label={t("today.denied")} value={count(d.check_ins_denied_today, lang)} />
-            <Kpi
+          <RptStats label={t("today.title")}>
+            <RptStat
+              icon="checkCircle"
+              label={t("today.checkIns")}
+              value={count(d.check_ins_today, lang)}
+            />
+            <RptStat
+              icon="users"
+              label={t("today.members")}
+              value={count(d.check_ins_members_today, lang)}
+            />
+            <RptStat
+              icon="close"
+              label={t("today.denied")}
+              value={count(d.check_ins_denied_today, lang)}
+            />
+            <RptStat
+              icon="coin"
               label={t("today.overdue")}
               value={count(d.overdue_members, lang)}
               to="#rpt-today-overdue"
               tone={d.overdue_members > 0 ? "warn" : undefined}
             />
-          </KpiGroup>
-          <Section title={t("today.classes")}>
+          </RptStats>
+          <RptSection icon="calendar" title={t("today.classes")}>
             {d.classes_today.length === 0 ? (
-              <p className="muted">{t("today.noClasses")}</p>
+              <RptEmpty icon="calendar" text={t("today.noClasses")} />
             ) : (
               <TableWrap label={t("today.classes")}>
                 <table className="table" data-tour-id="rpt-today-classes">
@@ -70,39 +93,54 @@ export function TodayScreen() {
                       <th scope="col">{t("today.col.class")}</th>
                       <th scope="col">{t("today.col.room")}</th>
                       <th scope="col">{t("today.col.booked")}</th>
-                      <th scope="col">{t("today.col.waitlist")}</th>
+                      <th scope="col" className="rpt-num">
+                        {t("today.col.waitlist")}
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
                     {d.classes_today.map((c) => (
                       <tr key={c.session_id}>
-                        <td className="mono">{time(c.starts_at, lang)}</td>
+                        <td className="nowrap">
+                          <span className="rpt-time">{time(c.starts_at, lang)}</span>
+                        </td>
                         <th scope="row">{c.class_name}</th>
                         <td>{c.room ?? "—"}</td>
-                        <td className="mono">
-                          {t("today.bookedOf", { booked: c.booked, capacity: c.capacity })}
+                        <td>
+                          <span className="rpt-cap">
+                            <span className="rpt-cap__n">
+                              {t("today.bookedOf", { booked: c.booked, capacity: c.capacity })}
+                            </span>
+                            <span className="ds-bar" aria-hidden="true">
+                              <span
+                                style={{
+                                  width: `${c.capacity ? Math.min(100, Math.round((100 * c.booked) / c.capacity)) : 0}%`,
+                                }}
+                              />
+                            </span>
+                          </span>
                         </td>
-                        <td className="mono">{c.waitlisted}</td>
+                        <td className="rpt-num">{c.waitlisted}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </TableWrap>
             )}
-          </Section>
+          </RptSection>
         </>
       ) : null}
 
-      <Section title={t("today.overdueTitle")}>
+      <RptSection icon="coin" title={t("today.overdueTitle")}>
         <div id="rpt-today-overdue" />
         {overdue.error ? <ErrorNote code={overdue.error} onRetry={overdue.reload} /> : null}
         {overdue.data && overdue.data.data.length === 0 ? (
-          <p className="muted">{t("overdue.empty")}</p>
+          <RptEmpty text={t("overdue.empty")} />
         ) : null}
         {overdue.data && overdue.data.data.length > 0 ? (
           <OverdueTable rows={overdue.data.data} showLocation={locs.length > 1} />
         ) : null}
-      </Section>
+      </RptSection>
     </div>
   );
 }

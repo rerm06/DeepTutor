@@ -1,5 +1,6 @@
-import { useMemo } from "react";
+import { type ReactNode, useId, useMemo } from "react";
 import { type ErrorCode, toErrorCode } from "../../api/client";
+import { Icon, type IconName } from "../../components/icons";
 import type { Tone } from "../../components/ui";
 import { useAsync } from "../../lib/useAsync";
 import { useSession } from "../../session/SessionContext";
@@ -118,4 +119,71 @@ export function downloadCsv(filename: string, csv: string): boolean {
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 0);
   return true;
+}
+
+/**
+ * Design system v2 card: the same markup as components/ui Section (section > head > h2/h3 labelled region) with
+ * the gold icon that starts every card title.
+ */
+export function FinSection({
+  icon,
+  title,
+  children,
+  actions,
+  level = 2,
+}: {
+  icon: IconName;
+  title: string;
+  children: ReactNode;
+  actions?: ReactNode;
+  level?: 2 | 3;
+}) {
+  const id = useId();
+  const Heading = level === 2 ? "h2" : "h3";
+  return (
+    <section className="section" aria-labelledby={id}>
+      <div className="section__head">
+        <Heading id={id} className="section__title">
+          <Icon name={icon} size={22} />
+          {title}
+        </Heading>
+        {actions ? <div className="section__actions">{actions}</div> : null}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+/** One key figure (gold icon · label · value · optional hint), only from data the tab already loaded. */
+export function FinStat({
+  icon,
+  label,
+  value,
+  hint,
+}: {
+  icon: IconName;
+  label: string;
+  value: string;
+  hint?: string;
+}) {
+  return (
+    <div className="ds-stat">
+      <Icon name={icon} size={30} />
+      <dl className="ds-stat__text">
+        <dt className="ds-stat__label">{label}</dt>
+        <dd className="ds-stat__value">{value}</dd>
+        {hint ? <dd className="ds-stat__hint">{hint}</dd> : null}
+      </dl>
+    </div>
+  );
+}
+
+/** Empty state: gold icon and one line. */
+export function FinEmpty({ icon = "checkCircle", text }: { icon?: IconName; text: string }) {
+  return (
+    <div className="ds-empty">
+      <Icon name={icon} size={30} />
+      <strong>{text}</strong>
+    </div>
+  );
 }

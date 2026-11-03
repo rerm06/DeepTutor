@@ -1,6 +1,7 @@
 import { type FormEvent, useId, useState } from "react";
 import type { ErrorCode } from "../../api/client";
-import { ErrorNote, LiveResult, Loading, Plate, Section, TableWrap } from "../../components/ui";
+import { Icon } from "../../components/icons";
+import { ErrorNote, LiveResult, Loading, Plate, TableWrap } from "../../components/ui";
 import { useAsync } from "../../lib/useAsync";
 import { useSession } from "../../session/SessionContext";
 import {
@@ -11,6 +12,9 @@ import {
 } from "./api";
 import { type FinKey, useFinT } from "./dict";
 import {
+  FinEmpty,
+  FinSection,
+  FinStat,
   act,
   commissionTone,
   day,
@@ -43,14 +47,34 @@ export function CommissionsTab() {
     if (ok) setVersion((v) => v + 1);
   }
 
+  const rows = list.data?.data ?? [];
+  const sumOf = (status: Commission["status"]) =>
+    rows.filter((c) => c.status === status).reduce((s, c) => s + c.amount_cents, 0);
+
   return (
     <>
-      <Section title={t("com.title")}>
+      {list.data ? (
+        <div className="ds-stats fin-stats-row">
+          <FinStat
+            icon="bell"
+            label={t("com.stat.pending")}
+            value={money(sumOf("pending"), lang)}
+            hint={t("com.stat.count", { n: rows.filter((c) => c.status === "pending").length })}
+          />
+          <FinStat
+            icon="coin"
+            label={t("com.stat.toPay")}
+            value={money(sumOf("approved"), lang)}
+            hint={t("com.stat.count", { n: rows.filter((c) => c.status === "approved").length })}
+          />
+        </div>
+      ) : null}
+      <FinSection icon="users" title={t("com.title")}>
         <p className="help">{t("com.help")}</p>
         {list.loading ? <Loading /> : null}
         {list.error ? <ErrorNote code={list.error} onRetry={list.reload} /> : null}
         {list.data && list.data.data.length === 0 ? (
-          <p className="muted">{t("com.empty")}</p>
+          <FinEmpty icon="users" text={t("com.empty")} />
         ) : null}
         {list.data && list.data.data.length > 0 ? (
           <TableWrap label={t("com.title")}>
@@ -72,13 +96,13 @@ export function CommissionsTab() {
                   <tr key={c.id}>
                     <th scope="row">
                       {c.staff_name}
-                      <span className="cell-note">{c.location_name}</span>
+                      <span className="cell-note muted">{c.location_name}</span>
                     </th>
                     <td>
                       {t(`com.src.${c.source}` as FinKey)}
-                      <span className="cell-note mono">{c.source_ref}</span>
+                      <span className="cell-note mono muted">{c.source_ref}</span>
                     </td>
-                    <td className="fin-num mono">{money(c.amount_cents, lang)}</td>
+                    <td className="fin-num fin-amount">{money(c.amount_cents, lang)}</td>
                     <td className="nowrap">{day(c.earned_on, lang)}</td>
                     <td>
                       <Plate tone={commissionTone(c.status)}>
@@ -97,6 +121,7 @@ export function CommissionsTab() {
                               aria-label={t("com.approveLabel", { name: c.staff_name ?? "" })}
                               data-tour-id="fin-commission-approve"
                             >
+                              <Icon name="check" size={18} />
                               {t("ap.approve")}
                             </button>
                           ) : null}
@@ -133,7 +158,7 @@ export function CommissionsTab() {
         ) : null}
         <LiveResult tone={announce ? "ok" : undefined}>{announce}</LiveResult>
         {error ? <ErrorNote code={error} /> : null}
-      </Section>
+      </FinSection>
       {isWriter(role) ? <NewCommission onCreated={() => setVersion((v) => v + 1)} /> : null}
     </>
   );
@@ -191,8 +216,14 @@ function NewCommission({ onCreated }: { onCreated: () => void }) {
     }
   }
   return (
-    <form className="form form--boxed" onSubmit={submit} aria-labelledby={ids.title} noValidate>
-      <h2 id={ids.title} className="form__title">
+    <form
+      className="section form fin-form"
+      onSubmit={submit}
+      aria-labelledby={ids.title}
+      noValidate
+    >
+      <h2 id={ids.title} className="section__title">
+        <Icon name="userPlus" size={22} />
         {t("com.new")}
       </h2>
       <div className="form__grid">

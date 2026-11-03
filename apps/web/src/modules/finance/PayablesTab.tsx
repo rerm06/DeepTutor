@@ -1,6 +1,7 @@
 import { type FormEvent, useId, useState } from "react";
 import type { ErrorCode } from "../../api/client";
-import { ErrorNote, LiveResult, Loading, Plate, Section, TableWrap } from "../../components/ui";
+import { Icon } from "../../components/icons";
+import { ErrorNote, LiveResult, Loading, Plate, TableWrap } from "../../components/ui";
 import { useAsync } from "../../lib/useAsync";
 import { useSession } from "../../session/SessionContext";
 import {
@@ -13,6 +14,9 @@ import {
 } from "./api";
 import { type FinKey, useFinT } from "./dict";
 import {
+  FinEmpty,
+  FinSection,
+  FinStat,
   act,
   billTone,
   day,
@@ -26,7 +30,7 @@ import {
 
 /** "Cuentas por pagar": the approvals queue, the bill register (pay / void) and bill entry. */
 export function PayablesTab() {
-  const { t } = useFinT();
+  const { t, lang } = useFinT();
   const fin = useFin();
   const { role } = useSession();
   const [version, setVersion] = useState(0);
@@ -37,24 +41,39 @@ export function PayablesTab() {
   const all = useAsync(() => fin.bills(filter ? { status: filter } : {}), [fin, version, filter]);
   const limit = policy.data?.manager_approval_max_cents ?? null;
   const refresh = () => setVersion((v) => v + 1);
+  const queue = pending.data?.data ?? [];
 
   return (
     <>
-      <Section title={t("ap.queue")}>
+      {pending.data ? (
+        <div className="ds-stats fin-stats-row">
+          <FinStat icon="bell" label={t("ap.stat.pending")} value={String(queue.length)} />
+          <FinStat
+            icon="coin"
+            label={t("ap.stat.pendingAmount")}
+            value={money(
+              queue.reduce((s, b) => s + b.amount_cents, 0),
+              lang,
+            )}
+          />
+        </div>
+      ) : null}
+      <FinSection icon="checkCircle" title={t("ap.queue")}>
         <p className="help">
           {limit !== null ? t("ap.policy", { limit: (limit / 100).toFixed(2) }) : null}
         </p>
         {pending.loading ? <Loading /> : null}
         {pending.error ? <ErrorNote code={pending.error} onRetry={pending.reload} /> : null}
         {pending.data && pending.data.data.length === 0 ? (
-          <p className="muted">{t("ap.queueEmpty")}</p>
+          <FinEmpty text={t("ap.queueEmpty")} />
         ) : null}
         {pending.data && pending.data.data.length > 0 ? (
           <BillTable bills={pending.data.data} limit={limit} onChanged={refresh} queue />
         ) : null}
-      </Section>
+      </FinSection>
 
-      <Section
+      <FinSection
+        icon="receipt"
         title={t("ap.register")}
         actions={
           <div className="field field--inline">
@@ -77,7 +96,7 @@ export function PayablesTab() {
         {all.loading ? <Loading /> : null}
         {all.error ? <ErrorNote code={all.error} onRetry={all.reload} /> : null}
         {all.data ? <BillTable bills={all.data.data} limit={limit} onChanged={refresh} /> : null}
-      </Section>
+      </FinSection>
 
       {isWriter(role) ? <NewBill onCreated={refresh} /> : null}
     </>
@@ -124,7 +143,7 @@ function BillTable({
   return (
     <>
       <TableWrap label={queue ? t("ap.queue") : t("ap.register")}>
-        <table className="table">
+        <table className="table fin-bills">
           <thead>
             <tr>
               <th scope="col">{t("ap.col.bill")}</th>
@@ -145,26 +164,26 @@ function BillTable({
                 <tr key={b.id}>
                   <th scope="row">
                     <span className="fin-cell-title">{b.vendor_name}</span>
-                    <span className="muted"> · {b.number}</span>
-                    <span className="cell-note">{t(`cat.${b.category}` as FinKey)}</span>
+                    <span className="muted fin-ref"> · {b.number}</span>
+                    <span className="cell-note muted">{t(`cat.${b.category}` as FinKey)}</span>
                   </th>
                   <td>{b.location_name}</td>
-                  <td className="fin-num mono">{money(b.amount_cents, lang)}</td>
+                  <td className="fin-num fin-amount">{money(b.amount_cents, lang)}</td>
                   <td className="nowrap">{day(b.due_on, lang)}</td>
                   <td>
                     <Plate tone={billTone(b.status)}>
                       {t(`bill.status.${b.status}` as FinKey)}
                     </Plate>
                     {b.status === "paid" ? (
-                      <span className="cell-note">
+                      <span className="cell-note muted">
                         {day(b.paid_on, lang)} · {b.payment_ref}
                       </span>
                     ) : null}
                   </td>
                   <td>
-                    {why ? <span className="cell-note">{t(why)}</span> : null}
+                    {why ? <span className="cell-note fin-why">{t(why)}</span> : null}
                     {!why && b.status === "pending_approval" && mine ? (
-                      <span className="cell-note">{t("ap.ownBill")}</span>
+                      <span className="cell-note fin-why">{t("ap.ownBill")}</span>
                     ) : null}
                     {!why && b.status === "pending_approval" && !mine ? (
                       <div className="row-actions">
@@ -176,6 +195,7 @@ function BillTable({
                           aria-label={t("ap.approveLabel", { number: b.number })}
                           data-tour-id="fin-bill-approve"
                         >
+                          <Icon name="check" size={18} />
                           {t("ap.approve")}
                         </button>
                         <button
@@ -185,6 +205,7 @@ function BillTable({
                           onClick={() => decide(b, "reject")}
                           aria-label={t("ap.rejectLabel", { number: b.number })}
                         >
+                          <Icon name="close" size={18} />
                           {t("ap.reject")}
                         </button>
                       </div>
@@ -281,7 +302,12 @@ function PayForm({
     });
   }
   return (
-    <form className="form form--boxed" onSubmit={submit} aria-labelledby={ids.title} noValidate>
+    <form
+      className="form form--boxed fin-subform"
+      onSubmit={submit}
+      aria-labelledby={ids.title}
+      noValidate
+    >
       <h3 id={ids.title} className="form__title">
         {t("ap.payTitle", { number: bill.number, amount: money(bill.amount_cents, lang) })}
       </h3>
@@ -356,7 +382,7 @@ function VoidForm({
     });
   }
   return (
-    <form className="form form--boxed" onSubmit={submit} aria-labelledby={ids.title}>
+    <form className="form form--boxed fin-subform" onSubmit={submit} aria-labelledby={ids.title}>
       <h3 id={ids.title} className="form__title">
         {t("ap.voidTitle", { number: bill.number })}
       </h3>
@@ -465,8 +491,14 @@ function NewBill({ onCreated }: { onCreated: () => void }) {
   }
 
   return (
-    <form className="form form--boxed" onSubmit={submit} aria-labelledby={ids.title} noValidate>
-      <h2 id={ids.title} className="form__title">
+    <form
+      className="section form fin-form"
+      onSubmit={submit}
+      aria-labelledby={ids.title}
+      noValidate
+    >
+      <h2 id={ids.title} className="section__title">
+        <Icon name="doc" size={22} />
         {t("ap.new")}
       </h2>
       <p className="help">{t("ap.newHelp")}</p>
