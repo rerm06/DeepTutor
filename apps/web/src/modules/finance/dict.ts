@@ -69,6 +69,8 @@ export const dict = defineDict({
 
     "ap.queue": "Pendientes de aprobación",
     "ap.queueEmpty": "No hay facturas pendientes.",
+    "ap.stat.pending": "Facturas por aprobar",
+    "ap.stat.pendingAmount": "Monto por aprobar",
     "ap.policy":
       "Gerentes aprueban hasta ${limit} en sus sedes; por encima, solo el dueño. Nadie aprueba una factura que registró.",
     "ap.register": "Facturas de proveedores",
@@ -128,6 +130,8 @@ export const dict = defineDict({
     "ex.title": "Gastos del mes",
     "ex.total": "Total del mes: {total}",
     "ex.empty": "No hay gastos en este mes.",
+    "ex.statTotal": "Total de gastos",
+    "ex.statCount": "Gastos registrados",
     "ex.note": "Nota del recibo",
     "ex.fromTemplate": "Recurrente",
     "ex.voidLabel": "Anular el gasto del {date}",
@@ -163,6 +167,9 @@ export const dict = defineDict({
     "com.help":
       "Los gerentes proponen; el dueño aprueba y marca como pagada cuando sale en la exportación de nómina. La nómina no se procesa aquí.",
     "com.empty": "No hay comisiones.",
+    "com.stat.pending": "Por aprobar",
+    "com.stat.toPay": "Aprobadas por pagar",
+    "com.stat.count": "{n} comisiones",
     "com.staff": "Empleado",
     "com.pickStaff": "Elige un empleado",
     "com.source": "Origen",
@@ -270,6 +277,8 @@ export const dict = defineDict({
 
     "ap.queue": "Awaiting approval",
     "ap.queueEmpty": "No bills awaiting approval.",
+    "ap.stat.pending": "Bills awaiting approval",
+    "ap.stat.pendingAmount": "Amount awaiting approval",
     "ap.policy":
       "Managers approve up to ${limit} at their locations; above that, only the owner. Nobody approves a bill they entered.",
     "ap.register": "Vendor bills",
@@ -329,6 +338,8 @@ export const dict = defineDict({
     "ex.title": "Expenses this month",
     "ex.total": "Month total: {total}",
     "ex.empty": "No expenses this month.",
+    "ex.statTotal": "Total expenses",
+    "ex.statCount": "Expenses recorded",
     "ex.note": "Receipt note",
     "ex.fromTemplate": "Recurring",
     "ex.voidLabel": "Void the expense of {date}",
@@ -364,6 +375,9 @@ export const dict = defineDict({
     "com.help":
       "Managers propose; the owner approves and marks them paid when they go out in the payroll export. Payroll is not processed here.",
     "com.empty": "No commissions.",
+    "com.stat.pending": "Awaiting approval",
+    "com.stat.toPay": "Approved, to pay",
+    "com.stat.count": "{n} commissions",
     "com.staff": "Staff member",
     "com.pickStaff": "Choose a staff member",
     "com.source": "Source",

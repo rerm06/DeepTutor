@@ -2,6 +2,7 @@ import { type ReactNode, useId, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { toErrorCode } from "../../api/client";
 import type { Location, Member } from "../../api/types";
+import { Icon, type IconName } from "../../components/icons";
 import { ErrorNote, LiveResult, TableWrap } from "../../components/ui";
 import { formatDateTime } from "../../lib/format";
 import { useSession } from "../../session/SessionContext";
@@ -90,6 +91,92 @@ export function Kpi({
   );
 }
 
+/**
+ * Design system v2 card for the report screens: same markup as components/ui Section, plus the gold icon that
+ * starts every card title.
+ */
+export function RptSection({
+  icon,
+  title,
+  actions,
+  children,
+}: {
+  icon: IconName;
+  title: string;
+  actions?: ReactNode;
+  children: ReactNode;
+}) {
+  const id = useId();
+  return (
+    <section className="section" aria-labelledby={id}>
+      <div className="section__head">
+        <h2 id={id} className="section__title">
+          <Icon name={icon} size={22} />
+          {title}
+        </h2>
+        {actions ? <div className="section__actions">{actions}</div> : null}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+/** Summary figures of a report (.ds-stats), only from data the screen already loaded. */
+export function RptStats({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <section className="ds-stats rpt-stats" aria-label={label}>
+      {children}
+    </section>
+  );
+}
+
+/** One summary figure: gold icon · label · value · optional hint or in-page link. */
+export function RptStat({
+  icon,
+  label,
+  value,
+  hint,
+  to,
+  tone,
+}: {
+  icon: IconName;
+  label: string;
+  value: string;
+  hint?: string;
+  to?: string;
+  tone?: "warn" | "ok";
+}) {
+  const { t } = useReportsT();
+  return (
+    <div className={`ds-stat rpt-stat${tone ? ` rpt-stat--${tone}` : ""}`}>
+      <Icon name={icon} size={30} />
+      <dl className="ds-stat__text">
+        <dt className="ds-stat__label">{label}</dt>
+        <dd className="ds-stat__value">{value}</dd>
+        {hint ? <dd className="ds-stat__hint">{hint}</dd> : null}
+        {to ? (
+          <dd className="ds-stat__hint rpt-stat__link rpt-noprint">
+            <a href={to}>
+              {t("kpi.see")}
+              <span className="sr-only">: {label}</span>
+            </a>
+          </dd>
+        ) : null}
+      </dl>
+    </div>
+  );
+}
+
+/** Empty state: gold icon and one line. */
+export function RptEmpty({ icon = "checkCircle", text }: { icon?: IconName; text: string }) {
+  return (
+    <div className="ds-empty">
+      <Icon name={icon} size={30} />
+      <strong>{text}</strong>
+    </div>
+  );
+}
+
 export function KpiGroup({ title, children }: { title: string; children: ReactNode }) {
   const id = useId();
   return (
@@ -133,6 +220,7 @@ export function CsvButton({
   return (
     <span className="rpt-csv rpt-noprint">
       <button type="button" className="btn" onClick={run} disabled={busy} data-tour-id={tourId}>
+        <Icon name="download" size={18} />
         {t("common.csv")}
       </button>
       <LiveResult>{state.msg ?? ""}</LiveResult>
@@ -150,6 +238,7 @@ export function PrintButton() {
       onClick={() => window.print()}
       data-tour-id="rpt-print"
     >
+      <Icon name="doc" size={18} />
       {t("common.print")}
     </button>
   );
@@ -226,13 +315,16 @@ export function QuickCheckIn({
     <section className="section rpt-quick rpt-noprint" aria-labelledby={`${ids.q}-h`}>
       <div className="section__head">
         <h2 id={`${ids.q}-h`} className="section__title">
+          <Icon name="qr" size={22} />
           {t("quick.title")}
         </h2>
         <div className="section__actions rpt-quick__links">
           <Link className="btn" to="/staff/members" data-tour-id="rpt-quick-new-member">
+            <Icon name="userPlus" size={18} />
             {t("quick.newMember")}
           </Link>
           <Link className="btn" to="/staff/billing" data-tour-id="rpt-quick-day-pass">
+            <Icon name="card" size={18} />
             {t("quick.dayPass")}
           </Link>
         </div>
@@ -278,7 +370,7 @@ export function QuickCheckIn({
         <ul className="rpt-quick__results">
           {matches.map((m) => (
             <li key={m.id} className="rpt-quick__row">
-              <span>
+              <span className="rpt-quick__who">
                 <strong>{m.full_name}</strong>
                 {m.member_no ? <span className="muted mono"> · #{m.member_no}</span> : null}
               </span>
@@ -290,6 +382,7 @@ export function QuickCheckIn({
                 onClick={() => enter(m)}
                 data-tour-id="rpt-quick-enter"
               >
+                <Icon name="check" size={18} />
                 {t("quick.enter")}
               </button>
             </li>
@@ -338,7 +431,7 @@ export function OverdueTable({
               {showLocation ? <td>{r.location_name ?? "—"}</td> : null}
               <td className="mono">{r.due_date}</td>
               <td>{t("overdue.days", { n: count(r.days_overdue, lang) })}</td>
-              <td className="mono rpt-num">{money(r.balance_cents, lang)}</td>
+              <td className="rpt-num rpt-money">{money(r.balance_cents, lang)}</td>
             </tr>
           ))}
         </tbody>

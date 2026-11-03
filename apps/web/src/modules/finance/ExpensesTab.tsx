@@ -1,11 +1,15 @@
 import { type FormEvent, useId, useState } from "react";
 import type { ErrorCode } from "../../api/client";
-import { ErrorNote, LiveResult, Loading, Plate, Section, TableWrap } from "../../components/ui";
+import { Icon } from "../../components/icons";
+import { ErrorNote, LiveResult, Loading, Plate, TableWrap } from "../../components/ui";
 import { useAsync } from "../../lib/useAsync";
 import { useSession } from "../../session/SessionContext";
 import { EXPENSE_CATEGORIES, type Expense, type ExpenseCategory } from "./api";
 import { type FinKey, useFinT } from "./dict";
 import {
+  FinEmpty,
+  FinSection,
+  FinStat,
   act,
   day,
   isWriter,
@@ -60,7 +64,18 @@ export function ExpensesTab() {
 
   return (
     <>
-      <Section title={t("ex.title")}>
+      {list.data ? (
+        <div className="ds-stats fin-stats-row">
+          <FinStat icon="coin" label={t("ex.statTotal")} value={money(total, lang)} hint={month} />
+          <FinStat
+            icon="receipt"
+            label={t("ex.statCount")}
+            value={String(list.data.data.length)}
+            hint={month}
+          />
+        </div>
+      ) : null}
+      <FinSection icon="card" title={t("ex.title")}>
         <div className="toolbar">
           <div className="field field--inline">
             <label htmlFor={monthId}>{t("pnl.month")}</label>
@@ -71,13 +86,12 @@ export function ExpensesTab() {
               onChange={(e) => setMonth(e.target.value)}
             />
           </div>
-          {list.data ? (
-            <p className="muted">{t("ex.total", { total: money(total, lang) })}</p>
-          ) : null}
         </div>
         {list.loading ? <Loading /> : null}
         {list.error ? <ErrorNote code={list.error} onRetry={list.reload} /> : null}
-        {list.data && list.data.data.length === 0 ? <p className="muted">{t("ex.empty")}</p> : null}
+        {list.data && list.data.data.length === 0 ? (
+          <FinEmpty icon="receipt" text={t("ex.empty")} />
+        ) : null}
         {list.data && list.data.data.length > 0 ? (
           <TableWrap label={t("ex.title")}>
             <table className="table">
@@ -102,11 +116,11 @@ export function ExpensesTab() {
                     <td>
                       {t(`cat.${x.category}` as FinKey)}
                       {x.recurring_id ? (
-                        <span className="cell-note">{t("ex.fromTemplate")}</span>
+                        <span className="cell-note muted">{t("ex.fromTemplate")}</span>
                       ) : null}
                     </td>
                     <td>{x.location_name}</td>
-                    <td className="fin-num mono">{money(x.amount_cents, lang)}</td>
+                    <td className="fin-num fin-amount">{money(x.amount_cents, lang)}</td>
                     <td className="cell-body">{x.receipt_note}</td>
                     {writer ? (
                       <td>
@@ -127,7 +141,7 @@ export function ExpensesTab() {
           </TableWrap>
         ) : null}
         {voiding ? (
-          <form className="inline-form" onSubmit={voidIt}>
+          <form className="inline-form fin-void" onSubmit={voidIt}>
             <label htmlFor={reasonId}>{t("common.reason")}</label>
             <input
               id={reasonId}
@@ -151,7 +165,7 @@ export function ExpensesTab() {
         <LiveResult tone={announce ? "ok" : undefined}>{announce}</LiveResult>
         {error ? <ErrorNote code={error} /> : null}
         <p className="help">{t("ex.receiptNote")}</p>
-      </Section>
+      </FinSection>
       {writer ? <NewExpense onCreated={refresh} /> : null}
       <RecurringSection onRun={refresh} />
     </>
@@ -206,8 +220,14 @@ function NewExpense({ onCreated }: { onCreated: () => void }) {
     }
   }
   return (
-    <form className="form form--boxed" onSubmit={submit} aria-labelledby={ids.title} noValidate>
-      <h2 id={ids.title} className="form__title">
+    <form
+      className="section form fin-form"
+      onSubmit={submit}
+      aria-labelledby={ids.title}
+      noValidate
+    >
+      <h2 id={ids.title} className="section__title">
+        <Icon name="doc" size={22} />
         {t("ex.new")}
       </h2>
       <div className="form__grid">
@@ -353,7 +373,8 @@ function RecurringSection({ onRun }: { onRun: () => void }) {
   }
 
   return (
-    <Section
+    <FinSection
+      icon="refresh"
       title={t("rec.title")}
       level={2}
       actions={
@@ -392,13 +413,13 @@ function RecurringSection({ onRun }: { onRun: () => void }) {
                 <tr key={r.id}>
                   <th scope="row">
                     {r.description}
-                    <span className="cell-note">
+                    <span className="cell-note muted">
                       {t(`cat.${r.category}` as FinKey)} ·{" "}
                       {t("rec.every", { n: r.interval_months })}
                     </span>
                   </th>
                   <td>{r.location_name}</td>
-                  <td className="fin-num mono">{money(r.amount_cents, lang)}</td>
+                  <td className="fin-num fin-amount">{money(r.amount_cents, lang)}</td>
                   <td className="nowrap">{day(r.next_on, lang)}</td>
                   <td>
                     <Plate tone={r.active ? "ok" : "neutral"}>
@@ -426,7 +447,9 @@ function RecurringSection({ onRun }: { onRun: () => void }) {
           </table>
         </TableWrap>
       ) : null}
-      {list.data && list.data.data.length === 0 ? <p className="muted">{t("rec.empty")}</p> : null}
+      {list.data && list.data.data.length === 0 ? (
+        <FinEmpty icon="refresh" text={t("rec.empty")} />
+      ) : null}
       {writer ? (
         <form className="form form--boxed" onSubmit={create} aria-labelledby={ids.title} noValidate>
           <h3 id={ids.title} className="form__title">
@@ -505,6 +528,6 @@ function RecurringSection({ onRun }: { onRun: () => void }) {
       ) : null}
       <LiveResult tone={announce ? "ok" : undefined}>{announce}</LiveResult>
       {error ? <ErrorNote code={error} /> : null}
-    </Section>
+    </FinSection>
   );
 }

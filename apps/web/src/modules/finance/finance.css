@@ -1,50 +1,227 @@
-/* Module finance: small additions on top of styles.css (tokens only, light + dark come from :root). */
+/* Module finance: additions on top of styles.css and the design system v2 primitives (.ds-*). Tokens only, so
+   light and dark both come from :root. No side stripes, no gradients on text. */
+.fin-head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.fin-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* ── Tab strip: the client's segmented control (gold active option) ── */
 .fin-tabs {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
-  border-bottom: 1px solid var(--border);
-  margin: 0 0 16px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
 }
 .fin-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   min-height: 44px;
-  padding: 8px 14px;
-  border: 1px solid transparent;
-  border-bottom: 0;
-  border-radius: var(--radius) var(--radius) 0 0;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 10px;
   background: transparent;
-  color: inherit;
-  font: inherit;
+  color: var(--text);
+  font: 600 0.9375rem var(--font-body);
+  white-space: nowrap;
   cursor: pointer;
+  transition: background-color 150ms var(--ease-out), color 150ms var(--ease-out);
+}
+.fin-tab > .icon {
+  color: var(--gold-text);
+}
+.fin-tab:hover {
+  background: var(--surface-2);
 }
 .fin-tab[aria-selected="true"] {
-  border-color: var(--border);
-  background: var(--surface);
-  font-weight: 600;
-  box-shadow: inset 0 -3px 0 currentColor;
+  background: var(--gold);
+  color: var(--accent-text);
+}
+.fin-tab[aria-selected="true"] > .icon {
+  color: inherit;
 }
 .fin-tab:focus-visible {
-  outline: 3px solid currentColor;
+  outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
-.fin-num {
+/* Phones: the five options share the width in two even columns instead of a ragged wrap. */
+@media (max-width: 560px) {
+  .fin-tabs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+  .fin-tab {
+    justify-content: center;
+    padding: 0 10px;
+    white-space: normal;
+    text-align: center;
+  }
+}
+
+/* ── Key figures (.ds-stat uses a <dl>) ── */
+.fin .ds-stat__text,
+.fin .ds-stat__text dd {
+  margin: 0;
+}
+.fin .ds-stat__value {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 560px) {
+  .fin .ds-stats {
+    gap: 10px;
+  }
+  .fin .ds-stat {
+    min-height: 0;
+    padding: 12px 16px;
+  }
+}
+
+/* ── Money: Barlow with tabular figures, right-aligned, never wrapped ── */
+.table .fin-num {
   text-align: right;
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
-.fin-strong > * {
+.fin-amount {
   font-weight: 600;
 }
+
+/* ── Statement tables (P&L, cash view): invoice-like clarity ── */
+.fin-statement {
+  font-size: 1rem;
+}
+.fin-statement tbody th[scope="row"] {
+  min-width: 13rem;
+  font-weight: 400;
+}
+.fin-statement tbody tr > * {
+  padding-top: 9px;
+  padding-bottom: 9px;
+  border-bottom-color: color-mix(in srgb, var(--border) 55%, transparent);
+}
+.fin-statement td.fin-num {
+  min-width: 10ch;
+}
+.fin-statement .fin-line > th[scope="row"] {
+  padding-left: 28px;
+}
+.fin-strong > * {
+  font-weight: 700;
+}
+.fin-statement .fin-strong > th[scope="row"] {
+  font-weight: 700;
+}
+.fin-statement .fin-subtotal > * {
+  border-top: 1px solid var(--border-strong);
+  padding-bottom: 14px;
+}
+.fin-statement .fin-total > * {
+  border-top: 3px double var(--border-strong);
+  font-size: 1.0625rem;
+  background: color-mix(in srgb, var(--gold) 10%, var(--surface));
+}
+.fin-statement tbody tr.fin-total:hover > * {
+  background: color-mix(in srgb, var(--gold) 14%, var(--surface));
+}
+
+/* ── Liabilities: figures on the card surface (no cards inside the card) ── */
+.fin-figures {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: 16px 24px;
+  margin: 0;
+}
+.fin-figures > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  min-width: 0;
+}
+.fin-figures dt {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
+.fin-figures dd {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+/* ── Bills, expenses, commissions ── */
 .fin-cell-title {
   font-weight: 600;
 }
-.fin-stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 12px;
+/* Row metadata (category, location, payment) reads as secondary text, not as an error. */
+.fin .cell-note {
+  font-size: 0.875rem;
+  font-weight: 400;
+  color: var(--text-muted);
 }
+.fin-bills td,
+.fin-bills .fin-ref {
+  white-space: nowrap;
+}
+.fin-bills th[scope="row"] {
+  min-width: 250px;
+}
+.fin-why {
+  max-width: 28ch;
+  min-width: 20ch;
+  color: var(--text-muted);
+}
+.fin-bills .fin-why {
+  white-space: normal;
+}
+.fin .table .btn,
+.fin .form .btn,
+.fin .section__actions .btn {
+  min-height: 44px;
+}
+.fin .table .row-actions {
+  gap: 8px;
+}
+.fin .table .row-actions + .row-actions {
+  margin-top: 6px;
+}
+.fin-form > .help {
+  margin-top: -4px;
+}
+.fin-subform {
+  margin-top: 4px;
+}
+.fin-void {
+  flex-wrap: wrap;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.fin-void input {
+  flex: 1 1 220px;
+  width: auto;
+}
+
+/* ── Export ── */
 .fin-notes {
-  margin: 12px 0 0;
+  margin: 4px 0 0;
   padding-left: 20px;
+  color: var(--text-muted);
 }
 .fin-notes li {
   margin: 4px 0;
@@ -54,11 +231,21 @@
   overflow-x: auto;
   white-space: pre;
   font-size: 0.8125rem;
-  padding: 8px;
+  padding: 10px 12px;
+  background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--radius);
 }
 .fin-preview summary {
-  min-height: 24px;
+  min-height: 44px;
+  padding: 11px 0;
+  font-weight: 600;
+  color: var(--gold-text);
   cursor: pointer;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fin-tab {
+    transition: none;
+  }
 }

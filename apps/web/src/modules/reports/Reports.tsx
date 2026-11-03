@@ -6,9 +6,9 @@ import {
   LiveResult,
   Loading,
   Plate,
-  Section,
   TableWrap,
   type Tone,
+  memberStatusTone,
 } from "../../components/ui";
 import { useAsync } from "../../lib/useAsync";
 import { useSession } from "../../session/SessionContext";
@@ -24,7 +24,15 @@ import {
   previousMonth,
   reportsApi,
 } from "./api";
-import { CsvButton, LocationSelect, PrintButton } from "./components";
+import {
+  CsvButton,
+  LocationSelect,
+  PrintButton,
+  RptEmpty,
+  RptSection,
+  RptStat,
+  RptStats,
+} from "./components";
 import { type ReportsKey, useReportsT } from "./dict";
 import "./reports.css";
 
@@ -57,15 +65,17 @@ function Shell({ title, lede, children }: { title: string; lede: string; childre
   const { t } = useReportsT();
   return (
     <div className="page rpt rpt-print">
-      <div className="page__head">
-        <h1 className="page__title">
-          <span className="rpt-print-only">{t("reports.title")} · </span>
-          {title}
-        </h1>
+      <div className="page__head rpt-pagehead">
+        <div className="rpt-head">
+          <h1 className="page__title">
+            <span className="rpt-print-only">{t("reports.title")} · </span>
+            {title}
+          </h1>
+          <p className="lede">{lede}</p>
+        </div>
         <PrintButton />
       </div>
       <ReportsNav />
-      <p className="lede">{lede}</p>
       {children}
     </div>
   );
@@ -110,42 +120,76 @@ export function IvuReportScreen() {
 
   return (
     <Shell title={t("ivu.title")} lede={t("ivu.lede")}>
-      <form className="toolbar rpt-noprint" onSubmit={apply}>
-        <div className="field">
-          <label htmlFor={monthId}>{t("ivu.month")}</label>
-          <input
-            id={monthId}
-            type="month"
-            required
-            value={draft.month}
-            onChange={(e) => setDraft({ ...draft, month: e.target.value })}
+      <div className="rpt-filters rpt-noprint">
+        <form className="rpt-filters__form" onSubmit={apply}>
+          <div className="field">
+            <label htmlFor={monthId}>{t("ivu.month")}</label>
+            <input
+              id={monthId}
+              type="month"
+              required
+              value={draft.month}
+              onChange={(e) => setDraft({ ...draft, month: e.target.value })}
+            />
+          </div>
+          <LocationSelect
+            locations={locations.data?.data ?? []}
+            value={draft.loc}
+            onChange={(v) => setDraft({ ...draft, loc: v })}
           />
-        </div>
-        <LocationSelect
-          locations={locations.data?.data ?? []}
-          value={draft.loc}
-          onChange={(v) => setDraft({ ...draft, loc: v })}
-        />
-        <div className="form__actions">
-          <button type="submit" className="btn btn--primary" data-tour-id="rpt-ivu-apply">
-            {t("common.apply")}
-          </button>
-        </div>
-        <CsvButton
-          report="ivu"
-          params={{ month: applied.month, location_id: applied.loc || undefined }}
-          tourId="rpt-ivu-csv"
-        />
-      </form>
+          <div className="form__actions">
+            <button type="submit" className="btn btn--primary" data-tour-id="rpt-ivu-apply">
+              {t("common.apply")}
+            </button>
+          </div>
+          <CsvButton
+            report="ivu"
+            params={{ month: applied.month, location_id: applied.loc || undefined }}
+            tourId="rpt-ivu-csv"
+          />
+        </form>
+      </div>
+      {rows.length > 0 ? (
+        <RptStats label={t("ivu.title")}>
+          <RptStat
+            icon="doc"
+            label={t("ivu.col.documents")}
+            value={count(tot.documents, lang)}
+            hint={applied.month}
+          />
+          <RptStat
+            icon="coin"
+            label={t("ivu.col.taxable")}
+            value={money(tot.taxable, lang)}
+            hint={applied.month}
+          />
+          <RptStat
+            icon="receipt"
+            label={t("ivu.col.state")}
+            value={money(tot.st, lang)}
+            hint={applied.month}
+          />
+          <RptStat
+            icon="building"
+            label={t("ivu.col.municipal")}
+            value={money(tot.mu, lang)}
+            hint={applied.month}
+          />
+        </RptStats>
+      ) : null}
       <p className="note note--warn" role="note">
         {t("ivu.verify")}
       </p>
       {ivu.loading && !ivu.data ? <Loading /> : null}
       {ivu.error ? <ErrorNote code={ivu.error} onRetry={ivu.reload} /> : null}
-      {ivu.data && rows.length === 0 ? <p className="muted">{t("ivu.empty")}</p> : null}
+      {ivu.data && rows.length === 0 ? (
+        <div className="section">
+          <RptEmpty icon="receipt" text={t("ivu.empty")} />
+        </div>
+      ) : null}
       {rows.length > 0 ? (
         <TableWrap label={t("ivu.title")}>
-          <table className="table" data-tour-id="rpt-ivu-table">
+          <table className="table rpt-table" data-tour-id="rpt-ivu-table">
             <caption className="sr-only">
               {t("ivu.title")} · {applied.month}
             </caption>
@@ -181,11 +225,11 @@ export function IvuReportScreen() {
                     </Plate>
                   </td>
                   <td>{t(`ivu.source.${r.source}` as ReportsKey)}</td>
-                  <td className="mono rpt-num">{count(r.documents, lang)}</td>
-                  <td className="mono rpt-num">{money(r.taxable_base_cents, lang)}</td>
-                  <td className="mono rpt-num">{money(r.exempt_base_cents, lang)}</td>
-                  <td className="mono rpt-num">{money(r.ivu_state_cents, lang)}</td>
-                  <td className="mono rpt-num">{money(r.ivu_municipal_cents, lang)}</td>
+                  <td className="rpt-num">{count(r.documents, lang)}</td>
+                  <td className="rpt-num">{money(r.taxable_base_cents, lang)}</td>
+                  <td className="rpt-num">{money(r.exempt_base_cents, lang)}</td>
+                  <td className="rpt-num">{money(r.ivu_state_cents, lang)}</td>
+                  <td className="rpt-num">{money(r.ivu_municipal_cents, lang)}</td>
                 </tr>
               ))}
             </tbody>
@@ -194,11 +238,11 @@ export function IvuReportScreen() {
                 <th scope="row" colSpan={3}>
                   {t("ivu.total")}
                 </th>
-                <td className="mono rpt-num">{count(tot.documents, lang)}</td>
-                <td className="mono rpt-num">{money(tot.taxable, lang)}</td>
-                <td className="mono rpt-num">{money(tot.exempt, lang)}</td>
-                <td className="mono rpt-num">{money(tot.st, lang)}</td>
-                <td className="mono rpt-num">{money(tot.mu, lang)}</td>
+                <td className="rpt-num">{count(tot.documents, lang)}</td>
+                <td className="rpt-num">{money(tot.taxable, lang)}</td>
+                <td className="rpt-num">{money(tot.exempt, lang)}</td>
+                <td className="rpt-num">{money(tot.st, lang)}</td>
+                <td className="rpt-num">{money(tot.mu, lang)}</td>
               </tr>
             </tfoot>
           </table>
@@ -264,7 +308,7 @@ function MunicipalityConfig({ names, onSaved }: { names: string[]; onSaved: () =
   }
 
   return (
-    <Section title={t("ivu.config")}>
+    <RptSection icon="pin" title={t("ivu.config")}>
       <p className="help">{t("ivu.configLede")}</p>
       {(saved.data?.data ?? []).length > 0 ? (
         <ul className="rpt-list">
@@ -279,7 +323,7 @@ function MunicipalityConfig({ names, onSaved }: { names: string[]; onSaved: () =
           ))}
         </ul>
       ) : null}
-      <form className="toolbar rpt-noprint" onSubmit={submit}>
+      <form className="toolbar rpt-config-form rpt-noprint" onSubmit={submit}>
         <div className="field">
           <label htmlFor={ids.name}>{t("ivu.configMunicipality")}</label>
           <input
@@ -328,7 +372,7 @@ function MunicipalityConfig({ names, onSaved }: { names: string[]; onSaved: () =
       </form>
       <LiveResult tone={msg ? "ok" : undefined}>{msg}</LiveResult>
       {error ? <ErrorNote code={error} /> : null}
-    </Section>
+    </RptSection>
   );
 }
 
@@ -404,69 +448,90 @@ export function SalesReportScreen() {
 
   return (
     <Shell title={t("sales.title")} lede={t("sales.lede")}>
-      <form
-        className="toolbar rpt-noprint"
-        onSubmit={(e) => {
-          e.preventDefault();
-          setApplied(draft);
-        }}
-      >
-        <div className="field">
-          <label htmlFor={ids.from}>{t("sales.from")}</label>
-          <input
-            id={ids.from}
-            type="date"
-            required
-            value={draft.from}
-            onChange={(e) => setDraft({ ...draft, from: e.target.value })}
-          />
-        </div>
-        <div className="field">
-          <label htmlFor={ids.to}>{t("sales.to")}</label>
-          <input
-            id={ids.to}
-            type="date"
-            required
-            value={draft.to}
-            onChange={(e) => setDraft({ ...draft, to: e.target.value })}
-          />
-        </div>
-        <LocationSelect
-          locations={locations.data?.data ?? []}
-          value={draft.loc}
-          onChange={(v) => setDraft({ ...draft, loc: v })}
-        />
-        <div className="form__actions">
-          <button type="submit" className="btn btn--primary" data-tour-id="rpt-sales-apply">
-            {t("common.apply")}
-          </button>
-        </div>
-        <CsvButton
-          report="sales"
-          params={{ from: applied.from, to: applied.to, location_id: applied.loc || undefined }}
-          tourId="rpt-sales-csv"
-        />
-      </form>
-      <div className="field field--inline rpt-noprint">
-        <label htmlFor={ids.by}>{t("sales.groupBy")}</label>
-        <select
-          id={ids.by}
-          value={by}
-          onChange={(e) => setBy(e.target.value as GroupBy)}
-          data-tour-id="rpt-sales-group"
+      <div className="rpt-filters rpt-noprint">
+        <form
+          className="rpt-filters__form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            setApplied(draft);
+          }}
         >
-          <option value="product">{t("sales.by.product")}</option>
-          <option value="location">{t("sales.by.location")}</option>
-          <option value="seller">{t("sales.by.seller")}</option>
-        </select>
+          <div className="field">
+            <label htmlFor={ids.from}>{t("sales.from")}</label>
+            <input
+              id={ids.from}
+              type="date"
+              required
+              value={draft.from}
+              onChange={(e) => setDraft({ ...draft, from: e.target.value })}
+            />
+          </div>
+          <div className="field">
+            <label htmlFor={ids.to}>{t("sales.to")}</label>
+            <input
+              id={ids.to}
+              type="date"
+              required
+              value={draft.to}
+              onChange={(e) => setDraft({ ...draft, to: e.target.value })}
+            />
+          </div>
+          <LocationSelect
+            locations={locations.data?.data ?? []}
+            value={draft.loc}
+            onChange={(v) => setDraft({ ...draft, loc: v })}
+          />
+          <div className="form__actions">
+            <button type="submit" className="btn btn--primary" data-tour-id="rpt-sales-apply">
+              {t("common.apply")}
+            </button>
+          </div>
+          <CsvButton
+            report="sales"
+            params={{ from: applied.from, to: applied.to, location_id: applied.loc || undefined }}
+            tourId="rpt-sales-csv"
+          />
+        </form>
+        <div className="field">
+          <label htmlFor={ids.by}>{t("sales.groupBy")}</label>
+          <select
+            id={ids.by}
+            value={by}
+            onChange={(e) => setBy(e.target.value as GroupBy)}
+            data-tour-id="rpt-sales-group"
+          >
+            <option value="product">{t("sales.by.product")}</option>
+            <option value="location">{t("sales.by.location")}</option>
+            <option value="seller">{t("sales.by.seller")}</option>
+          </select>
+        </div>
       </div>
+      {groups.length > 0 ? (
+        <RptStats label={t("sales.title")}>
+          <RptStat
+            icon="receipt"
+            label={t("sales.col.documents")}
+            value={count(
+              groups.reduce((a, g) => a + g.documents, 0),
+              lang,
+            )}
+          />
+          <RptStat icon="cart" label={t("sales.col.subtotal")} value={money(tot.sub, lang)} />
+          <RptStat icon="doc" label={t("sales.col.ivu")} value={money(tot.ivu, lang)} />
+          <RptStat icon="coin" label={t("sales.col.total")} value={money(tot.total, lang)} />
+        </RptStats>
+      ) : null}
       <p className="help">{t("sales.note")}</p>
       {sales.loading && !sales.data ? <Loading /> : null}
       {sales.error ? <ErrorNote code={sales.error} onRetry={sales.reload} /> : null}
-      {sales.data && groups.length === 0 ? <p className="muted">{t("common.empty")}</p> : null}
+      {sales.data && groups.length === 0 ? (
+        <div className="section">
+          <RptEmpty icon="cart" text={t("common.empty")} />
+        </div>
+      ) : null}
       {groups.length > 0 ? (
         <TableWrap label={t("sales.title")}>
-          <table className="table" data-tour-id="rpt-sales-table">
+          <table className="table rpt-table" data-tour-id="rpt-sales-table">
             <thead>
               <tr>
                 <th scope="col">{t(`sales.by.${by}` as ReportsKey)}</th>
@@ -493,11 +558,11 @@ export function SalesReportScreen() {
                 <tr key={`${g.source}:${g.label}`}>
                   <th scope="row">{g.label}</th>
                   <td>{t(`sales.source.${g.source}` as ReportsKey)}</td>
-                  <td className="mono rpt-num">{count(g.documents, lang)}</td>
-                  <td className="mono rpt-num">{count(g.units, lang)}</td>
-                  <td className="mono rpt-num">{money(g.sub, lang)}</td>
-                  <td className="mono rpt-num">{money(g.ivu, lang)}</td>
-                  <td className="mono rpt-num">{money(g.total, lang)}</td>
+                  <td className="rpt-num">{count(g.documents, lang)}</td>
+                  <td className="rpt-num">{count(g.units, lang)}</td>
+                  <td className="rpt-num">{money(g.sub, lang)}</td>
+                  <td className="rpt-num">{money(g.ivu, lang)}</td>
+                  <td className="rpt-num">{money(g.total, lang)}</td>
                 </tr>
               ))}
             </tbody>
@@ -506,9 +571,9 @@ export function SalesReportScreen() {
                 <th scope="row" colSpan={4}>
                   {t("sales.total")}
                 </th>
-                <td className="mono rpt-num">{money(tot.sub, lang)}</td>
-                <td className="mono rpt-num">{money(tot.ivu, lang)}</td>
-                <td className="mono rpt-num">{money(tot.total, lang)}</td>
+                <td className="rpt-num">{money(tot.sub, lang)}</td>
+                <td className="rpt-num">{money(tot.ivu, lang)}</td>
+                <td className="rpt-num">{money(tot.total, lang)}</td>
               </tr>
             </tfoot>
           </table>
@@ -535,7 +600,7 @@ export function MembersReportScreen() {
 
   return (
     <Shell title={t("members.title")} lede={t("members.lede")}>
-      <div className="toolbar rpt-noprint">
+      <div className="rpt-filters rpt-noprint">
         <LocationSelect locations={locations.data?.data ?? []} value={loc} onChange={setLoc} />
         <div className="field">
           <label htmlFor={monthsId}>{t("members.months")}</label>
@@ -557,9 +622,42 @@ export function MembersReportScreen() {
       {data.error ? <ErrorNote code={data.error} onRetry={data.reload} /> : null}
       {data.data ? (
         <>
-          <Section title={t("members.status")}>
+          <RptStats label={t("members.title")}>
+            <RptStat
+              icon="users"
+              label={t("members.col.members")}
+              value={count(
+                data.data.status.reduce((a, s) => a + s.members, 0),
+                lang,
+              )}
+            />
+            <RptStat
+              icon="checkCircle"
+              label={t("status.active")}
+              value={count(data.data.status.find((s) => s.status === "active")?.members ?? 0, lang)}
+            />
+            <RptStat
+              icon="userPlus"
+              label={t("members.col.joins")}
+              value={count(
+                data.data.flow.reduce((a, f) => a + f.joins, 0),
+                lang,
+              )}
+              hint={`${months} ${t("members.months").toLowerCase()}`}
+            />
+            <RptStat
+              icon="logout"
+              label={t("members.col.cancellations")}
+              value={count(
+                data.data.flow.reduce((a, f) => a + f.cancellations, 0),
+                lang,
+              )}
+              hint={`${months} ${t("members.months").toLowerCase()}`}
+            />
+          </RptStats>
+          <RptSection icon="users" title={t("members.status")}>
             <TableWrap label={t("members.status")}>
-              <table className="table">
+              <table className="table rpt-table">
                 <thead>
                   <tr>
                     <th scope="col">{t("members.col.status")}</th>
@@ -571,17 +669,21 @@ export function MembersReportScreen() {
                 <tbody>
                   {data.data.status.map((s) => (
                     <tr key={s.status}>
-                      <th scope="row">{t(`status.${s.status}` as ReportsKey)}</th>
-                      <td className="mono rpt-num">{count(s.members, lang)}</td>
+                      <th scope="row">
+                        <Plate tone={memberStatusTone(s.status)}>
+                          {t(`status.${s.status}` as ReportsKey)}
+                        </Plate>
+                      </th>
+                      <td className="rpt-num">{count(s.members, lang)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </TableWrap>
-          </Section>
-          <Section title={t("members.flow")}>
+          </RptSection>
+          <RptSection icon="chart" title={t("members.flow")}>
             <TableWrap label={t("members.flow")}>
-              <table className="table" data-tour-id="rpt-members-flow">
+              <table className="table rpt-table" data-tour-id="rpt-members-flow">
                 <thead>
                   <tr>
                     <th scope="col">{t("members.col.month")}</th>
@@ -597,7 +699,7 @@ export function MembersReportScreen() {
                       </th>
                       <td>
                         <span className="rpt-bar">
-                          <span className="mono rpt-bar__n">{count(f.joins, lang)}</span>
+                          <span className="rpt-bar__n">{count(f.joins, lang)}</span>
                           <span className="rpt-bar__track" aria-hidden="true">
                             <span
                               className="rpt-bar__fill"
@@ -608,7 +710,7 @@ export function MembersReportScreen() {
                       </td>
                       <td>
                         <span className="rpt-bar">
-                          <span className="mono rpt-bar__n">{count(f.cancellations, lang)}</span>
+                          <span className="rpt-bar__n">{count(f.cancellations, lang)}</span>
                           <span className="rpt-bar__track" aria-hidden="true">
                             <span
                               className="rpt-bar__fill rpt-bar__fill--out"
@@ -622,7 +724,7 @@ export function MembersReportScreen() {
                 </tbody>
               </table>
             </TableWrap>
-          </Section>
+          </RptSection>
         </>
       ) : null}
     </Shell>
