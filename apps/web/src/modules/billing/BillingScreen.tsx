@@ -1,16 +1,20 @@
 import { useId, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { type ErrorCode, toErrorCode } from "../../api/client";
-import { ErrorNote, LiveResult, Loading, Section } from "../../components/ui";
+import { Icon } from "../../components/icons";
+import { ErrorNote, LiveResult, Loading } from "../../components/ui";
 import { ROUTES } from "../../lib/roles";
 import { useAsync } from "../../lib/useAsync";
 import { useSession } from "../../session/SessionContext";
 import {
+  BILLING_ICON,
   CYCLE_RUNNERS,
   FEE_READERS,
   InvoiceTable,
+  Panel,
   SELLERS,
   SellForm,
+  Stat,
   money,
   useBillingApi,
 } from "./components";
@@ -54,19 +58,47 @@ export function BillingScreen() {
   );
   const rows = invoices.data?.data ?? [];
   const outstanding = rows.reduce((s, i) => s + (i.status === "open" ? i.balance_cents : 0), 0);
+  const overdue = rows.filter((i) => i.status === "open" && i.overdue).length;
   const memberList = members.data?.data ?? [];
+  const chosenMember = memberList.find((m) => m.id === memberId);
+  const locationName = locations.data?.data.find((l) => l.id === locationId)?.name;
+  const dash = "—";
 
   return (
     <div className="page">
       <h1 className="page__title">{t("billing.title")}</h1>
       <p className="lede">{t("billing.lede")}</p>
 
+      <div className="ds-stats billing-stats" aria-live="polite">
+        <Stat
+          icon="receipt"
+          label={t("billing.stat.view")}
+          value={invoices.data ? rows.length : dash}
+          hint={`${t(`billing.filter.${filter}`)} · ${locationName ?? t("billing.allLocations")}`}
+        />
+        <Stat
+          icon="coin"
+          label={t("billing.stat.open")}
+          value={invoices.data ? money(outstanding, lang) : dash}
+          hint={t("billing.stat.openHint")}
+        />
+        <Stat
+          icon={{ d: BILLING_ICON.alert }}
+          label={t("billing.filter.overdue")}
+          value={invoices.data ? overdue : dash}
+          hint={t("billing.stat.overdueHint")}
+        />
+      </div>
+
       {seller ? (
-        <section className="section billing-quick" aria-labelledby={ids.sell}>
-          <h2 id={ids.sell} className="section__title">
-            {t("sell.title")}
-          </h2>
-          <div className="field">
+        <Panel
+          title={t("sell.title")}
+          icon="coin"
+          titleId={ids.sell}
+          className="billing-quick"
+          actions={<span className="ds-pill">{t("model.payPerSession")}</span>}
+        >
+          <div className="field billing-quick__member">
             <label htmlFor={ids.member}>{t("sell.member")}</label>
             <select
               id={ids.member}
@@ -89,26 +121,27 @@ export function BillingScreen() {
               memberId={memberId}
               catalog={catalog.data}
               locations={locations.data.data}
-              defaultLocationId={memberList.find((m) => m.id === memberId)?.home_location_id}
+              defaultLocationId={chosenMember?.home_location_id}
               onSold={invoices.reload}
               tourId="billing-quick-charge"
             />
           ) : null}
           {memberId ? (
-            <p>
+            <p className="billing-quick__link">
               <Link to={ROUTES.member(memberId)}>
-                {memberList.find((m) => m.id === memberId)?.full_name}
+                {chosenMember?.full_name}
+                <Icon name="arrowRight" size={18} />
               </Link>
             </p>
           ) : null}
-        </section>
+        </Panel>
       ) : null}
 
       {CYCLE_RUNNERS.includes(role ?? "") ? (
         <CyclePanel locationId={locationId} onDone={invoices.reload} />
       ) : null}
 
-      <Section title={t("inv.title")}>
+      <Panel title={t("inv.title")} icon="receipt">
         <div className="toolbar">
           <div className="field">
             <label htmlFor={ids.filter}>{t("billing.filter")}</label>
@@ -146,22 +179,16 @@ export function BillingScreen() {
         {invoices.loading ? <Loading /> : null}
         {invoices.error ? <ErrorNote code={invoices.error} onRetry={invoices.reload} /> : null}
         {invoices.data ? (
-          <>
-            <p className="muted" aria-live="polite">
-              {t("billing.count", { n: rows.length })} ·{" "}
-              {t("billing.totalOpen", { amount: money(outstanding, lang) })}
-            </p>
-            <InvoiceTable
-              invoices={rows}
-              canPay={seller}
-              showMember
-              fees={feeMap}
-              onPaid={invoices.reload}
-              label={t("inv.title")}
-            />
-          </>
+          <InvoiceTable
+            invoices={rows}
+            canPay={seller}
+            showMember
+            fees={feeMap}
+            onPaid={invoices.reload}
+            label={t("inv.title")}
+          />
         ) : null}
-      </Section>
+      </Panel>
     </div>
   );
 }
@@ -197,7 +224,7 @@ function CyclePanel({ locationId, onDone }: { locationId: string; onDone: () => 
   }
 
   return (
-    <Section title={t("billing.cycle")}>
+    <Panel title={t("billing.cycle")} icon="refresh">
       <p className="help">{t("billing.cycleHelp")}</p>
       <div className="form__actions">
         {!confirming ? (
@@ -228,6 +255,6 @@ function CyclePanel({ locationId, onDone }: { locationId: string; onDone: () => 
       </div>
       <LiveResult tone={done ? "ok" : undefined}>{done}</LiveResult>
       {error ? <ErrorNote code={error} /> : null}
-    </Section>
+    </Panel>
   );
 }

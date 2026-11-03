@@ -1,32 +1,97 @@
-/* Module billing: only layout helpers on top of the core tokens and classes in src/styles.css. */
-.billing-table .num,
-.billing-lines .num {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-.billing-lines {
+/* Module billing, design system v2 (client designs + the client's invoice reference: clean document tables).
+   Only layout helpers on top of the tokens and .ds-* primitives in src/styles.css. Tokens only (light + dark). */
+
+/* ── Groups that hold cards (member-record chapter, stat rows) ── */
+.billing-tab,
+.billing-block {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 4px 0;
+  gap: 16px;
+  min-width: 0;
 }
-.billing-pay {
+.billing-block__head {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+}
+.billing-tab__title {
+  font-size: 1.5rem;
+}
+.billing-tab__title > .icon,
+.billing-block .section__title > .icon {
+  color: var(--gold-text);
+}
+.billing-pair {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
+  gap: 16px;
+  align-items: start;
+}
+.billing-center {
+  text-align: center;
+}
+
+/* ── Stats (.ds-stat) ── */
+.billing-credits {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+}
+.billing-stat {
+  align-items: flex-start;
+}
+.billing-stat > .icon {
+  flex: none;
+  margin-top: 2px;
+}
+.billing-stat .ds-stat__text {
+  flex: 1;
+  gap: 2px;
+}
+.billing-stat__of {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.billing-stat__date {
+  font-size: 1.375rem;
+}
+.billing-stat__bar {
+  margin-top: 8px;
+}
+.billing-stat__expiry {
+  display: inline-flex;
+  align-items: center;
   gap: 6px;
-  align-items: flex-end;
+  margin-top: 6px;
+  font-size: 0.875rem;
+  color: var(--text-muted);
 }
-.billing-pay input {
-  max-width: 10ch;
+.billing-stat__expiry > .icon {
+  color: var(--gold-text);
 }
-.billing-pay .field:nth-of-type(3) input {
-  max-width: 18ch;
-}
-/* "Cobrar sesión" is the main action of the pay-per-session model: a highlighted, full-width-on-phone block. */
+
+/* ── "Cobrar sesión": the main action of the pay-per-session model ── */
 .billing-quick {
-  border: 2px solid var(--accent);
-  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--gold) 55%, var(--border));
+  background: color-mix(in srgb, var(--gold) 7%, var(--surface));
+}
+.billing-quick__member {
+  max-width: 560px;
+}
+.billing-quick__link {
+  margin: 0;
+}
+.billing-quick__link a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  font-weight: 600;
+  color: var(--gold-text);
 }
 .billing-cta {
   min-height: 48px;
@@ -38,31 +103,99 @@
     width: 100%;
   }
 }
-.billing-credits {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
-  gap: 12px;
+.billing-balance {
+  font-weight: 600;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
 }
-.billing-credit {
+
+/* ── Invoices: a document table (identifiers mono, amounts right-aligned, status pills) ── */
+.billing-table .num,
+.billing-lines .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.billing-table .billing-no {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+.billing-table .billing-member {
+  min-width: 8.5rem;
+  font-weight: 600;
+}
+.billing-table .billing-due {
+  font-weight: 700;
+}
+/* The payment strip belongs to the invoice above it: no rule between them, one tinted band. */
+.table .billing-row--pay > * {
+  border-bottom-color: transparent;
+}
+.billing-table tbody tr.billing-subrow > td {
+  background: color-mix(in srgb, var(--surface-2) 60%, var(--surface));
+  padding-top: 4px;
+}
+.billing-table tbody tr.billing-subrow:hover > * {
+  background: color-mix(in srgb, var(--surface-2) 60%, var(--surface));
+}
+.billing-pay {
+  position: sticky;
+  left: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px 12px;
+  width: max-content;
+  max-width: min(100%, calc(100vw - 96px));
+}
+.billing-pay__icon {
+  align-self: flex-end;
+  margin-bottom: 12px;
+  color: var(--gold-text);
+}
+.billing-pay .field label {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+.billing-pay input,
+.billing-pay select {
+  min-height: 44px;
+}
+.billing-pay .field:nth-of-type(1) input {
+  width: 11ch;
+}
+.billing-pay .field:nth-of-type(2) select {
+  width: auto;
+}
+.billing-pay .field:nth-of-type(3) input {
+  width: 18ch;
+}
+.billing-pay .btn {
+  min-height: 44px;
+}
+.billing-pay .field-error,
+.billing-pay .note {
+  flex-basis: 100%;
+}
+.billing-lines {
+  position: sticky;
+  left: 12px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 12px;
-  border: 1px solid var(--ok-line);
-  border-radius: var(--radius);
-  background: color-mix(in srgb, var(--ok-bg) 40%, var(--surface));
+  gap: 6px;
+  padding: 4px 0;
+  max-width: min(100%, calc(100vw - 96px));
 }
-.billing-credit__name {
-  font-weight: 700;
+.billing-lines__table {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  border-collapse: separate;
+  border-spacing: 0;
+  overflow: hidden;
+  background: var(--surface);
 }
-.billing-credit__count {
-  font-size: 1.25rem;
-  font-variant-numeric: tabular-nums;
-  font-weight: 700;
-}
+
+/* ── Subscriptions and cancellation steps ── */
 .billing-steps {
   display: flex;
   flex-direction: column;
@@ -85,14 +218,6 @@
   border-top: 0;
   padding-top: 0;
 }
-.billing-price-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
 fieldset.billing-steps {
   margin: 0;
   min-width: 0;
@@ -104,4 +229,65 @@ fieldset.billing-steps legend {
   padding: 0;
   float: left;
   width: 100%;
+}
+
+/* ── Catalogue ── */
+.table.billing-catalog td,
+.table.billing-catalog tbody th {
+  vertical-align: top;
+}
+.billing-price-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.billing-price-list > li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0 12px;
+  font-variant-numeric: tabular-nums;
+}
+.billing-price-list > li + li {
+  border-top: 1px solid var(--border);
+}
+.billing-price-list .btn {
+  min-height: 44px;
+}
+
+/* Fit the document table in the content column at desktop widths. */
+.table.billing-table th,
+.table.billing-table td {
+  padding: 12px 8px;
+}
+.billing-table thead th.num {
+  white-space: normal;
+  min-width: 5rem;
+}
+.billing-when time {
+  display: flex;
+  flex-direction: column;
+  white-space: nowrap;
+}
+.billing-when__time {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+/* Phones: stat cards stay compact so the first action is reachable without scrolling far. */
+@media (max-width: 600px) {
+  .billing-stats {
+    gap: 10px;
+  }
+  .billing-stats .ds-stat {
+    min-height: 0;
+    padding: 12px 16px;
+    gap: 14px;
+  }
+  .billing-pay__icon {
+    display: none;
+  }
 }

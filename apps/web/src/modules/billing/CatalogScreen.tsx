@@ -1,11 +1,11 @@
 import { type FormEvent, useId, useState } from "react";
 import { type ErrorCode, toErrorCode } from "../../api/client";
 import type { Location } from "../../api/types";
-import { ErrorNote, LiveResult, Loading, Plate, Section, TableWrap } from "../../components/ui";
+import { ErrorNote, LiveResult, Loading, Plate, TableWrap } from "../../components/ui";
 import { useAsync } from "../../lib/useAsync";
 import { useSession } from "../../session/SessionContext";
 import { type Catalog, PRODUCT_KINDS, type Price, type Product, type ProductKind } from "./api";
-import { money, parseCents, useBillingApi } from "./components";
+import { BILLING_ICON, Empty, Panel, Stat, money, parseCents, useBillingApi } from "./components";
 import { type BillingKey, useBillingT } from "./dict";
 
 /** Staff "Catálogo" (owner, location manager): products and prices per location. */
@@ -20,6 +20,8 @@ export function CatalogScreen() {
     setAnnounce(msg);
     catalog.reload();
   };
+  const products = catalog.data?.products ?? [];
+  const prices = catalog.data?.prices ?? [];
 
   return (
     <div className="page">
@@ -30,23 +32,39 @@ export function CatalogScreen() {
       {catalog.error ? <ErrorNote code={catalog.error} onRetry={catalog.reload} /> : null}
       {catalog.data && locations.data ? (
         <>
-          <Section title={t("catalog.products")}>
+          <div className="ds-stats billing-stats">
+            <Stat
+              icon="layers"
+              label={t("catalog.products")}
+              value={products.length}
+              hint={t("catalog.stat.activeHint", { n: products.filter((p) => p.active).length })}
+            />
+            <Stat
+              icon={{ d: BILLING_ICON.tag }}
+              label={t("catalog.stat.prices")}
+              value={prices.filter((p) => p.active).length}
+              hint={t("catalog.stat.pricesHint", { n: prices.length })}
+            />
+          </div>
+          <Panel title={t("catalog.products")} icon="layers">
             <ProductTable
               catalog={catalog.data}
               locations={locations.data.data}
               onChanged={reload}
             />
-          </Section>
-          <Section title={t("catalog.newProduct")}>
-            <NewProductForm onCreated={() => reload(t("catalog.created"))} />
-          </Section>
-          <Section title={t("catalog.newPrice")}>
-            <NewPriceForm
-              catalog={catalog.data}
-              locations={locations.data.data}
-              onCreated={() => reload(t("catalog.priceAdded"))}
-            />
-          </Section>
+          </Panel>
+          <div className="billing-pair">
+            <Panel title={t("catalog.newProduct")} icon={{ d: BILLING_ICON.plus }}>
+              <NewProductForm onCreated={() => reload(t("catalog.created"))} />
+            </Panel>
+            <Panel title={t("catalog.newPrice")} icon={{ d: BILLING_ICON.tag }}>
+              <NewPriceForm
+                catalog={catalog.data}
+                locations={locations.data.data}
+                onCreated={() => reload(t("catalog.priceAdded"))}
+              />
+            </Panel>
+          </div>
         </>
       ) : null}
     </div>
@@ -63,7 +81,7 @@ function ProductTable({
   onChanged: (msg: string) => void;
 }) {
   const { t, lang } = useBillingT();
-  if (catalog.products.length === 0) return <p className="muted">{t("catalog.none")}</p>;
+  if (catalog.products.length === 0) return <Empty icon="layers" text={t("catalog.none")} />;
   const locName = (id: string | null) =>
     id ? (locations.find((l) => l.id === id)?.name ?? id.slice(0, 8)) : t("catalog.allLocations");
   const describe = (p: Price) =>
@@ -80,7 +98,7 @@ function ProductTable({
 
   return (
     <TableWrap label={t("catalog.products")}>
-      <table className="table">
+      <table className="table billing-catalog">
         <thead>
           <tr>
             <th scope="col">{t("catalog.col.name")}</th>
@@ -118,7 +136,9 @@ function ProductTable({
               </td>
               <td>
                 <div className="row-actions">
-                  <Plate tone={p.active ? "ok" : "neutral"}>{p.active ? "✓" : "—"}</Plate>
+                  <Plate tone={p.active ? "ok" : "neutral"}>
+                    {p.active ? t("catalog.active") : t("catalog.inactiveLabel")}
+                  </Plate>
                   <ToggleButton
                     label={p.name}
                     active={p.active}
@@ -336,7 +356,7 @@ function NewPriceForm({
     }
   }
 
-  if (catalog.products.length === 0) return <p className="muted">{t("catalog.none")}</p>;
+  if (catalog.products.length === 0) return <Empty icon="layers" text={t("catalog.none")} />;
   return (
     <form className="form" onSubmit={submit}>
       <div className="form__grid">
