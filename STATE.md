@@ -59,6 +59,9 @@
   right layer → regression → mutation → sweep → record). Used by the next cycle once the loop restarts.
 
 ### Deployment — Netlify (demo), 2026-11-02
+- 2026-11-03 05:35 UTC, deploy 6ae9717b836e809630a14ed3 (commit 1c281cd): access — sign-in by code, door QR
+  entry/exit kiosk, check-out, opt-in face recognition backbone + reference camera agent. 1 migration applied;
+  41 pinned. Verified in production: code sign-in → exit → entry → exit by door QR.
 - 2026-11-03 04:25 UTC, deploy 6ae960c1f6698da08a914da4 (commit 3589022): live agent (Gemini Live + local fallback)
   that fills and drives every screen, live field validation, member photo (0023), design v3. 1 migration applied;
   40 pinned. Gemini Live needs GEMINI_LIVE_API_KEY (the AI Gateway's injected GEMINI_API_KEY is ignored).
