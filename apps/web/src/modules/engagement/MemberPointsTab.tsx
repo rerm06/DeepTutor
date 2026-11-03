@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { ErrorCode } from "../../api/client";
+import { Icon } from "../../components/icons";
 import { ErrorNote, LiveResult } from "../../components/ui";
 import { useEngT } from "./dict";
 import { PointsSummary, act, useEng } from "./shared";
@@ -29,6 +30,7 @@ export function MemberPointsTab({ memberId }: { memberId: string }) {
           data-tour-id="eng-award-visit"
           onClick={() => award("visit")}
         >
+          <Icon name="checkCircle" size={18} />
           {t("points.awardVisit")}
         </button>
         <button
@@ -38,6 +40,7 @@ export function MemberPointsTab({ memberId }: { memberId: string }) {
           data-tour-id="eng-award-class"
           onClick={() => award("class")}
         >
+          <Icon name="calendar" size={18} />
           {t("points.awardClass")}
         </button>
       </div>

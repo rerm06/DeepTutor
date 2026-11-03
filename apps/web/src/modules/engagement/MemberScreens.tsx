@@ -1,7 +1,8 @@
 import { type FormEvent, type ReactNode, useEffect, useId, useState } from "react";
 import type { ErrorCode } from "../../api/client";
 import type { Member } from "../../api/types";
-import { ErrorNote, LiveResult, Loading, Plate, Section, TableWrap } from "../../components/ui";
+import { Icon } from "../../components/icons";
+import { ErrorNote, LiveResult, Loading, Plate, TableWrap } from "../../components/ui";
 import { formatDateTime } from "../../lib/format";
 import { useAsync } from "../../lib/useAsync";
 import { useSession } from "../../session/SessionContext";
@@ -9,19 +10,31 @@ import { Leaderboard } from "./StaffChallengesScreen";
 import { PostList } from "./StaffCommunityScreen";
 import { type Challenge, POST_MAX_LENGTH } from "./api";
 import { type EngKey, useEngT } from "./dict";
-import { PointsSummary, act, statusTone, useEng, useMyMembers } from "./shared";
+import {
+  Card,
+  ENG_ICON,
+  Empty,
+  PageHead,
+  PointsSummary,
+  Stat,
+  act,
+  statusTone,
+  useEng,
+  useMyMembers,
+} from "./shared";
 
 /** Shared frame: loads the caller's member rows (a member: their own; a guardian: their wards). */
 function WithMembers({
   title,
+  lede,
   children,
-}: { title: string; children: (rows: Member[]) => ReactNode }) {
+}: { title: string; lede?: string; children: (rows: Member[]) => ReactNode }) {
   const { t } = useEngT();
   const members = useMyMembers();
   const rows = members.data?.data ?? [];
   return (
-    <div className="page">
-      <h1 className="page__title">{title}</h1>
+    <div className="page eng-page">
+      <PageHead title={title} lede={lede} />
       {members.loading && !members.data ? <Loading /> : null}
       {members.error ? <ErrorNote code={members.error} onRetry={members.reload} /> : null}
       {members.data && rows.length === 0 ? (
@@ -37,16 +50,17 @@ export function MyPointsScreen() {
   const { t } = useEngT();
   const { role } = useSession();
   return (
-    <WithMembers title={t("nav.myPoints")}>
+    <WithMembers title={t("nav.myPoints")} lede={t("points.memberLede")}>
       {(rows) =>
         rows.map((m) => (
           <PointsSummary
             key={m.id}
             memberId={m.id}
+            nextReward
             title={
               role === "guardian" || rows.length > 1
                 ? t("points.forMember", { name: m.full_name })
-                : t("points.balance")
+                : t("points.summary")
             }
           />
         ))
@@ -62,12 +76,15 @@ export function MyChallengesScreen() {
   const eng = useEng();
   const list = useAsync(() => eng.challenges(), [eng]);
   return (
-    <WithMembers title={t("challenges.title")}>
+    <WithMembers title={t("challenges.title")} lede={t("challenges.memberLede")}>
       {(rows) => (
         <>
+          {list.loading && !list.data ? <Loading /> : null}
           {list.error ? <ErrorNote code={list.error} onRetry={list.reload} /> : null}
           {list.data && list.data.data.length === 0 ? (
-            <p className="muted">{t("challenges.none")}</p>
+            <section className="section">
+              <Empty icon={{ name: "trophy" }} text={t("challenges.none")} />
+            </section>
           ) : null}
           {role === "guardian" ? <p className="muted">{t("challenges.readOnly")}</p> : null}
           {(list.data?.data ?? []).map((c) => (
@@ -89,7 +106,7 @@ function ChallengeCard({
   member,
   readOnly,
 }: { challenge: Challenge; member: Member; readOnly: boolean }) {
-  const { t } = useEngT();
+  const { t, lang } = useEngT();
   const eng = useEng();
   const [version, setVersion] = useState(0);
   const board = useAsync(() => eng.leaderboard(challenge.id), [eng, challenge.id, version]);
@@ -97,50 +114,121 @@ function ChallengeCard({
   const own = (board.data?.data ?? []).filter((r) => r.division === "self");
   const participation = (mine.data?.data ?? []).find((p) => p.member_id === member.id) ?? null;
   const ranked = (board.data?.data ?? []).some((r) => r.division !== "self");
+  const titleId = useId();
+  const metric = t(`metric.${challenge.metric}` as EngKey);
+  const perks = [
+    t("challenges.perkGoal", { goal: challenge.goal, metric: metric.toLowerCase() }),
+    t("challenges.perkKind", { kind: t(`kind.${challenge.kind}` as EngKey) }),
+    t("challenges.perkDates", {
+      start: dayLabel(challenge.starts_on, lang),
+      end: dayLabel(challenge.ends_on, lang),
+    }),
+    t("challenges.perkPrivacy"),
+  ];
 
   return (
-    <Section title={challenge.name}>
-      <p className="muted">
-        {t(`kind.${challenge.kind}` as EngKey)} · {t(`metric.${challenge.metric}` as EngKey)} ·{" "}
-        {challenge.starts_on} → {challenge.ends_on}
-      </p>
+    <section className="section eng-ch" aria-labelledby={titleId}>
+      <div className="eng-ch__banner">
+        <span className="eng-ch__badge" aria-hidden="true">
+          <Icon name="dumbbell" size={36} />
+        </span>
+        <div className="eng-ch__title">
+          <span className="eng-ch__kicker">
+            {t(`kind.${challenge.kind}` as EngKey)} · {metric}
+          </span>
+          <h2 id={titleId}>{challenge.name}</h2>
+          <small>{t("challenges.until", { date: dayLabel(challenge.ends_on, lang) })}</small>
+        </div>
+        <img
+          className="eng-ch__img"
+          src="/brand/challenge-transformation.jpg"
+          alt=""
+          width={146}
+          height={141}
+        />
+        <ul className="eng-ch__perks">
+          {perks.map((p) => (
+            <li key={p}>
+              <Icon name="checkCircle" size={18} /> {p}
+            </li>
+          ))}
+        </ul>
+        <div className="eng-ch__cta">
+          {participation ? (
+            <span className="ds-pill">
+              <Icon name="check" size={16} /> {t("challenges.in")}
+            </span>
+          ) : null}
+          {!readOnly && mine.data && !participation ? (
+            <JoinForm
+              challenge={challenge}
+              memberId={member.id}
+              onJoined={() => setVersion((v) => v + 1)}
+            />
+          ) : null}
+        </div>
+      </div>
       {board.error ? <ErrorNote code={board.error} onRetry={board.reload} /> : null}
       {own.map((r) => (
-        <p key={r.label} className="eng-progress">
-          {readOnly
-            ? t("challenges.wardProgress", { name: r.label, progress: r.progress, goal: r.goal })
-            : t("challenges.myProgress", { progress: r.progress, goal: r.goal })}
-          <progress max={r.goal} value={Math.min(r.progress, r.goal)} aria-hidden="true" />
-        </p>
+        <div key={r.label} className="eng-progress">
+          <p className="eng-progress__label">
+            <Icon name="chart" size={20} />
+            {readOnly
+              ? t("challenges.wardProgress", { name: r.label, progress: r.progress, goal: r.goal })
+              : t("challenges.myProgress", { progress: r.progress, goal: r.goal })}
+            <span className="eng-progress__pct">
+              {r.goal > 0 ? Math.min(100, Math.round((r.progress / r.goal) * 100)) : 0}%
+            </span>
+          </p>
+          <span className="ds-bar" aria-hidden="true">
+            <span
+              style={{
+                width: `${r.goal > 0 ? Math.min(100, (r.progress / r.goal) * 100) : 0}%`,
+              }}
+            />
+          </span>
+        </div>
       ))}
-      {!readOnly && mine.data && !participation ? (
-        <JoinForm
-          challenge={challenge}
-          memberId={member.id}
-          onJoined={() => setVersion((v) => v + 1)}
-        />
-      ) : null}
-      {!readOnly && participation ? (
-        <Preferences
-          challengeId={challenge.id}
-          memberId={member.id}
-          show={participation.show_on_leaderboard}
-          mode={participation.compare_mode}
-          onSaved={() => setVersion((v) => v + 1)}
-        />
-      ) : null}
-      {participation?.compare_mode === "self" ? (
-        <p className="help">{t("challenges.selfOnly")}</p>
-      ) : null}
-      {ranked || (!participation && !readOnly) ? (
-        <Leaderboard
-          challengeId={challenge.id}
-          title={t("challenges.leaderboard")}
-          version={version}
-        />
-      ) : null}
-    </Section>
+      <div className="eng-ch__body">
+        {!readOnly && participation ? (
+          <div className="eng-ch__prefs">
+            <Preferences
+              challengeId={challenge.id}
+              memberId={member.id}
+              show={participation.show_on_leaderboard}
+              mode={participation.compare_mode}
+              onSaved={() => setVersion((v) => v + 1)}
+            />
+            {participation.compare_mode === "self" ? (
+              <p className="help">{t("challenges.selfOnly")}</p>
+            ) : null}
+          </div>
+        ) : participation?.compare_mode === "self" ? (
+          <p className="help">{t("challenges.selfOnly")}</p>
+        ) : null}
+        {ranked || (!participation && !readOnly) ? (
+          <Leaderboard
+            challengeId={challenge.id}
+            title={t("challenges.leaderboard")}
+            version={version}
+            bare
+          />
+        ) : null}
+      </div>
+    </section>
   );
+}
+
+function dayLabel(ymd: string, lang: "es" | "en"): string {
+  const [y, m, d] = ymd.split("-").map(Number);
+  if (!y || !m || !d) return ymd;
+  return new Intl.DateTimeFormat(lang === "es" ? "es-PR" : "en-US", {
+    day: "numeric",
+    month: "short",
+    timeZone: "UTC",
+  })
+    .format(new Date(Date.UTC(y, m - 1, d)))
+    .replace(".", "");
 }
 
 function JoinForm({
@@ -175,7 +263,7 @@ function JoinForm({
   }
 
   return (
-    <form className="form form--boxed" onSubmit={submit}>
+    <form className="form eng-join" onSubmit={submit}>
       {challenge.kind === "team" ? (
         <div className="field">
           <label htmlFor={ids.team}>{t("challenges.team")}</label>
@@ -205,14 +293,10 @@ function JoinForm({
         </p>
       </div>
       <div className="form__actions">
-        <button
-          type="submit"
-          className="btn btn--primary"
-          disabled={busy}
-          data-tour-id="eng-challenge-join"
-        >
+        <button type="submit" className="ds-cta" disabled={busy} data-tour-id="eng-challenge-join">
           {t("challenges.join")}
           <span className="sr-only">: {challenge.name}</span>
+          <Icon name="arrowRight" size={18} />
         </button>
       </div>
       <LiveResult tone={announce ? "ok" : undefined}>{announce}</LiveResult>
@@ -244,7 +328,7 @@ function Preferences({
   const ids = { s: useId(), r: useId() };
   return (
     <form
-      className="form form--boxed"
+      className="form eng-prefs"
       onSubmit={async (e) => {
         e.preventDefault();
         const ok = await act(
@@ -257,6 +341,10 @@ function Preferences({
         if (ok) onSaved();
       }}
     >
+      <h3 className="eng-h3">
+        <Icon d={ENG_ICON.shield} size={20} />
+        {t("challenges.privacy")}
+      </h3>
       <span className="eng-check">
         <input id={ids.s} type="checkbox" checked={s} onChange={(e) => setS(e.target.checked)} />
         <label htmlFor={ids.s}>{t("challenges.showMe")}</label>
@@ -285,7 +373,7 @@ function Preferences({
 export function WallScreen() {
   const { t } = useEngT();
   return (
-    <WithMembers title={t("wall.title")}>
+    <WithMembers title={t("wall.title")} lede={t("wall.lede")}>
       {(rows) => <Wall memberId={(rows[0] as Member).id} />}
     </WithMembers>
   );
@@ -325,8 +413,8 @@ function Wall({ memberId }: { memberId: string }) {
 
   return (
     <>
-      <Section title={t("wall.compose")}>
-        <form className="form form--boxed" onSubmit={submit} noValidate>
+      <Card title={t("wall.compose")} icon={{ name: "chat" }}>
+        <form className="form" onSubmit={submit} noValidate>
           <div className="field field--wide">
             <label htmlFor={ids.b}>{t("wall.body")}</label>
             <textarea
@@ -357,6 +445,7 @@ function Wall({ memberId }: { memberId: string }) {
               disabled={busy}
               data-tour-id="eng-wall-post"
             >
+              <Icon d={ENG_ICON.send} size={18} />
               {t("wall.send")}
             </button>
           </div>
@@ -378,20 +467,22 @@ function Wall({ memberId }: { memberId: string }) {
         {mine.length > 0 ? (
           <ul className="eng-posts">
             {mine.map((p) => (
-              <li key={p.id} className="eng-post">
+              <li key={p.id} className="eng-post eng-post--mine">
                 <Plate tone={statusTone(p.status)}>{t(`status.${p.status}` as EngKey)}</Plate>
                 <p className="eng-post__body">{p.body}</p>
               </li>
             ))}
           </ul>
         ) : null}
-      </Section>
-      <Section title={t("wall.feed")}>
+      </Card>
+      <Card title={t("wall.feed")} icon={{ name: "users" }}>
         {posts.loading && !posts.data ? <Loading /> : null}
         {posts.error ? <ErrorNote code={posts.error} onRetry={posts.reload} /> : null}
-        {posts.data && feed.length === 0 ? <p className="muted">{t("wall.none")}</p> : null}
+        {posts.data && feed.length === 0 ? (
+          <Empty icon={{ name: "chat" }} text={t("wall.none")} />
+        ) : null}
         <PostList posts={feed} />
-      </Section>
+      </Card>
     </>
   );
 }
@@ -400,7 +491,7 @@ function Wall({ memberId }: { memberId: string }) {
 export function ReferScreen() {
   const { t } = useEngT();
   return (
-    <WithMembers title={t("refer.title")}>
+    <WithMembers title={t("refer.title")} lede={t("refer.lede")}>
       {(rows) => <Refer memberId={(rows[0] as Member).id} />}
     </WithMembers>
   );
@@ -417,9 +508,9 @@ function Refer({ memberId }: { memberId: string }) {
   const ids = { e: useId(), help: useId() };
   return (
     <>
-      <Section title={t("refer.title")}>
+      <Card title={t("refer.title")} icon={{ name: "userPlus" }}>
         <form
-          className="form form--boxed"
+          className="form"
           onSubmit={async (e) => {
             e.preventDefault();
             const ok = await act(
@@ -458,6 +549,7 @@ function Refer({ memberId }: { memberId: string }) {
               disabled={busy}
               data-tour-id="eng-refer-send"
             >
+              <Icon name="userPlus" size={18} />
               {t("refer.send")}
             </button>
           </div>
@@ -469,11 +561,11 @@ function Refer({ memberId }: { memberId: string }) {
           </p>
         ) : null}
         {error && error !== "invalid_input" ? <ErrorNote code={error} /> : null}
-      </Section>
-      <Section title={t("refer.mine")}>
+      </Card>
+      <Card title={t("refer.mine")} icon={{ name: "users" }}>
         {list.error ? <ErrorNote code={list.error} onRetry={list.reload} /> : null}
         {list.data && list.data.data.length === 0 ? (
-          <p className="muted">{t("refer.none")}</p>
+          <Empty icon={{ name: "userPlus" }} text={t("refer.none")} />
         ) : null}
         {list.data && list.data.data.length > 0 ? (
           <TableWrap label={t("refer.mine")}>
@@ -503,7 +595,7 @@ function Refer({ memberId }: { memberId: string }) {
             </table>
           </TableWrap>
         ) : null}
-      </Section>
+      </Card>
     </>
   );
 }
@@ -512,7 +604,7 @@ function Refer({ memberId }: { memberId: string }) {
 export function RedeemScreen() {
   const { t } = useEngT();
   return (
-    <WithMembers title={t("redeem.title")}>
+    <WithMembers title={t("redeem.title")} lede={t("redeem.lede")}>
       {(rows) => <Redeem memberId={(rows[0] as Member).id} />}
     </WithMembers>
   );
@@ -532,39 +624,67 @@ function Redeem({ memberId }: { memberId: string }) {
   const balance = pts.data?.balance ?? 0;
   return (
     <>
-      <Section title={t("rewards.title")}>
-        {pts.data ? <p className="lede">{t("redeem.balance", { n: balance })}</p> : null}
+      {pts.data ? (
+        <div className="ds-stats">
+          <Stat
+            icon={{ name: "coin" }}
+            label={t("points.balance")}
+            value={balance}
+            hint={t("redeem.balance", { n: balance })}
+          />
+        </div>
+      ) : null}
+      <Card title={t("rewards.title")} icon={{ d: ENG_ICON.gift }}>
         {rewards.error ? <ErrorNote code={rewards.error} onRetry={rewards.reload} /> : null}
         {rewards.data && rewards.data.data.length === 0 ? (
-          <p className="muted">{t("rewards.none")}</p>
+          <Empty icon={{ d: ENG_ICON.gift }} text={t("rewards.none")} />
         ) : null}
-        <ul className="eng-posts">
-          {(rewards.data?.data ?? []).map((r) => (
-            <li key={r.id} className="eng-post">
-              <p className="eng-post__meta">
-                <strong>{r.name}</strong> · <span className="mono">{r.points_cost}</span>
-              </p>
-              {r.description ? <p className="eng-post__body">{r.description}</p> : null}
-              <button
-                type="button"
-                className="btn btn--primary"
-                disabled={busy || balance < r.points_cost}
-                data-tour-id="eng-redeem"
-                onClick={() =>
-                  act(set, async () => {
-                    await eng.redeem(memberId, r.id);
-                    setVersion((v) => v + 1);
-                    return t("redeem.done");
-                  })
-                }
-              >
-                {t("redeem.cta")}
-                <span className="sr-only">
-                  : {t("redeem.ctaFor", { name: r.name, cost: r.points_cost })}
+        <ul className="ds-grid eng-rewards">
+          {(rewards.data?.data ?? []).map((r) => {
+            const pct = r.points_cost > 0 ? Math.min(100, (balance / r.points_cost) * 100) : 100;
+            return (
+              <li key={r.id} className="eng-reward">
+                <span className="eng-reward__icon" aria-hidden="true">
+                  <Icon d={ENG_ICON.gift} size={28} />
                 </span>
-              </button>
-            </li>
-          ))}
+                <div className="eng-reward__text">
+                  <strong>{r.name}</strong>
+                  {r.description ? <span className="muted">{r.description}</span> : null}
+                </div>
+                <span className="ds-pill eng-reward__cost">
+                  <Icon name="coin" size={16} /> <span className="mono">{r.points_cost}</span>
+                </span>
+                <span className="ds-bar eng-reward__bar" aria-hidden="true">
+                  <span style={{ width: `${pct}%` }} />
+                </span>
+                <div className="eng-reward__foot">
+                  <span className="muted">
+                    {balance < r.points_cost
+                      ? t("redeem.missing", { n: r.points_cost - balance })
+                      : ""}
+                  </span>
+                  <button
+                    type="button"
+                    className="ds-cta"
+                    disabled={busy || balance < r.points_cost}
+                    data-tour-id="eng-redeem"
+                    onClick={() =>
+                      act(set, async () => {
+                        await eng.redeem(memberId, r.id);
+                        setVersion((v) => v + 1);
+                        return t("redeem.done");
+                      })
+                    }
+                  >
+                    {t("redeem.cta")}
+                    <span className="sr-only">
+                      : {t("redeem.ctaFor", { name: r.name, cost: r.points_cost })}
+                    </span>
+                  </button>
+                </div>
+              </li>
+            );
+          })}
         </ul>
         <LiveResult tone={announce ? "ok" : undefined}>{announce}</LiveResult>
         {error === "conflict" ? (
@@ -578,10 +698,10 @@ function Redeem({ memberId }: { memberId: string }) {
           </p>
         ) : null}
         {error && error !== "conflict" && error !== "forbidden" ? <ErrorNote code={error} /> : null}
-      </Section>
-      <Section title={t("redeem.mine")}>
+      </Card>
+      <Card title={t("redeem.mine")} icon={{ name: "receipt" }}>
         {mine.data && mine.data.data.length === 0 ? (
-          <p className="muted">{t("redeem.noneMine")}</p>
+          <Empty icon={{ name: "receipt" }} text={t("redeem.noneMine")} />
         ) : null}
         {mine.data && mine.data.data.length > 0 ? (
           <TableWrap label={t("redeem.mine")}>
@@ -629,7 +749,7 @@ function Redeem({ memberId }: { memberId: string }) {
             </table>
           </TableWrap>
         ) : null}
-      </Section>
+      </Card>
     </>
   );
 }

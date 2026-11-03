@@ -1,11 +1,13 @@
 import { type FormEvent, useId, useMemo, useState } from "react";
 import { type ErrorCode, toErrorCode } from "../../api/client";
-import { ErrorNote, LiveResult, Plate, Section } from "../../components/ui";
+import { Icon } from "../../components/icons";
+import { ErrorNote, LiveResult, Plate } from "../../components/ui";
 import { useSession } from "../../session/SessionContext";
 import { STATION_CODE, type StationCard, floorApi, normalizeCode } from "./api";
 import { useFloorT } from "./dict";
 import { assetTone } from "./shared";
 import "./floor.css";
+import { Card, Empty, FLOOR_ICON } from "./ui";
 
 /** Member "Escanear estación": type or paste the code from a QR label → exercise card with technique cues. */
 export function StationScreen() {
@@ -55,62 +57,78 @@ export function StationScreen() {
   }
 
   return (
-    <div className="page">
-      <h1 className="page__title">{t("station.title")}</h1>
-      <p className="lede">{t("station.lede")}</p>
-      <form className="form" onSubmit={lookup} noValidate>
-        <div className="toolbar">
-          <div className="field field--grow">
-            <label htmlFor={ids.code}>{t("station.code")}</label>
-            <input
-              id={ids.code}
-              value={code}
-              maxLength={40}
-              autoComplete="off"
-              autoCapitalize="characters"
-              spellCheck={false}
-              className="mono"
-              aria-invalid={problem === "invalid"}
-              aria-describedby={problem ? ids.err : undefined}
-              data-tour-id="floor-station-code"
-              onChange={(e) => setCode(e.target.value)}
-            />
+    <div className="page floor-page">
+      <div className="floor-head">
+        <h1 className="page__title">{t("station.title")}</h1>
+        <p className="lede">{t("station.lede")}</p>
+      </div>
+      <Card title={t("station.find")} icon={{ name: "qr" }}>
+        <form className="form" onSubmit={lookup} noValidate>
+          <div className="toolbar floor-lookup">
+            <div className="field field--grow">
+              <label htmlFor={ids.code}>{t("station.code")}</label>
+              <input
+                id={ids.code}
+                value={code}
+                maxLength={40}
+                autoComplete="off"
+                autoCapitalize="characters"
+                spellCheck={false}
+                className="mono"
+                aria-invalid={problem === "invalid"}
+                aria-describedby={problem ? ids.err : undefined}
+                data-tour-id="floor-station-code"
+                onChange={(e) => setCode(e.target.value)}
+              />
+            </div>
+            <button
+              type="submit"
+              className="btn btn--primary"
+              disabled={busy}
+              data-tour-id="floor-station-lookup"
+            >
+              <Icon d={FLOOR_ICON.search} size={18} />
+              {t("station.lookup")}
+            </button>
           </div>
-          <button
-            type="submit"
-            className="btn btn--primary"
-            disabled={busy}
-            data-tour-id="floor-station-lookup"
-          >
-            {t("station.lookup")}
-          </button>
-        </div>
-        {problem ? (
-          <p id={ids.err} className="field-error" role="alert">
-            {problem === "invalid" ? t("station.invalid") : t("station.notFound")}
-          </p>
-        ) : null}
-      </form>
+          {problem ? (
+            <p id={ids.err} className="field-error" role="alert">
+              {problem === "invalid" ? t("station.invalid") : t("station.notFound")}
+            </p>
+          ) : null}
+        </form>
+      </Card>
       {error ? <ErrorNote code={error} /> : null}
       <LiveResult tone={note ? "ok" : undefined}>{note}</LiveResult>
 
       {card ? (
-        <Section title={`${card.asset.station_code} · ${label("eq", card.asset.equipment_type)}`}>
+        <Card
+          title={`${card.asset.station_code} · ${label("eq", card.asset.equipment_type)}`}
+          icon={{ name: "dumbbell" }}
+        >
           <div className="floor-card__meta">
-            <span>{card.asset.location_name}</span>
+            <span className="floor-meta-item">
+              <Icon name="pin" size={18} />
+              {card.asset.location_name}
+            </span>
             {card.asset.brand ? (
               <span>{[card.asset.brand, card.asset.model].filter(Boolean).join(" · ")}</span>
             ) : null}
             <Plate tone={assetTone(card.asset.status)}>{label("status", card.asset.status)}</Plate>
           </div>
-          <h3>{t("station.exercises")}</h3>
-          {card.exercises.length === 0 ? <p className="muted">{t("station.noExercises")}</p> : null}
-          <ul className="floor-cards">
+          <h3 className="floor-h3">
+            <Icon name="layers" size={20} />
+            {t("station.exercises")}
+          </h3>
+          {card.exercises.length === 0 ? (
+            <Empty icon={{ name: "dumbbell" }} text={t("station.noExercises")} />
+          ) : null}
+          <ul className="floor-cards ds-grid">
             {card.exercises.map((e) => (
               <li key={e.id} className="floor-card">
                 <h4 className="floor-card__title">{e.name}</h4>
                 <div className="floor-card__meta">
-                  <span>{label("pattern", e.movement_pattern)}</span>
+                  <span className="floor-chip">{label("pattern", e.movement_pattern)}</span>
                 </div>
                 {e.cues ? <p className="floor-cues">{e.cues}</p> : null}
               </li>
@@ -118,10 +136,13 @@ export function StationScreen() {
           </ul>
           {card.circuit_steps.length > 0 ? (
             <>
-              <h3>{t("station.inCircuits")}</h3>
-              <ul>
+              <h3 className="floor-h3">
+                <Icon name="layers" size={20} />
+                {t("station.inCircuits")}
+              </h3>
+              <ul className="floor-chips">
                 {card.circuit_steps.map((s) => (
-                  <li key={`${s.circuit_id}:${s.position}`}>
+                  <li key={`${s.circuit_id}:${s.position}`} className="floor-chip">
                     {s.circuit_name} · {s.position}
                   </li>
                 ))}
@@ -136,11 +157,12 @@ export function StationScreen() {
                 data-tour-id="floor-station-oos"
                 onClick={reportOos}
               >
+                <Icon d={FLOOR_ICON.alert} size={18} />
                 {t("my.oos")}
               </button>
             </div>
           ) : null}
-        </Section>
+        </Card>
       ) : null}
     </div>
   );

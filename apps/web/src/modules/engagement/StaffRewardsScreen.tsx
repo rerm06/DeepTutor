@@ -1,11 +1,12 @@
 import { type FormEvent, useId, useState } from "react";
 import type { ErrorCode } from "../../api/client";
-import { ErrorNote, LiveResult, Loading, Plate, Section, TableWrap } from "../../components/ui";
+import { Icon } from "../../components/icons";
+import { ErrorNote, LiveResult, Loading, Plate, TableWrap } from "../../components/ui";
 import { formatDateTime } from "../../lib/format";
 import { useAsync } from "../../lib/useAsync";
 import { useSession } from "../../session/SessionContext";
 import { useEngT } from "./dict";
-import { act, isConfig, useEng } from "./shared";
+import { Card, ENG_ICON, Empty, PageHead, Stat, act, isConfig, useEng } from "./shared";
 
 /** Staff "Recompensas": catalogue (owner/manager edit) and redemptions to hand over (front of house). */
 export function StaffRewardsScreen() {
@@ -17,15 +18,26 @@ export function StaffRewardsScreen() {
   const [error, setError] = useState<ErrorCode | null>(null);
   const [announce, setAnnounce] = useState<string | null>(null);
   const canEdit = isConfig(role);
+  const all = rewards.data?.data ?? [];
 
   return (
-    <div className="page">
-      <h1 className="page__title">{t("rewards.title")}</h1>
-      <Section title={t("rewards.title")}>
+    <div className="page eng-page">
+      <PageHead title={t("rewards.title")} lede={t("rewards.lede")} />
+      {rewards.data ? (
+        <div className="ds-stats">
+          <Stat
+            icon={{ d: ENG_ICON.gift }}
+            label={t("rewards.statActive")}
+            value={all.filter((r) => r.active).length}
+          />
+          <Stat icon={{ name: "layers" }} label={t("rewards.statTotal")} value={all.length} />
+        </div>
+      ) : null}
+      <Card title={t("rewards.title")} icon={{ d: ENG_ICON.gift }}>
         {rewards.loading && !rewards.data ? <Loading /> : null}
         {rewards.error ? <ErrorNote code={rewards.error} onRetry={rewards.reload} /> : null}
         {rewards.data && rewards.data.data.length === 0 ? (
-          <p className="muted">{t("rewards.none")}</p>
+          <Empty icon={{ d: ENG_ICON.gift }} text={t("rewards.none")} />
         ) : null}
         {rewards.data && rewards.data.data.length > 0 ? (
           <TableWrap label={t("rewards.title")}>
@@ -46,8 +58,22 @@ export function StaffRewardsScreen() {
                       {r.name}
                       {r.description ? <span className="muted"> · {r.description}</span> : null}
                     </th>
-                    <td className="mono">{r.points_cost}</td>
-                    <td>{r.restricted_for_minors ? "✓" : "—"}</td>
+                    <td>
+                      <span className="ds-pill">
+                        <Icon name="coin" size={14} />
+                        <span className="mono">{r.points_cost}</span>
+                      </span>
+                    </td>
+                    <td>
+                      {r.restricted_for_minors ? (
+                        <span className="eng-yes">
+                          <Icon name="check" size={18} />
+                          <span className="sr-only">✓</span>
+                        </span>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
                     <td>
                       <Plate tone={r.active ? "ok" : "neutral"}>{r.active ? "✓" : "—"}</Plate>
                     </td>
@@ -81,7 +107,7 @@ export function StaffRewardsScreen() {
         ) : null}
         <LiveResult tone={announce ? "ok" : undefined}>{announce}</LiveResult>
         {error ? <ErrorNote code={error} /> : null}
-      </Section>
+      </Card>
       {canEdit ? <CreateReward onCreated={rewards.reload} /> : null}
       <Redemptions />
     </div>
@@ -119,8 +145,8 @@ function CreateReward({ onCreated }: { onCreated: () => void }) {
   }
 
   return (
-    <Section title={t("rewards.create")}>
-      <form className="form form--boxed" onSubmit={submit} aria-describedby={ids.help}>
+    <Card title={t("rewards.create")} icon={{ name: "calendarPlus" }}>
+      <form className="form" onSubmit={submit} aria-describedby={ids.help}>
         <p id={ids.help} className="help">
           {t("rewards.noCash")}
         </p>
@@ -184,7 +210,7 @@ function CreateReward({ onCreated }: { onCreated: () => void }) {
       </form>
       <LiveResult tone={announce ? "ok" : undefined}>{announce}</LiveResult>
       {error ? <ErrorNote code={error} /> : null}
-    </Section>
+    </Card>
   );
 }
 
@@ -197,10 +223,10 @@ function Redemptions() {
   const [announce, setAnnounce] = useState<string | null>(null);
   const set = { busy: setBusy, error: setError, announce: setAnnounce };
   return (
-    <Section title={t("rewards.redemptions")}>
+    <Card title={t("rewards.redemptions")} icon={{ name: "bag" }}>
       {rows.error ? <ErrorNote code={rows.error} onRetry={rows.reload} /> : null}
       {rows.data && rows.data.data.length === 0 ? (
-        <p className="muted">{t("rewards.noRedemptions")}</p>
+        <Empty icon={{ name: "checkCircle" }} text={t("rewards.noRedemptions")} />
       ) : null}
       {rows.data && rows.data.data.length > 0 ? (
         <TableWrap label={t("rewards.redemptions")}>
@@ -270,6 +296,6 @@ function Redemptions() {
       ) : null}
       <LiveResult tone={announce ? "ok" : undefined}>{announce}</LiveResult>
       {error ? <ErrorNote code={error} /> : null}
-    </Section>
+    </Card>
   );
 }

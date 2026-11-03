@@ -1,11 +1,12 @@
 import { type ReactNode, useState } from "react";
 import type { ErrorCode } from "../../api/client";
-import { ErrorNote, LiveResult, Loading, Section } from "../../components/ui";
+import { Icon } from "../../components/icons";
+import { ErrorNote, LiveResult, Loading } from "../../components/ui";
 import { formatDateTime } from "../../lib/format";
 import { useAsync } from "../../lib/useAsync";
 import type { Post } from "./api";
 import { useEngT } from "./dict";
-import { act, useEng } from "./shared";
+import { Card, Empty, PageHead, Stat, act, useEng } from "./shared";
 
 /** Staff "Comunidad": moderation queue (pending) and published posts (take-down). Location-scoped by the API. */
 export function StaffCommunityScreen() {
@@ -26,15 +27,29 @@ export function StaffCommunityScreen() {
     });
 
   return (
-    <div className="page">
-      <h1 className="page__title">{t("community.title")}</h1>
+    <div className="page eng-page">
+      <PageHead title={t("community.title")} lede={t("community.lede")} />
+      {pending.data && approved.data ? (
+        <div className="ds-stats">
+          <Stat
+            icon={{ name: "bell" }}
+            label={t("community.queue")}
+            value={pending.data.data.length}
+          />
+          <Stat
+            icon={{ name: "chat" }}
+            label={t("community.published")}
+            value={approved.data.data.length}
+          />
+        </div>
+      ) : null}
       <LiveResult tone={announce ? "ok" : undefined}>{announce}</LiveResult>
       {error ? <ErrorNote code={error} /> : null}
-      <Section title={t("community.queue")}>
+      <Card title={t("community.queue")} icon={{ name: "bell" }}>
         {pending.loading && !pending.data ? <Loading /> : null}
         {pending.error ? <ErrorNote code={pending.error} onRetry={pending.reload} /> : null}
         {pending.data && pending.data.data.length === 0 ? (
-          <p className="muted">{t("community.queueEmpty")}</p>
+          <Empty icon={{ name: "checkCircle" }} text={t("community.queueEmpty")} />
         ) : null}
         <PostList
           posts={pending.data?.data ?? []}
@@ -47,6 +62,7 @@ export function StaffCommunityScreen() {
                 data-tour-id="eng-post-approve"
                 onClick={() => decide(p, "approve")}
               >
+                <Icon name="check" size={18} />
                 {t("community.approve")}
                 <span className="sr-only">: {p.author_label}</span>
               </button>
@@ -63,8 +79,8 @@ export function StaffCommunityScreen() {
             </div>
           )}
         />
-      </Section>
-      <Section title={t("community.published")}>
+      </Card>
+      <Card title={t("community.published")} icon={{ name: "chat" }}>
         {approved.error ? <ErrorNote code={approved.error} onRetry={approved.reload} /> : null}
         <PostList
           posts={approved.data?.data ?? []}
@@ -80,7 +96,7 @@ export function StaffCommunityScreen() {
             </button>
           )}
         />
-      </Section>
+      </Card>
     </div>
   );
 }
@@ -91,14 +107,28 @@ export function PostList({ posts, actions }: { posts: Post[]; actions?: (p: Post
     <ul className="eng-posts">
       {posts.map((p) => (
         <li key={p.id} className="eng-post">
-          <p className="eng-post__meta">
-            <strong>{p.author_label}</strong> ·{" "}
-            <span className="muted">{formatDateTime(p.created_at, lang)}</span>
-          </p>
-          <p className="eng-post__body">{p.body}</p>
-          {actions ? actions(p) : null}
+          <span className="eng-post__avatar" aria-hidden="true">
+            {initials(p.author_label)}
+          </span>
+          <div className="eng-post__main">
+            <p className="eng-post__meta">
+              <strong>{p.author_label}</strong> ·{" "}
+              <span className="muted">{formatDateTime(p.created_at, lang)}</span>
+            </p>
+            <p className="eng-post__body">{p.body}</p>
+            {actions ? actions(p) : null}
+          </div>
         </li>
       ))}
     </ul>
   );
+}
+
+function initials(label: string): string {
+  return label
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase() ?? "")
+    .join("");
 }

@@ -2,7 +2,8 @@ import QRCode from "qrcode";
 import { type FormEvent, useEffect, useId, useMemo, useState } from "react";
 import { type ErrorCode, toErrorCode } from "../../api/client";
 import type { Location } from "../../api/types";
-import { ErrorNote, LiveResult, Loading, Plate, Section, TableWrap } from "../../components/ui";
+import { Icon } from "../../components/icons";
+import { ErrorNote, LiveResult, Loading, Plate, TableWrap } from "../../components/ui";
 import { useAsync } from "../../lib/useAsync";
 import { useSession } from "../../session/SessionContext";
 import {
@@ -19,6 +20,7 @@ import {
 import { useFloorT } from "./dict";
 import { assetTone, formatWhen } from "./shared";
 import "./floor.css";
+import { Card, Empty, FLOOR_ICON, Stat } from "./ui";
 
 /** Staff "Equipos": equipment by location with status toggle, the issues queue and a printable code list. */
 export function EquipmentScreen() {
@@ -41,9 +43,12 @@ export function EquipmentScreen() {
   const rows = assets.data?.data ?? [];
 
   return (
-    <div className="page">
+    <div className="page floor-page">
       <div className="page__head">
-        <h1 className="page__title">{t("equipment.title")}</h1>
+        <div className="floor-head">
+          <h1 className="page__title">{t("equipment.title")}</h1>
+          <p className="lede">{t("equipment.lede")}</p>
+        </div>
         <div className="row-actions">
           {manage ? (
             <button
@@ -54,6 +59,7 @@ export function EquipmentScreen() {
               aria-controls={newId}
               onClick={() => setShowNew((v) => !v)}
             >
+              <Icon d={FLOOR_ICON.plus} size={18} />
               {t("equipment.new")}
             </button>
           ) : null}
@@ -65,11 +71,31 @@ export function EquipmentScreen() {
             aria-controls={printId}
             onClick={() => setShowPrint((v) => !v)}
           >
+            <Icon name="qr" size={18} />
             {t("equipment.print")}
           </button>
         </div>
       </div>
-      <p className="lede">{t("equipment.lede")}</p>
+      {assets.data ? (
+        <div className="ds-stats">
+          <Stat icon={{ name: "dumbbell" }} label={t("equipment.statTotal")} value={rows.length} />
+          <Stat
+            icon={{ name: "checkCircle" }}
+            label={t("equipment.statOk")}
+            value={rows.filter((a) => a.status === "ok").length}
+          />
+          <Stat
+            icon={{ d: FLOOR_ICON.wrench }}
+            label={t("equipment.statDown")}
+            value={rows.filter((a) => a.status !== "ok").length}
+          />
+          <Stat
+            icon={{ name: "bell" }}
+            label={t("equipment.statIssues")}
+            value={rows.reduce((n, a) => n + a.open_issues, 0)}
+          />
+        </div>
+      ) : null}
 
       {manage && showNew ? (
         <div id={newId}>
@@ -83,70 +109,73 @@ export function EquipmentScreen() {
         </div>
       ) : null}
 
-      <div className="toolbar">
-        <div className="field">
-          <label htmlFor={filterId}>{t("common.location")}</label>
-          <select
-            id={filterId}
-            value={locationId}
-            onChange={(e) => setLocationId(e.target.value)}
-            data-tour-id="floor-filter-location"
-          >
-            <option value="">{t("common.allLocations")}</option>
-            {locs.map((l) => (
-              <option key={l.id} value={l.id}>
-                {l.name}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-
       <LiveResult>{announce}</LiveResult>
-      {locations.error ? <ErrorNote code={locations.error} onRetry={locations.reload} /> : null}
-      {assets.error ? <ErrorNote code={assets.error} onRetry={assets.reload} /> : null}
-      {assets.loading ? <Loading /> : null}
-
       {showPrint && assets.data ? (
         <div id={printId}>
           <PrintList assets={rows} locName={locName} />
         </div>
       ) : null}
 
-      {assets.data ? (
-        rows.length === 0 ? (
-          <p className="muted">{t("common.empty")}</p>
-        ) : (
-          <TableWrap label={t("equipment.title")}>
-            <table className="table">
-              <thead>
-                <tr>
-                  <th scope="col">{t("common.code")}</th>
-                  <th scope="col">{t("common.type")}</th>
-                  <th scope="col">{t("common.location")}</th>
-                  <th scope="col">{t("equipment.brand")}</th>
-                  <th scope="col">{t("equipment.openIssues")}</th>
-                  <th scope="col">{t("common.status")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((a) => (
-                  <AssetRow
-                    key={a.id}
-                    asset={a}
-                    locationName={locName.get(a.location_id) ?? ""}
-                    manage={manage}
-                    onChanged={(msg) => {
-                      setAnnounce(msg);
-                      assets.reload();
-                    }}
-                  />
-                ))}
-              </tbody>
-            </table>
-          </TableWrap>
-        )
-      ) : null}
+      <Card
+        title={t("equipment.list")}
+        icon={{ name: "dumbbell" }}
+        actions={
+          <div className="field field--inline">
+            <label htmlFor={filterId}>{t("common.location")}</label>
+            <select
+              id={filterId}
+              value={locationId}
+              onChange={(e) => setLocationId(e.target.value)}
+              data-tour-id="floor-filter-location"
+            >
+              <option value="">{t("common.allLocations")}</option>
+              {locs.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        }
+      >
+        {locations.error ? <ErrorNote code={locations.error} onRetry={locations.reload} /> : null}
+        {assets.error ? <ErrorNote code={assets.error} onRetry={assets.reload} /> : null}
+        {assets.loading ? <Loading /> : null}
+        {assets.data ? (
+          rows.length === 0 ? (
+            <Empty icon={{ name: "dumbbell" }} text={t("common.empty")} />
+          ) : (
+            <TableWrap label={t("equipment.title")}>
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th scope="col">{t("common.code")}</th>
+                    <th scope="col">{t("common.type")}</th>
+                    <th scope="col">{t("common.location")}</th>
+                    <th scope="col">{t("equipment.brand")}</th>
+                    <th scope="col">{t("equipment.openIssues")}</th>
+                    <th scope="col">{t("common.status")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((a) => (
+                    <AssetRow
+                      key={a.id}
+                      asset={a}
+                      locationName={locName.get(a.location_id) ?? ""}
+                      manage={manage}
+                      onChanged={(msg) => {
+                        setAnnounce(msg);
+                        assets.reload();
+                      }}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            </TableWrap>
+          )
+        ) : null}
+      </Card>
 
       <IssuesQueue
         locationId={locationId}
@@ -201,7 +230,13 @@ function AssetRow({
       <td>{label("eq", asset.equipment_type)}</td>
       <td>{locationName}</td>
       <td>{[asset.brand, asset.model].filter(Boolean).join(" · ") || "—"}</td>
-      <td>{asset.open_issues}</td>
+      <td>
+        {asset.open_issues > 0 ? (
+          <span className="floor-count floor-count--warn">{asset.open_issues}</span>
+        ) : (
+          <span className="floor-count">{asset.open_issues}</span>
+        )}
+      </td>
       <td>
         {manage ? (
           <div className="field">
@@ -286,81 +321,82 @@ function NewAssetForm({
   }
 
   return (
-    <form className="form form--boxed" onSubmit={submit} noValidate>
-      <h2 className="form__title">{t("equipment.new")}</h2>
-      <div className="form__grid">
-        <div className="field">
-          <label htmlFor={ids.loc}>{t("common.location")}</label>
-          <select id={ids.loc} value={loc} onChange={(e) => setLocationId(e.target.value)}>
-            {locations.map((l) => (
-              <option key={l.id} value={l.id}>
-                {l.name}
-              </option>
-            ))}
-          </select>
+    <Card title={t("equipment.new")} icon={{ d: FLOOR_ICON.plus }}>
+      <form className="form" onSubmit={submit} noValidate>
+        <div className="form__grid">
+          <div className="field">
+            <label htmlFor={ids.loc}>{t("common.location")}</label>
+            <select id={ids.loc} value={loc} onChange={(e) => setLocationId(e.target.value)}>
+              {locations.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="field">
+            <label htmlFor={ids.type}>{t("common.type")}</label>
+            <select id={ids.type} value={type} onChange={(e) => setType(e.target.value)}>
+              {ASSET_TYPES.map((x) => (
+                <option key={x} value={x}>
+                  {label("eq", x)}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="field">
+            <label htmlFor={ids.code}>{t("common.code")}</label>
+            <input
+              id={ids.code}
+              value={code}
+              required
+              maxLength={24}
+              autoComplete="off"
+              className="mono"
+              aria-describedby={ids.help}
+              aria-invalid={!codeOk}
+              onChange={(e) => setCode(e.target.value)}
+            />
+            <p id={ids.help} className="help">
+              {t("equipment.codeHelp")}
+            </p>
+          </div>
+          <div className="field">
+            <label htmlFor={ids.brand}>
+              {t("equipment.brand")} <span className="muted">{t("common.optional")}</span>
+            </label>
+            <input
+              id={ids.brand}
+              value={brand}
+              maxLength={80}
+              onChange={(e) => setBrand(e.target.value)}
+            />
+          </div>
+          <div className="field">
+            <label htmlFor={ids.model}>
+              {t("equipment.model")} <span className="muted">{t("common.optional")}</span>
+            </label>
+            <input
+              id={ids.model}
+              value={model}
+              maxLength={80}
+              onChange={(e) => setModel(e.target.value)}
+            />
+          </div>
         </div>
-        <div className="field">
-          <label htmlFor={ids.type}>{t("common.type")}</label>
-          <select id={ids.type} value={type} onChange={(e) => setType(e.target.value)}>
-            {ASSET_TYPES.map((x) => (
-              <option key={x} value={x}>
-                {label("eq", x)}
-              </option>
-            ))}
-          </select>
+        {error ? <ErrorNote code={error} /> : null}
+        <div className="form__actions">
+          <button
+            type="submit"
+            className="btn btn--primary"
+            disabled={busy}
+            data-tour-id="floor-asset-save"
+          >
+            {busy ? t("common.saving") : t("common.save")}
+          </button>
         </div>
-        <div className="field">
-          <label htmlFor={ids.code}>{t("common.code")}</label>
-          <input
-            id={ids.code}
-            value={code}
-            required
-            maxLength={24}
-            autoComplete="off"
-            className="mono"
-            aria-describedby={ids.help}
-            aria-invalid={!codeOk}
-            onChange={(e) => setCode(e.target.value)}
-          />
-          <p id={ids.help} className="help">
-            {t("equipment.codeHelp")}
-          </p>
-        </div>
-        <div className="field">
-          <label htmlFor={ids.brand}>
-            {t("equipment.brand")} <span className="muted">{t("common.optional")}</span>
-          </label>
-          <input
-            id={ids.brand}
-            value={brand}
-            maxLength={80}
-            onChange={(e) => setBrand(e.target.value)}
-          />
-        </div>
-        <div className="field">
-          <label htmlFor={ids.model}>
-            {t("equipment.model")} <span className="muted">{t("common.optional")}</span>
-          </label>
-          <input
-            id={ids.model}
-            value={model}
-            maxLength={80}
-            onChange={(e) => setModel(e.target.value)}
-          />
-        </div>
-      </div>
-      {error ? <ErrorNote code={error} /> : null}
-      <div className="form__actions">
-        <button
-          type="submit"
-          className="btn btn--primary"
-          disabled={busy}
-          data-tour-id="floor-asset-save"
-        >
-          {busy ? t("common.saving") : t("common.save")}
-        </button>
-      </div>
-    </form>
+      </form>
+    </Card>
   );
 }
 
@@ -411,8 +447,9 @@ function IssuesQueue({
 
   const rows = issues.data?.data ?? [];
   return (
-    <Section
+    <Card
       title={t("issues.title")}
+      icon={{ d: FLOOR_ICON.wrench }}
       actions={
         <div className="field field--inline">
           <label htmlFor={filterId}>{t("issues.filter")}</label>
@@ -430,7 +467,9 @@ function IssuesQueue({
       {issues.error ? <ErrorNote code={issues.error} onRetry={issues.reload} /> : null}
       {error ? <ErrorNote code={error} /> : null}
       {issues.loading ? <Loading /> : null}
-      {issues.data && rows.length === 0 ? <p className="muted">{t("issues.empty")}</p> : null}
+      {issues.data && rows.length === 0 ? (
+        <Empty icon={{ name: "checkCircle" }} text={t("issues.empty")} />
+      ) : null}
       {rows.length > 0 ? (
         <TableWrap label={t("issues.title")}>
           <table className="table">
@@ -450,8 +489,24 @@ function IssuesQueue({
                   <th scope="row" className="mono">
                     {i.station_code}
                   </th>
-                  <td>{label("issue", i.kind)}</td>
-                  <td>{label("issueStatus", i.status)}</td>
+                  <td>
+                    <Plate tone={i.kind === "out_of_service" ? "blocked" : "warn"}>
+                      {label("issue", i.kind)}
+                    </Plate>
+                  </td>
+                  <td>
+                    <Plate
+                      tone={
+                        i.status === "resolved"
+                          ? "ok"
+                          : i.status === "confirmed"
+                            ? "blocked"
+                            : "neutral"
+                      }
+                    >
+                      {label("issueStatus", i.status)}
+                    </Plate>
+                  </td>
                   <td className="nowrap">{formatWhen(i.reported_at, lang)}</td>
                   <td>{i.note ?? "—"}</td>
                   <td>
@@ -488,7 +543,7 @@ function IssuesQueue({
           </table>
         </TableWrap>
       ) : null}
-    </Section>
+    </Card>
   );
 }
 
@@ -519,9 +574,13 @@ function PrintList({ assets, locName }: { assets: Asset[]; locName: Map<string, 
   return (
     <section className="section floor-print" aria-label={t("equipment.printTitle")}>
       <div className="section__head">
-        <h2 className="section__title">{t("equipment.printTitle")}</h2>
+        <h2 className="section__title">
+          <Icon name="qr" size={24} className="floor-noprint" />
+          {t("equipment.printTitle")}
+        </h2>
         <div className="section__actions floor-noprint">
           <button type="button" className="btn btn--primary" onClick={() => window.print()}>
+            <Icon d={FLOOR_ICON.printer} size={18} />
             {t("equipment.printNow")}
           </button>
         </div>

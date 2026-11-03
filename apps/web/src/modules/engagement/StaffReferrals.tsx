@@ -1,10 +1,10 @@
 import { useState } from "react";
 import type { ErrorCode } from "../../api/client";
-import { ErrorNote, LiveResult, Plate, Section, TableWrap } from "../../components/ui";
+import { ErrorNote, LiveResult, Plate, TableWrap } from "../../components/ui";
 import { formatDateTime } from "../../lib/format";
 import { useAsync } from "../../lib/useAsync";
 import { type EngKey, useEngT } from "./dict";
-import { act, statusTone, useEng } from "./shared";
+import { Card, Empty, act, statusTone, useEng } from "./shared";
 
 /** Referrals of the members this front desk can see; "Acreditar" once the invitee is an active member. */
 export function StaffReferrals() {
@@ -16,9 +16,11 @@ export function StaffReferrals() {
   const [announce, setAnnounce] = useState<string | null>(null);
   const open = (rows.data?.data ?? []).filter((r) => r.status !== "credited");
   return (
-    <Section title={t("refer.staffTitle")}>
+    <Card title={t("refer.staffTitle")} icon={{ name: "userPlus" }}>
       {rows.error ? <ErrorNote code={rows.error} onRetry={rows.reload} /> : null}
-      {rows.data && open.length === 0 ? <p className="muted">{t("refer.none")}</p> : null}
+      {rows.data && open.length === 0 ? (
+        <Empty icon={{ name: "userPlus" }} text={t("refer.none")} />
+      ) : null}
       {open.length > 0 ? (
         <TableWrap label={t("refer.staffTitle")}>
           <table className="table">
@@ -66,6 +68,6 @@ export function StaffReferrals() {
       ) : null}
       <LiveResult tone={announce ? "ok" : undefined}>{announce}</LiveResult>
       {error ? <ErrorNote code={error} /> : null}
-    </Section>
+    </Card>
   );
 }

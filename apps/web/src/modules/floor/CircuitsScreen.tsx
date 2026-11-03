@@ -1,6 +1,7 @@
 import { type FormEvent, useEffect, useId, useMemo, useState } from "react";
 import { type ErrorCode, toErrorCode } from "../../api/client";
-import { ErrorNote, LiveResult, Loading, Plate, Section, TableWrap } from "../../components/ui";
+import { Icon } from "../../components/icons";
+import { ErrorNote, LiveResult, Loading, Plate, TableWrap } from "../../components/ui";
 import { useAsync } from "../../lib/useAsync";
 import { useSession } from "../../session/SessionContext";
 import {
@@ -14,6 +15,7 @@ import {
 } from "./api";
 import { useFloorT } from "./dict";
 import "./floor.css";
+import { Card, Empty, FLOOR_ICON, Stat } from "./ui";
 
 /** Staff "Circuitos": circuits per location and a builder for their ordered steps. */
 export function CircuitsScreen() {
@@ -42,11 +44,26 @@ export function CircuitsScreen() {
   }
 
   return (
-    <div className="page">
-      <div className="page__head">
+    <div className="page floor-page">
+      <div className="floor-head">
         <h1 className="page__title">{t("circuits.title")}</h1>
+        <p className="lede">{t("circuits.lede")}</p>
       </div>
-      <p className="lede">{t("circuits.lede")}</p>
+      {circuits.data ? (
+        <div className="ds-stats">
+          <Stat icon={{ name: "layers" }} label={t("circuits.statTotal")} value={rows.length} />
+          <Stat
+            icon={{ name: "checkCircle" }}
+            label={t("circuits.statActive")}
+            value={rows.filter((c) => c.active).length}
+          />
+          <Stat
+            icon={{ name: "dumbbell" }}
+            label={t("circuits.statSteps")}
+            value={rows.reduce((n, c) => n + c.steps, 0)}
+          />
+        </div>
+      ) : null}
       {manage ? (
         <NewCircuitForm
           locations={locs}
@@ -57,62 +74,69 @@ export function CircuitsScreen() {
         />
       ) : null}
       <LiveResult>{announce}</LiveResult>
-      {circuits.error ? <ErrorNote code={circuits.error} onRetry={circuits.reload} /> : null}
-      {error ? <ErrorNote code={error} /> : null}
-      {circuits.loading ? <Loading /> : null}
-      {circuits.data && rows.length === 0 ? <p className="muted">{t("common.empty")}</p> : null}
-      {rows.length > 0 ? (
-        <TableWrap label={t("circuits.title")}>
-          <table className="table">
-            <thead>
-              <tr>
-                <th scope="col">{t("common.name")}</th>
-                <th scope="col">{t("common.location")}</th>
-                <th scope="col">{t("circuits.steps")}</th>
-                <th scope="col">{t("common.status")}</th>
-                <th scope="col">{t("common.actions")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((c) => (
-                <tr key={c.id}>
-                  <th scope="row">{c.name}</th>
-                  <td>{locName.get(c.location_id) ?? ""}</td>
-                  <td>{c.steps}</td>
-                  <td>
-                    <Plate tone={c.active ? "ok" : "neutral"}>
-                      {c.active ? t("common.active") : t("common.inactive")}
-                    </Plate>
-                  </td>
-                  <td>
-                    {manage ? (
-                      <div className="row-actions">
-                        <button
-                          type="button"
-                          className="btn"
-                          data-tour-id="floor-circuit-edit"
-                          onClick={() => setEditing(c)}
-                        >
-                          {t("circuits.edit")}
-                          <span className="sr-only">: {c.name}</span>
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn--ghost"
-                          onClick={() => setActive(c, !c.active)}
-                        >
-                          {c.active ? t("circuits.deactivate") : t("circuits.activate")}
-                          <span className="sr-only">: {c.name}</span>
-                        </button>
-                      </div>
-                    ) : null}
-                  </td>
+      <Card title={t("circuits.list")} icon={{ name: "layers" }}>
+        {circuits.error ? <ErrorNote code={circuits.error} onRetry={circuits.reload} /> : null}
+        {error ? <ErrorNote code={error} /> : null}
+        {circuits.loading ? <Loading /> : null}
+        {circuits.data && rows.length === 0 ? (
+          <Empty icon={{ name: "layers" }} text={t("common.empty")} />
+        ) : null}
+        {rows.length > 0 ? (
+          <TableWrap label={t("circuits.title")}>
+            <table className="table">
+              <thead>
+                <tr>
+                  <th scope="col">{t("common.name")}</th>
+                  <th scope="col">{t("common.location")}</th>
+                  <th scope="col">{t("circuits.steps")}</th>
+                  <th scope="col">{t("common.status")}</th>
+                  <th scope="col">{t("common.actions")}</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </TableWrap>
-      ) : null}
+              </thead>
+              <tbody>
+                {rows.map((c) => (
+                  <tr key={c.id}>
+                    <th scope="row">{c.name}</th>
+                    <td>{locName.get(c.location_id) ?? ""}</td>
+                    <td>
+                      <span className="floor-count">{c.steps}</span>
+                    </td>
+                    <td>
+                      <Plate tone={c.active ? "ok" : "neutral"}>
+                        {c.active ? t("common.active") : t("common.inactive")}
+                      </Plate>
+                    </td>
+                    <td>
+                      {manage ? (
+                        <div className="row-actions">
+                          <button
+                            type="button"
+                            className="btn"
+                            data-tour-id="floor-circuit-edit"
+                            onClick={() => setEditing(c)}
+                          >
+                            <Icon name="dumbbell" size={18} />
+                            {t("circuits.edit")}
+                            <span className="sr-only">: {c.name}</span>
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn--ghost"
+                            onClick={() => setActive(c, !c.active)}
+                          >
+                            {c.active ? t("circuits.deactivate") : t("circuits.activate")}
+                            <span className="sr-only">: {c.name}</span>
+                          </button>
+                        </div>
+                      ) : null}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TableWrap>
+        ) : null}
+      </Card>
       {editing ? (
         <StepBuilder
           key={editing.id}
@@ -164,42 +188,44 @@ function NewCircuitForm({
   }
 
   return (
-    <form className="form form--boxed" onSubmit={submit} noValidate>
-      <h2 className="form__title">{t("circuits.new")}</h2>
-      <div className="form__grid">
-        <div className="field">
-          <label htmlFor={ids.name}>{t("common.name")}</label>
-          <input
-            id={ids.name}
-            value={name}
-            maxLength={80}
-            required
-            onChange={(e) => setName(e.target.value)}
-          />
+    <Card title={t("circuits.new")} icon={{ name: "calendarPlus" }}>
+      <form className="form" onSubmit={submit} noValidate>
+        <div className="form__grid">
+          <div className="field">
+            <label htmlFor={ids.name}>{t("common.name")}</label>
+            <input
+              id={ids.name}
+              value={name}
+              maxLength={80}
+              required
+              onChange={(e) => setName(e.target.value)}
+            />
+          </div>
+          <div className="field">
+            <label htmlFor={ids.loc}>{t("common.location")}</label>
+            <select id={ids.loc} value={loc} onChange={(e) => setLocationId(e.target.value)}>
+              {locations.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.name}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
-        <div className="field">
-          <label htmlFor={ids.loc}>{t("common.location")}</label>
-          <select id={ids.loc} value={loc} onChange={(e) => setLocationId(e.target.value)}>
-            {locations.map((l) => (
-              <option key={l.id} value={l.id}>
-                {l.name}
-              </option>
-            ))}
-          </select>
+        {error ? <ErrorNote code={error} /> : null}
+        <div className="form__actions">
+          <button
+            type="submit"
+            className="btn btn--primary"
+            disabled={busy}
+            data-tour-id="floor-circuit-new"
+          >
+            <Icon d={FLOOR_ICON.plus} size={18} />
+            {busy ? t("common.saving") : t("circuits.new")}
+          </button>
         </div>
-      </div>
-      {error ? <ErrorNote code={error} /> : null}
-      <div className="form__actions">
-        <button
-          type="submit"
-          className="btn btn--primary"
-          disabled={busy}
-          data-tour-id="floor-circuit-new"
-        >
-          {busy ? t("common.saving") : t("circuits.new")}
-        </button>
-      </div>
-    </form>
+      </form>
+    </Card>
   );
 }
 
@@ -270,26 +296,38 @@ export function StepBuilder({
   }
 
   return (
-    <Section title={t("circuits.editing", { name: circuit.name })}>
+    <Card title={t("circuits.editing", { name: circuit.name })} icon={{ name: "dumbbell" }}>
       {detail.loading || exercises.loading ? <Loading /> : null}
       {detail.error ? <ErrorNote code={detail.error} onRetry={detail.reload} /> : null}
-      {steps.length === 0 && detail.data ? <p className="muted">{t("circuits.noSteps")}</p> : null}
+      {steps.length === 0 && detail.data ? (
+        <Empty icon={{ name: "dumbbell" }} text={t("circuits.noSteps")} />
+      ) : null}
       <ol className="floor-steps" aria-label={t("circuits.steps")}>
         {steps.map((s, i) => {
           const ex = exName.get(s.exercise_id);
           const a = s.asset_id ? assetById.get(s.asset_id) : undefined;
           return (
-            <li key={s.key}>
+            <li key={s.key} className="floor-step">
+              <span className="floor-step__n" aria-hidden="true">
+                {i + 1}
+              </span>
               <div className="floor-step-row">
-                <span>
-                  <strong>{ex?.name ?? "—"}</strong> ·{" "}
-                  {a ? (
-                    <span className="mono">{a.station_code}</span>
-                  ) : (
-                    label("eq", s.equipment_type ?? "")
-                  )}{" "}
-                  ·{" "}
-                  {t("circuits.stepSummary", { sets: s.sets, reps: s.reps, rest: s.rest_seconds })}
+                <span className="floor-step__text">
+                  <strong>{ex?.name ?? "—"}</strong>
+                  <span className="floor-step__meta">
+                    {a ? (
+                      <span className="floor-chip mono">{a.station_code}</span>
+                    ) : (
+                      <span className="floor-chip">{label("eq", s.equipment_type ?? "")}</span>
+                    )}
+                    <span>
+                      {t("circuits.stepSummary", {
+                        sets: s.sets,
+                        reps: s.reps,
+                        rest: s.rest_seconds,
+                      })}
+                    </span>
+                  </span>
                 </span>
                 <span className="row-actions">
                   <button
@@ -299,7 +337,7 @@ export function StepBuilder({
                     aria-label={t("circuits.up", { n: i + 1 })}
                     onClick={() => move(i, -1)}
                   >
-                    ↑
+                    <Icon d={FLOOR_ICON.up} size={18} />
                   </button>
                   <button
                     type="button"
@@ -308,7 +346,7 @@ export function StepBuilder({
                     aria-label={t("circuits.down", { n: i + 1 })}
                     onClick={() => move(i, 1)}
                   >
-                    ↓
+                    <Icon d={FLOOR_ICON.down} size={18} />
                   </button>
                   <button
                     type="button"
@@ -316,7 +354,7 @@ export function StepBuilder({
                     aria-label={t("circuits.remove", { n: i + 1 })}
                     onClick={() => setSteps((x) => x.filter((_, k) => k !== i))}
                   >
-                    ✕
+                    <Icon name="close" size={18} />
                   </button>
                 </span>
               </div>
@@ -344,7 +382,7 @@ export function StepBuilder({
           {busy ? t("common.saving") : t("circuits.saveSteps")}
         </button>
       </div>
-    </Section>
+    </Card>
   );
 }
 
@@ -383,7 +421,10 @@ function AddStepForm({
 
   return (
     <form className="form form--boxed" onSubmit={add}>
-      <h3 className="form__title">{t("circuits.addStep")}</h3>
+      <h3 className="form__title floor-h3">
+        <Icon d={FLOOR_ICON.plus} size={20} />
+        {t("circuits.addStep")}
+      </h3>
       <div className="form__grid">
         <div className="field">
           <label htmlFor={ids.ex}>{t("circuits.exercise")}</label>

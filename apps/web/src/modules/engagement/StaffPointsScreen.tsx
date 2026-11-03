@@ -1,13 +1,14 @@
 import { type FormEvent, useEffect, useId, useState } from "react";
 import type { ErrorCode } from "../../api/client";
-import { ErrorNote, LiveResult, Loading, Section, TableWrap } from "../../components/ui";
+import { Icon } from "../../components/icons";
+import { ErrorNote, LiveResult, Loading, TableWrap } from "../../components/ui";
 import { formatDateTime } from "../../lib/format";
 import { useAsync } from "../../lib/useAsync";
 import { useSession } from "../../session/SessionContext";
 import { StaffReferrals } from "./StaffReferrals";
 import type { Rule } from "./api";
 import { type EngKey, useEngT } from "./dict";
-import { act, isConfig, isFront, useEng } from "./shared";
+import { Card, Empty, PageHead, Stat, act, isConfig, isFront, useEng } from "./shared";
 
 /** Staff "Puntos": liability (owner, accountant), rules (owner/manager edit), manual award, recent ledger. */
 export function StaffPointsScreen() {
@@ -15,8 +16,8 @@ export function StaffPointsScreen() {
   const { role } = useSession();
   const [version, setVersion] = useState(0);
   return (
-    <div className="page">
-      <h1 className="page__title">{t("points.title")}</h1>
+    <div className="page eng-page">
+      <PageHead title={t("points.title")} lede={t("points.lede")} />
       {role === "owner" || role === "accountant" ? <Liability /> : null}
       {isFront(role) ? (
         <>
@@ -35,23 +36,25 @@ function Liability() {
   const eng = useEng();
   const l = useAsync(() => eng.liability(), [eng]);
   return (
-    <Section title={t("points.liability")}>
+    <Card title={t("points.liability")} icon={{ name: "coin" }}>
       {l.loading ? <Loading /> : null}
       {l.error ? <ErrorNote code={l.error} onRetry={l.reload} /> : null}
       {l.data ? (
-        <dl className="facts eng-stats">
-          <div>
-            <dt>{t("points.outstanding")}</dt>
-            <dd className="eng-stats__value">{l.data.outstanding_points}</dd>
-          </div>
-          <div>
-            <dt>{t("points.membersWithBalance")}</dt>
-            <dd className="eng-stats__value">{l.data.members_with_balance}</dd>
-          </div>
-        </dl>
+        <div className="ds-stats eng-stats">
+          <Stat
+            icon={{ name: "coin" }}
+            label={t("points.outstanding")}
+            value={l.data.outstanding_points}
+          />
+          <Stat
+            icon={{ name: "users" }}
+            label={t("points.membersWithBalance")}
+            value={l.data.members_with_balance}
+          />
+        </div>
       ) : null}
       <p className="help">{t("points.liabilityHelp")}</p>
-    </Section>
+    </Card>
   );
 }
 
@@ -62,7 +65,7 @@ function Rules({ canEdit }: { canEdit: boolean }) {
   const [announce, setAnnounce] = useState<string | null>(null);
   const [error, setError] = useState<ErrorCode | null>(null);
   return (
-    <Section title={t("points.rules")}>
+    <Card title={t("points.rules")} icon={{ name: "gear" }}>
       {rules.loading ? <Loading /> : null}
       {rules.error ? <ErrorNote code={rules.error} onRetry={rules.reload} /> : null}
       {!canEdit ? <p className="muted">{t("points.rulesReadOnly")}</p> : null}
@@ -97,7 +100,7 @@ function Rules({ canEdit }: { canEdit: boolean }) {
       ) : null}
       <LiveResult tone={announce ? "ok" : undefined}>{announce}</LiveResult>
       {error ? <ErrorNote code={error} /> : null}
-    </Section>
+    </Card>
   );
 }
 
@@ -124,7 +127,16 @@ function RuleRow({
       <tr>
         <th scope="row">{event}</th>
         <td className="mono">{rule.points}</td>
-        <td>{rule.active ? "✓" : "—"}</td>
+        <td>
+          {rule.active ? (
+            <span className="eng-yes">
+              <Icon name="check" size={18} />
+              <span className="sr-only">✓</span>
+            </span>
+          ) : (
+            "—"
+          )}
+        </td>
       </tr>
     );
   return (
@@ -149,6 +161,7 @@ function RuleRow({
         <input
           id={ids.a}
           type="checkbox"
+          className="eng-box"
           checked={active}
           onChange={(e) => setActive(e.target.checked)}
         />
@@ -213,8 +226,8 @@ function ManualAward({ onDone }: { onDone: () => void }) {
   }
 
   return (
-    <Section title={t("points.manual")}>
-      <form className="form form--boxed" onSubmit={submit} noValidate>
+    <Card title={t("points.manual")} icon={{ name: "star" }}>
+      <form className="form" onSubmit={submit} noValidate>
         <div className="form__grid">
           <div className="field">
             <label htmlFor={ids.m}>{t("points.member")}</label>
@@ -279,7 +292,7 @@ function ManualAward({ onDone }: { onDone: () => void }) {
       </form>
       <LiveResult tone={announce ? "ok" : undefined}>{announce}</LiveResult>
       {error ? <ErrorNote code={error} /> : null}
-    </Section>
+    </Card>
   );
 }
 
@@ -288,11 +301,11 @@ function Ledger({ version }: { version: number }) {
   const eng = useEng();
   const rows = useAsync(() => eng.ledger(), [eng, version]);
   return (
-    <Section title={t("points.ledger")}>
+    <Card title={t("points.ledger")} icon={{ name: "receipt" }}>
       {rows.loading && !rows.data ? <Loading /> : null}
       {rows.error ? <ErrorNote code={rows.error} onRetry={rows.reload} /> : null}
       {rows.data && rows.data.data.length === 0 ? (
-        <p className="muted">{t("points.none")}</p>
+        <Empty icon={{ name: "receipt" }} text={t("points.none")} />
       ) : null}
       {rows.data && rows.data.data.length > 0 ? (
         <TableWrap label={t("points.ledger")}>
@@ -314,13 +327,15 @@ function Ledger({ version }: { version: number }) {
                     {t(`event.${r.reason}` as EngKey)}
                     {r.note ? <span className="muted"> · {r.note}</span> : null}
                   </td>
-                  <td className="mono">{r.delta > 0 ? `+${r.delta}` : r.delta}</td>
+                  <td className={`mono eng-delta${r.delta > 0 ? " eng-delta--up" : ""}`}>
+                    {r.delta > 0 ? `+${r.delta}` : r.delta}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </TableWrap>
       ) : null}
-    </Section>
+    </Card>
   );
 }
