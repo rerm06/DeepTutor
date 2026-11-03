@@ -14,7 +14,7 @@ import {
   money,
   useStoreApi,
 } from "./api";
-import { Receipt, SaleStatusPlate } from "./components";
+import { Receipt, SaleStatusPlate, StoreEmpty, StoreSection, StoreStat } from "./components";
 import { type StoreKey, useStoreT } from "./dict";
 
 /** Sales list (sellers: their locations; accountant: read-only, org-wide), receipts, refunds and pickups. */
@@ -34,54 +34,81 @@ export function SalesScreen() {
   const locs = locations.data?.data ?? [];
   const locName = new Map(locs.map((l) => [l.id, l.name]));
 
+  const rows = sales.data?.data ?? [];
+  const count = (st: string) => rows.filter((r) => r.status === st).length;
+
   return (
-    <div className="page">
-      <h1 className="page__title">{t("sales.title")}</h1>
-      <LiveResult tone={announce ? "ok" : undefined}>{announce}</LiveResult>
-      <div className="toolbar">
-        <div className="field">
-          <label htmlFor={ids.loc}>{t("location")}</label>
-          <select id={ids.loc} value={locationId} onChange={(e) => setLocationId(e.target.value)}>
-            <option value="">{t("sales.all")}</option>
-            {locs.map((l) => (
-              <option key={l.id} value={l.id}>
-                {l.name}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="field">
-          <label htmlFor={ids.st}>{t("status")}</label>
-          <select
-            id={ids.st}
-            value={status}
-            onChange={(e) => setStatus(e.target.value)}
-            data-tour-id="store-sales-status"
-          >
-            <option value="">{t("sales.all")}</option>
-            {SALE_STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {t(`st.${s}`)}
-              </option>
-            ))}
-          </select>
+    <div className="page store-page">
+      <div className="page__head">
+        <div className="store-head">
+          <h1 className="page__title">{t("sales.title")}</h1>
+          <p className="lede">{t("sales.lede")}</p>
         </div>
       </div>
-      {sales.loading ? <Loading /> : null}
-      {sales.error ? <ErrorNote code={sales.error} onRetry={sales.reload} /> : null}
-      {sales.data && sales.data.data.length === 0 ? (
-        <p className="muted">{t("sales.empty")}</p>
+      <LiveResult tone={announce ? "ok" : undefined}>{announce}</LiveResult>
+      {sales.data ? (
+        <div className="ds-stats">
+          <StoreStat
+            icon="receipt"
+            label={t("sales.statShown")}
+            value={rows.length}
+            hint={t("sales.statHint")}
+          />
+          <StoreStat icon="bag" label={t("sales.statPending")} value={count("pending_pickup")} />
+          <StoreStat
+            icon="checkCircle"
+            label={t("sales.statCompleted")}
+            value={count("completed")}
+          />
+          <StoreStat icon="refresh" label={t("sales.statRefunded")} value={count("refunded")} />
+        </div>
       ) : null}
-      {sales.data && sales.data.data.length > 0 ? (
-        <SalesTable
-          rows={sales.data.data}
-          locName={locName}
-          onChanged={(msg) => {
-            setAnnounce(msg);
-            sales.reload();
-          }}
-        />
-      ) : null}
+      <StoreSection title={t("sales.history")} icon="receipt">
+        <div className="toolbar">
+          <div className="field">
+            <label htmlFor={ids.loc}>{t("location")}</label>
+            <select id={ids.loc} value={locationId} onChange={(e) => setLocationId(e.target.value)}>
+              <option value="">{t("sales.all")}</option>
+              {locs.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="field">
+            <label htmlFor={ids.st}>{t("status")}</label>
+            <select
+              id={ids.st}
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+              data-tour-id="store-sales-status"
+            >
+              <option value="">{t("sales.all")}</option>
+              {SALE_STATUSES.map((s) => (
+                <option key={s} value={s}>
+                  {t(`st.${s}`)}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+        {sales.loading ? <Loading /> : null}
+        {sales.error ? <ErrorNote code={sales.error} onRetry={sales.reload} /> : null}
+        {sales.data && rows.length === 0 ? (
+          <StoreEmpty icon="receipt" title={t("sales.empty")} />
+        ) : null}
+        {rows.length > 0 ? (
+          <SalesTable
+            rows={rows}
+            locName={locName}
+            onChanged={(msg) => {
+              setAnnounce(msg);
+              sales.reload();
+            }}
+          />
+        ) : null}
+      </StoreSection>
     </div>
   );
 }
@@ -191,7 +218,7 @@ function SaleRow({
         </td>
       </tr>
       {open ? (
-        <tr id={ids.detail}>
+        <tr id={ids.detail} className="store-detail">
           <td colSpan={8}>
             {detail.loading ? <Loading /> : null}
             {detail.error ? <ErrorNote code={detail.error} /> : null}
@@ -227,7 +254,7 @@ function SaleRow({
 
             {pending && detail.data ? (
               <form
-                className="form store-inline"
+                className="form store-inline store-pickup"
                 onSubmit={(e: FormEvent) => {
                   e.preventDefault();
                   void act(

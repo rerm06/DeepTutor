@@ -1,9 +1,11 @@
 import { type FormEvent, type ReactNode, useEffect, useId, useState } from "react";
 import type { Location } from "../../api/types";
-import { ErrorNote, LiveResult, Loading, Plate, Section, TableWrap } from "../../components/ui";
+import { Icon } from "../../components/icons";
+import { ErrorNote, LiveResult, Loading, Plate, TableWrap } from "../../components/ui";
 import { useAsync } from "../../lib/useAsync";
 import { useSession } from "../../session/SessionContext";
 import { type Product, canManage, errorKey, useStoreApi } from "./api";
+import { CategoryIcon, STORE_ICON, StoreEmpty, StoreSection, StoreStat } from "./components";
 import { type StoreKey, useStoreT } from "./dict";
 
 /** Levels per location, low-stock list; owner and location managers also receive, adjust and transfer. */
@@ -30,83 +32,119 @@ export function InventoryScreen() {
     setVersion((v) => v + 1);
   };
 
+  const rows = levels.data?.data ?? [];
+
   return (
-    <div className="page">
-      <h1 className="page__title">{t("inv.title")}</h1>
-      <LiveResult tone={announce ? "ok" : undefined}>{announce}</LiveResult>
-      <div className="toolbar">
-        <div className="field">
-          <label htmlFor={ids.loc}>{t("location")}</label>
-          <select
-            id={ids.loc}
-            value={locationId}
-            onChange={(e) => setLocationId(e.target.value)}
-            data-tour-id="store-inv-location"
-          >
-            <option value="">{t("sales.all")}</option>
-            {locs.map((l) => (
-              <option key={l.id} value={l.id}>
-                {l.name}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="store-check">
-          <input
-            id={ids.low}
-            type="checkbox"
-            checked={lowOnly}
-            onChange={(e) => setLowOnly(e.target.checked)}
-            data-tour-id="store-inv-low"
-          />
-          <label htmlFor={ids.low}>{t("inv.lowOnly")}</label>
+    <div className="page store-page">
+      <div className="page__head">
+        <div className="store-head">
+          <h1 className="page__title">{t("inv.title")}</h1>
+          <p className="lede">{t("inv.lede")}</p>
         </div>
       </div>
-
-      {levels.loading ? <Loading /> : null}
-      {levels.error ? <ErrorNote code={levels.error} onRetry={levels.reload} /> : null}
-      {levels.data && levels.data.data.length === 0 ? (
-        <p className="muted">{t("inv.empty")}</p>
+      <LiveResult tone={announce ? "ok" : undefined}>{announce}</LiveResult>
+      {levels.data ? (
+        <div className="ds-stats">
+          <StoreStat iconD={STORE_ICON.box} label={t("inv.statRows")} value={rows.length} />
+          <StoreStat
+            iconD={STORE_ICON.alert}
+            label={t("inv.statLow")}
+            value={rows.filter((r) => r.low).length}
+          />
+          <StoreStat
+            icon="bag"
+            label={t("inv.statUnits")}
+            value={rows.reduce((n, r) => n + r.available, 0)}
+          />
+        </div>
       ) : null}
-      {levels.data && levels.data.data.length > 0 ? (
-        <TableWrap label={t("inv.title")}>
-          <table className="table">
-            <thead>
-              <tr>
-                <th scope="col">{t("product")}</th>
-                <th scope="col">{t("sku")}</th>
-                <th scope="col">{t("location")}</th>
-                <th scope="col">{t("inv.onHand")}</th>
-                <th scope="col">{t("inv.reserved")}</th>
-                <th scope="col">{t("available")}</th>
-                <th scope="col">{t("inv.reorder")}</th>
-                <th scope="col">{t("status")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {levels.data.data.map((r) => (
-                <tr key={`${r.product_id}-${r.location_id}`}>
-                  <th scope="row">{r.name}</th>
-                  <td className="mono">{r.sku}</td>
-                  <td>{locName.get(r.location_id) ?? ""}</td>
-                  <td className="mono">{r.on_hand}</td>
-                  <td className="mono">{r.reserved}</td>
-                  <td className="mono">{r.available}</td>
-                  <td className="mono">{r.reorder_point}</td>
-                  <td>
-                    <Plate tone={r.low ? "warn" : "ok"}>{r.low ? t("inv.low") : t("inv.ok")}</Plate>
-                  </td>
-                </tr>
+      <StoreSection title={t("inv.levels")} iconD={STORE_ICON.box}>
+        <div className="toolbar">
+          <div className="field">
+            <label htmlFor={ids.loc}>{t("location")}</label>
+            <select
+              id={ids.loc}
+              value={locationId}
+              onChange={(e) => setLocationId(e.target.value)}
+              data-tour-id="store-inv-location"
+            >
+              <option value="">{t("sales.all")}</option>
+              {locs.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.name}
+                </option>
               ))}
-            </tbody>
-          </table>
-        </TableWrap>
-      ) : null}
+            </select>
+          </div>
+          <div className="store-check store-check--toggle">
+            <input
+              id={ids.low}
+              type="checkbox"
+              checked={lowOnly}
+              onChange={(e) => setLowOnly(e.target.checked)}
+              data-tour-id="store-inv-low"
+            />
+            <label htmlFor={ids.low}>{t("inv.lowOnly")}</label>
+          </div>
+        </div>
+
+        {levels.loading ? <Loading /> : null}
+        {levels.error ? <ErrorNote code={levels.error} onRetry={levels.reload} /> : null}
+        {levels.data && rows.length === 0 ? (
+          <StoreEmpty iconD={STORE_ICON.box} title={t("inv.empty")} />
+        ) : null}
+        {rows.length > 0 ? (
+          <TableWrap label={t("inv.title")}>
+            <table className="table">
+              <thead>
+                <tr>
+                  <th scope="col">{t("product")}</th>
+                  <th scope="col">{t("sku")}</th>
+                  <th scope="col">{t("location")}</th>
+                  <th scope="col">{t("inv.onHand")}</th>
+                  <th scope="col">{t("inv.reserved")}</th>
+                  <th scope="col">{t("available")}</th>
+                  <th scope="col">{t("inv.reorder")}</th>
+                  <th scope="col">{t("status")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r) => (
+                  <tr key={`${r.product_id}-${r.location_id}`}>
+                    <th scope="row">
+                      <span className="store-cat">
+                        <CategoryIcon category={r.category} size={20} />
+                        {r.name}
+                      </span>
+                    </th>
+                    <td className="mono nowrap">{r.sku}</td>
+                    <td>{locName.get(r.location_id) ?? ""}</td>
+                    <td className="mono">{r.on_hand}</td>
+                    <td className="mono">{r.reserved}</td>
+                    <td className="mono store-money">{r.available}</td>
+                    <td className="mono">{r.reorder_point}</td>
+                    <td>
+                      <Plate tone={r.low ? "warn" : "ok"}>
+                        {r.low ? t("inv.low") : t("inv.ok")}
+                      </Plate>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TableWrap>
+        ) : null}
+      </StoreSection>
 
       {manage ? (
-        <StockForms locations={locs} products={products.data?.data ?? []} onDone={done} />
+        <div className="store-forms">
+          <StockForms locations={locs} products={products.data?.data ?? []} onDone={done} />
+        </div>
       ) : (
-        <p className="muted">{t("inv.readOnly")}</p>
+        <p className="note store-note">
+          <Icon name="help" />
+          {t("inv.readOnly")}
+        </p>
       )}
     </div>
   );
@@ -228,7 +266,7 @@ function StockForms({
 
   return (
     <>
-      <Section title={t("inv.receive")} level={2}>
+      <StoreSection title={t("inv.receive")} iconD={STORE_ICON.truck}>
         <form
           className="form"
           onSubmit={(e: FormEvent) => {
@@ -295,9 +333,9 @@ function StockForms({
           </div>
           {err(rcv.error)}
         </form>
-      </Section>
+      </StoreSection>
 
-      <Section title={t("inv.adjust")} level={2}>
+      <StoreSection title={t("inv.adjust")} iconD={STORE_ICON.sliders}>
         <form
           className="form"
           onSubmit={(e: FormEvent) => {
@@ -365,9 +403,9 @@ function StockForms({
           </div>
           {err(adj.error)}
         </form>
-      </Section>
+      </StoreSection>
 
-      <Section title={t("inv.transfer")} level={2}>
+      <StoreSection title={t("inv.transfer")} iconD={STORE_ICON.swap}>
         <form
           className="form"
           onSubmit={(e: FormEvent) => {
@@ -443,9 +481,9 @@ function StockForms({
           </div>
           {err(trf.error)}
         </form>
-      </Section>
+      </StoreSection>
 
-      <Section title={t("inv.setReorder")} level={2}>
+      <StoreSection title={t("inv.setReorder")} iconD={STORE_ICON.alert}>
         <form
           className="form"
           onSubmit={(e: FormEvent) => {
@@ -502,7 +540,7 @@ function StockForms({
           </div>
           {err(ro.error)}
         </form>
-      </Section>
+      </StoreSection>
     </>
   );
 }
