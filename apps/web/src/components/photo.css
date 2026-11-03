@@ -1,0 +1,136 @@
+/* Member photo capture. */
+.photo {
+  border: 0;
+  margin: 0;
+  padding: 18px;
+  border-radius: var(--radius-card, 22px);
+  background: var(--surface-2);
+  min-width: 0;
+}
+.photo__legend {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 1.0625rem;
+  padding: 0;
+  float: left;
+  width: 100%;
+  margin-bottom: 14px;
+}
+.photo__legend .icon {
+  color: var(--accent-fg);
+}
+.photo__opt {
+  margin-left: auto;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.photo__body {
+  clear: both;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  align-items: flex-start;
+}
+.photo__frame {
+  position: relative;
+  flex: none;
+  width: 168px;
+  height: 168px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--surface);
+  border: 2px dashed var(--border-strong);
+  display: grid;
+  place-items: center;
+}
+.photo__frame.has-photo {
+  border: 3px solid var(--live);
+}
+.photo__frame.is-live {
+  width: 220px;
+  height: 220px;
+  border-radius: 28px;
+  border: 3px solid var(--live);
+}
+.photo__video,
+.photo__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.photo__video.is-mirror {
+  transform: scaleX(-1);
+}
+.photo__img--static {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+}
+.photo__guide {
+  position: absolute;
+  inset: 14% 22%;
+  border-radius: 50%;
+  border: 2px solid rgb(255 255 255 / 0.85);
+  box-shadow: 0 0 0 999px rgb(0 0 0 / 0.38);
+  pointer-events: none;
+}
+.photo__empty {
+  color: var(--text-muted);
+}
+.photo__side {
+  flex: 1 1 240px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.photo__consent {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font-size: 0.9375rem;
+  line-height: 1.45;
+  cursor: pointer;
+}
+.photo__consent input {
+  flex: none;
+  margin-top: 1px;
+}
+.photo__hint {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
+.photo__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.photo__shutter {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 30%, transparent);
+}
+.photo__status {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  min-height: 1.3em;
+}
+.photo__error {
+  color: var(--blocked-text);
+  font-weight: 600;
+}
+.photo-card {
+  display: grid;
+  gap: 8px;
+}
+.photo-card__msg {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}

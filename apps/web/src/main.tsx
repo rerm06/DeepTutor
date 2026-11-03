@@ -3,6 +3,8 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import { AppRoutes } from "./App";
 import { createApiClient } from "./api/client";
+import { FieldAssist } from "./components/FieldAssist";
+import { LiveAgentProvider } from "./components/LiveAgent";
 import { I18nProvider } from "./i18n/I18nContext";
 import { registerServiceWorker } from "./lib/pwa";
 import { ROUTER_FUTURE } from "./lib/roles";
@@ -18,7 +20,10 @@ if (root) {
       <I18nProvider>
         <SessionProvider api={api}>
           <BrowserRouter future={ROUTER_FUTURE}>
-            <AppRoutes />
+            <LiveAgentProvider>
+              <AppRoutes />
+              <FieldAssist />
+            </LiveAgentProvider>
           </BrowserRouter>
         </SessionProvider>
       </I18nProvider>

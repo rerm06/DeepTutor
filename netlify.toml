@@ -23,7 +23,8 @@
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "strict-origin-when-cross-origin"
     X-Frame-Options = "DENY"
-    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
+    # Camera (member photo) and microphone (voice agent) only for this origin; never for embedded third parties.
+    Permissions-Policy = "camera=(self), microphone=(self), geolocation=()"
 
 # The service worker must be revalidated on every load so new releases reach installed apps.
 [[headers]]

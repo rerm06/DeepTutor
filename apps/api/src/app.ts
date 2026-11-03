@@ -5,6 +5,7 @@ import { jwtVerify } from "jose";
 import { ZodError } from "zod";
 import { httpFromPg } from "./errors.js";
 import { moduleRoutes } from "./modules/index.js";
+import { publicRoutes as livePublicRoutes } from "./modules/live.js";
 import { publicRoutes as signupPublicRoutes, routes as signupRoutes } from "./modules/signup.js";
 import { demoRoutes } from "./routes/demo.js";
 import { memberRoutes } from "./routes/members.js";
@@ -90,6 +91,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     jwtAudience: deps.jwtAudience,
     demo: deps.demo ?? false,
   });
+  await app.register(livePublicRoutes, { prefix: "/v1/public", db: deps.db });
   if (deps.demo) {
     await app.register(demoRoutes, {
       prefix: "/v1",

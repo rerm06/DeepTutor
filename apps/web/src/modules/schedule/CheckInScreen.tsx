@@ -1,6 +1,7 @@
 import { type FormEvent, useId, useRef, useState } from "react";
 import { type ErrorCode, toErrorCode } from "../../api/client";
 import type { Member } from "../../api/types";
+import { MemberAvatar } from "../../components/MemberPhotoCard";
 import { Icon } from "../../components/icons";
 import { ErrorNote, Loading, Plate, TableWrap, memberStatusTone } from "../../components/ui";
 import { useI18n } from "../../i18n/I18nContext";
@@ -149,6 +150,12 @@ export function CheckInScreen() {
               <ul className="sched-matches">
                 {matches.map((m) => (
                   <li key={m.id} className="sched-match">
+                    <MemberAvatar
+                      memberId={m.id}
+                      name={m.full_name}
+                      size={52}
+                      className="sched-match__photo"
+                    />
                     <span className="sched-match__who">
                       <strong>{m.full_name}</strong>
                       <span className="muted mono">

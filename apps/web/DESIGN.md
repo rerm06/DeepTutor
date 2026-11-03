@@ -67,3 +67,21 @@ Rules every screen follows:
 - Colour only through tokens (`--surface`, `--surface-2`, `--border`, `--text`, `--text-muted`, `--gold`,
   `--gold-text`, `--accent-text`, state tokens). Works in light and dark.
 - Copy ES/EN; WCAG 2.2 AA; 44 px touch targets; no horizontal scroll at 390 px.
+
+## v3 · "Live" (Nov 2026)
+Reference: the client's four mobile screens (near-black floating cards, pill controls, a vivid green signal,
+progress rings, photo-led cards, an AI coach chat). What v3 takes from them and how:
+
+| Reference trait | v3 rule | Where |
+| --- | --- | --- |
+| Near-black floating cards | `--surface` #121414 / `--surface-2` #1b1e1f in dark, `--radius-card` 22 px | `styles.css` v3 block |
+| Pill controls | `.btn` radius 999 px, 46 px tall; fields 50 px, radius 14 px, filled (`--field-bg`), no hard border until hover/focus | same |
+| Vivid green signal | `--live` (#5be58c dark · #0b7a3b light, ≥ 5.6:1). SYSTEM colour for AI activity, valid fields and progress — never a brand colour, never a primary action. The tenant accent (FRU gold) keeps primary actions and navigation. | `--live*` tokens |
+| Rings and segmented tabs | `.ds-ring` (`--pct`), `.ds-seg` | primitives |
+| AI coach chat | Live agent dock: always-dark panel, green user bubbles, grey agent bubbles | `components/liveAgent.css` |
+
+Field states (painted by `FieldAssist` on every `.field`, no per-form code): `typing` (dots), `hint` (amber ring while
+the value is still incomplete), `valid` (green ring + check), `invalid` (red ring + alert icon, after blur or submit).
+Never colour alone: the chip under the focused field says the state in words and quotes what is being written; the
+form keeps its own `.field-error` text. AI-written fields carry an "IA" tag on the label until the person edits them.
+Motion: 160–260 ms ease-out; every animation has a `prefers-reduced-motion` fallback.

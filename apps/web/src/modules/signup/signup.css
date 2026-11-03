@@ -517,3 +517,28 @@
     transition: none;
   }
 }
+
+/* v3: the AI sign-up entry, in the reference's live-green. */
+.join__ai {
+  align-self: flex-start;
+  min-height: 52px;
+  padding: 8px 22px 8px 10px;
+  border: 1px solid var(--live-line);
+  background: var(--live-soft);
+  color: var(--text);
+  font-weight: 800;
+}
+.join__ai .icon {
+  width: 34px;
+  height: 34px;
+  padding: 7px;
+  border-radius: 50%;
+  background: var(--live);
+  color: var(--live-ink);
+}
+.join__ai:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--live) 20%, var(--surface));
+}
+.join__ai-help {
+  max-width: 60ch;
+}

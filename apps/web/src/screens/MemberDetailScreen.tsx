@@ -1,6 +1,7 @@
 import { type KeyboardEvent, type ReactNode, useMemo, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { ConsentPanel } from "../components/ConsentPanel";
+import { MemberAvatar, MemberPhotoCard } from "../components/MemberPhotoCard";
 import { MessageHistory, MessagePanel } from "../components/MessagePanel";
 import { ErrorNote, Loading, Plate, memberStatusTone } from "../components/ui";
 import { useI18n } from "../i18n/I18nContext";
@@ -43,6 +44,11 @@ export function MemberDetailScreen() {
 
   const tabs: RecordTab[] = member
     ? [
+        {
+          id: "photo",
+          label: lang === "en" ? "Photo" : "Foto",
+          panel: <MemberPhotoCard memberId={member.id} canEdit={canManageMembers(role)} />,
+        },
         {
           id: "consents",
           label: c("member.tab.consents"),
@@ -89,9 +95,12 @@ export function MemberDetailScreen() {
       </p>
       {member ? (
         <header className="ds-hero core-member">
-          <span className="avatar core-member__avatar" aria-hidden="true">
-            {initialsOf(member.full_name)}
-          </span>
+          <MemberAvatar
+            memberId={member.id}
+            name={member.full_name}
+            size={88}
+            className="core-member__avatar"
+          />
           <div className="core-member__text">
             <h1 className="page__title">{member.full_name}</h1>
             <p className="core-member__meta">

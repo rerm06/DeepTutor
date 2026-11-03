@@ -2,6 +2,7 @@ import { type FormEvent, useId, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { type ErrorCode, toErrorCode } from "../api/client";
 import { type Location, MEMBER_STATUSES, type Member, type MemberStatus } from "../api/types";
+import { useLiveAgent } from "../components/LiveAgent";
 import { Icon } from "../components/icons";
 import {
   ErrorNote,
@@ -263,7 +264,8 @@ function NewMemberForm({
   locations: Location[];
   onCreated: (id: string) => void;
 }) {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
+  const agent = useLiveAgent();
   const { api } = useSession();
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
@@ -299,7 +301,20 @@ function NewMemberForm({
   }
 
   return (
-    <Card icon="userPlus" title={t("members.new.title")}>
+    <Card
+      icon="userPlus"
+      title={t("members.new.title")}
+      actions={
+        <button
+          type="button"
+          className="btn btn--ai"
+          onClick={() => agent.open({ interview: true })}
+        >
+          <Icon name="sparkle" size={18} />
+          {lang === "en" ? "Register with AI" : "Alta con IA"}
+        </button>
+      }
+    >
       <form className="form" onSubmit={submit} aria-describedby={ids.hint}>
         <p id={ids.hint} className="muted">
           {t("members.new.demoHint")}

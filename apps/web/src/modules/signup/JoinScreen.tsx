@@ -9,9 +9,12 @@ import {
   useState,
 } from "react";
 import { Link, useParams } from "react-router-dom";
+import { useLiveAgent } from "../../components/LiveAgent";
+import { PhotoCapture } from "../../components/PhotoCapture";
 import { Icon, type IconName } from "../../components/icons";
 import { useI18n } from "../../i18n/I18nContext";
 import { applyTheme, sanitizeTheme } from "../../lib/brandTheme";
+import { PHOTO_CONSENT_VERSION, type Photo } from "../../lib/photo";
 import { setBrandMode, useMode } from "../../lib/themeMode";
 import { useModuleT } from "../i18n";
 import { type JoinInfo, adoptSession, fetchJoinInfo, submitJoin } from "./api";
@@ -248,6 +251,8 @@ function JoinForm({ info }: { info: JoinInfo }) {
   const [formError, setFormError] = useState<SignupKey | null>(null);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<string | null>(null);
+  const [photo, setPhoto] = useState<Photo | null>(null);
+  const agent = useLiveAgent();
   const summaryRef = useRef<HTMLDivElement>(null);
   const doneRef = useRef<HTMLHeadingElement>(null);
 
@@ -312,6 +317,18 @@ function JoinForm({ info }: { info: JoinInfo }) {
     });
     if (r.ok) {
       const s = r.data.session;
+      if (s && photo) {
+        // Optional photo: stored with the new member's own session; a failure never blocks the sign-up.
+        await fetch("/api/v1/me/photo", {
+          method: "PUT",
+          headers: { "content-type": "application/json", authorization: `Bearer ${s.token}` },
+          body: JSON.stringify({
+            mime: photo.mime,
+            data: photo.data,
+            consent_version: PHOTO_CONSENT_VERSION,
+          }),
+        }).catch(() => undefined);
+      }
       if (s) {
         adoptSession(s, {
           name: v.name.trim().split(/\s+/)[0] ?? "",
@@ -348,6 +365,8 @@ function JoinForm({ info }: { info: JoinInfo }) {
 
   const describe = (f: Field, help?: string) =>
     [help, errors[f] ? id(`${f}-error`) : null].filter(Boolean).join(" ") || undefined;
+  // The form's own rule, live, for the field assistant and the voice agent (only once something is typed).
+  const live = (f: Field, has: boolean) => (has && local[f] ? t(local[f] as SignupKey) : undefined);
   const err = (f: Field) =>
     errors[f] ? (
       <p className="field-error" id={id(`${f}-error`)}>
@@ -414,6 +433,16 @@ function JoinForm({ info }: { info: JoinInfo }) {
               {t("form.title")}
             </h2>
             <p className="help">{t("form.required")}</p>
+            <button
+              type="button"
+              className="btn join__ai"
+              onClick={() => agent.open({ interview: true })}
+              data-tour-id="join-ai"
+            >
+              <Icon name="sparkle" size={20} />
+              {t("form.ai")}
+            </button>
+            <p className="help join__ai-help">{t("form.aiHelp")}</p>
           </div>
 
           <div ref={summaryRef} tabIndex={-1} role="alert" className="join__summary">
@@ -472,6 +501,7 @@ function JoinForm({ info }: { info: JoinInfo }) {
                 maxLength={120}
                 value={v.name}
                 aria-invalid={Boolean(errors.name)}
+                data-live-error={live("name", v.name.trim() !== "")}
                 aria-describedby={describe("name")}
                 onChange={(e) => set("name", e.target.value)}
                 onBlur={() => blur("name")}
@@ -489,6 +519,7 @@ function JoinForm({ info }: { info: JoinInfo }) {
                 maxLength={254}
                 value={v.email}
                 aria-invalid={Boolean(errors.email)}
+                data-live-error={live("email", v.email.trim() !== "")}
                 aria-describedby={describe("email", id("email-help"))}
                 onChange={(e) => set("email", e.target.value)}
                 onBlur={() => blur("email")}
@@ -509,6 +540,7 @@ function JoinForm({ info }: { info: JoinInfo }) {
                 maxLength={20}
                 value={v.phone}
                 aria-invalid={Boolean(errors.phone)}
+                data-live-error={live("phone", v.phone.trim() !== "")}
                 aria-describedby={describe("phone", id("phone-help"))}
                 onChange={(e) => set("phone", e.target.value)}
                 onBlur={() => {
@@ -532,6 +564,7 @@ function JoinForm({ info }: { info: JoinInfo }) {
                 min="1900-01-01"
                 value={v.birth}
                 aria-invalid={Boolean(errors.birth)}
+                data-live-error={live("birth", v.birth.trim() !== "")}
                 aria-describedby={describe("birth", id("birth-help"))}
                 onChange={(e) => set("birth", e.target.value)}
                 onBlur={() => blur("birth")}
@@ -543,6 +576,14 @@ function JoinForm({ info }: { info: JoinInfo }) {
             </div>
           </div>
 
+          <PhotoCapture
+            value={photo?.url ?? null}
+            onChange={setPhoto}
+            mode="self"
+            optional
+            brandName={info.brand.name}
+          />
+
           <fieldset className="join__fieldset join__fieldset--rule">
             <legend className="join__legend">
               <Icon name="doc" size={22} />
@@ -551,7 +592,7 @@ function JoinForm({ info }: { info: JoinInfo }) {
             {(["terms", "waiver"] as const).map((k) => {
               const text = texts[k];
               return (
-                <div key={k} className="join__agreement">
+                <div key={k} className="join__agreement" data-agent="manual">
                   <div className="join__check">
                     <input
                       type="checkbox"
@@ -592,7 +633,7 @@ function JoinForm({ info }: { info: JoinInfo }) {
                 ["smsMarketing", "form.smsMarketing", texts.marketing],
               ] as const
             ).map(([k, label, text]) => (
-              <div key={k} className="join__agreement">
+              <div key={k} className="join__agreement" data-agent="manual">
                 <div className="join__check">
                   <input
                     type="checkbox"

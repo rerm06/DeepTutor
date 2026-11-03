@@ -31,6 +31,9 @@ export const dict = defineDict({
     "model.other": "Crea tu cuenta y elige tu plan en la sede.",
     "form.title": "Tus datos",
     "form.required": "Los campos marcados con * son obligatorios.",
+    "form.ai": "Registrarme con el asistente IA",
+    "form.aiHelp":
+      "Te pregunta cada dato por voz (o por texto), lo escribe y lo valida. Puedes corregir todo a mano.",
     "form.location": "Tu sede *",
     "form.name": "Nombre completo *",
     "form.email": "Correo electrónico *",
@@ -133,6 +136,9 @@ export const dict = defineDict({
     "model.other": "Create your account and choose your plan at the location.",
     "form.title": "Your details",
     "form.required": "Fields marked * are required.",
+    "form.ai": "Sign me up with the AI assistant",
+    "form.aiHelp":
+      "It asks for each item by voice (or text), types it and validates it. You can correct everything by hand.",
     "form.location": "Your location *",
     "form.name": "Full name *",
     "form.email": "Email *",

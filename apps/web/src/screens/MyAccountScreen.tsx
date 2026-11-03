@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
+import { MemberPhotoCard } from "../components/MemberPhotoCard";
 import { Icon, type IconName } from "../components/icons";
 import { ErrorNote, Loading, Plate, memberStatusTone } from "../components/ui";
 import { useI18n } from "../i18n/I18nContext";
@@ -40,6 +41,9 @@ export function MyAccountScreen() {
         <p className="lede">{c("account.lede")}</p>
       </header>
       <MeSummary staff={false} />
+      <Card icon="userPlus" title={c("account.photo")}>
+        <MemberPhotoCard memberId={null} />
+      </Card>
       <Card icon="idCard" title={t("account.memberships")}>
         {members.loading ? <Loading /> : null}
         {members.error ? <ErrorNote code={members.error} onRetry={members.reload} /> : null}

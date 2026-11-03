@@ -1994,3 +1994,341 @@ textarea[aria-invalid="true"] {
     var(--surface) 65%
   );
 }
+
+/* ── Design system v3 · "Live" (reference screens: near-black floating cards, pill controls, a vivid live-green
+   signal for AI activity, valid fields and progress). The brand accent (tenant) still owns primary actions and
+   navigation; --live is a SYSTEM colour, never a brand colour. See apps/web/DESIGN.md §v3. ── */
+:root {
+  --live: #0b7a3b; /* light: 5.6:1 on #fff */
+  --live-ink: #ffffff;
+  --live-soft: color-mix(in srgb, var(--live) 12%, var(--surface));
+  --live-line: color-mix(in srgb, var(--live) 55%, transparent);
+  --hint: #8a5a00;
+  --hint-soft: color-mix(in srgb, #d99a00 14%, var(--surface));
+  --radius-card: 22px;
+  --radius-field: 14px;
+  --control-h: 50px;
+  --field-bg: var(--surface-2);
+  --field-bg-focus: var(--surface);
+  --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
+  --z-assist: 55;
+  --z-agent: 58;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --live: #5be58c; /* 11.9:1 on #121414 */
+    --live-ink: #04140a;
+    --hint: #ffcf5c;
+    --hint-soft: color-mix(in srgb, #ffcf5c 12%, #121414);
+    --surface: #121414;
+    --surface-2: #1b1e1f;
+    --border: #262a2b;
+    --field-bg: #1b1e1f;
+    --field-bg-focus: #202425;
+  }
+}
+:root[data-theme="dark"] {
+  --live: #5be58c;
+  --live-ink: #04140a;
+  --hint: #ffcf5c;
+  --hint-soft: color-mix(in srgb, #ffcf5c 12%, #121414);
+  --surface: #121414;
+  --surface-2: #1b1e1f;
+  --border: #262a2b;
+  --field-bg: #1b1e1f;
+  --field-bg-focus: #202425;
+}
+
+/* Cards float: larger radius, no hard outline in dark (a 1px hairline only). */
+.section,
+.ds-hero,
+.home-card {
+  border-radius: var(--radius-card);
+}
+
+/* Pill buttons. */
+.btn {
+  border-radius: 999px;
+  min-height: 46px;
+  padding: 8px 20px;
+  gap: 8px;
+  transition: background-color 160ms var(--ease-out), border-color 160ms var(--ease-out), transform
+    120ms var(--ease-out);
+}
+.btn--primary {
+  font-weight: 700;
+}
+.btn--ai {
+  border-color: var(--live-line);
+  color: var(--text);
+  background: var(--live-soft);
+}
+.btn--ai .icon {
+  color: var(--live);
+}
+.btn--ai:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--live) 20%, var(--surface));
+}
+
+/* Filled pill-ish fields with a live state ring. */
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+select,
+textarea {
+  min-height: var(--control-h);
+  border-radius: var(--radius-field);
+  background-color: var(--field-bg);
+  border: 1.5px solid transparent;
+  padding: 10px 16px;
+  transition: border-color 160ms var(--ease-out), background-color 160ms var(--ease-out), box-shadow
+    200ms var(--ease-out);
+}
+input:not([type="checkbox"]):not([type="radio"]):hover,
+select:hover,
+textarea:hover {
+  border-color: var(--border-strong);
+}
+input:not([type="checkbox"]):not([type="radio"]):focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: none;
+  background-color: var(--field-bg-focus);
+  border-color: var(--focus);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--focus) 22%, transparent);
+}
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--accent);
+  width: 22px;
+  height: 22px;
+}
+.field label,
+.join__legend {
+  color: var(--text);
+}
+.field {
+  gap: 6px;
+  position: relative;
+}
+/* State painted by FieldAssist (data-state) — the right edge icon plus the ring colour. Never colour alone: the
+   chip carries the words and the form keeps its own error text. */
+.field[data-state] > :is(input, select, textarea) {
+  padding-right: 44px;
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-size: 18px 18px;
+}
+.field[data-state="valid"] > :is(input, textarea) {
+  border-color: var(--live-line);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235be58c' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m5 12.5 4.5 4.5L19 7.5'/%3E%3C/svg%3E");
+}
+:root:not([data-theme="dark"]) .field[data-state="valid"] > :is(input, textarea) {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230b7a3b' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m5 12.5 4.5 4.5L19 7.5'/%3E%3C/svg%3E");
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .field[data-state="valid"] > :is(input, textarea) {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235be58c' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m5 12.5 4.5 4.5L19 7.5'/%3E%3C/svg%3E");
+  }
+}
+.field[data-state="typing"] > :is(input, textarea) {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='5' cy='12' r='2' fill='%23999'/%3E%3Ccircle cx='12' cy='12' r='2' fill='%23999'/%3E%3Ccircle cx='19' cy='12' r='2' fill='%23999'/%3E%3C/svg%3E");
+}
+.field[data-state="hint"] > :is(input, textarea) {
+  border-color: color-mix(in srgb, var(--hint) 60%, transparent);
+}
+.field[data-state="invalid"] > :is(input, textarea, select),
+input[aria-invalid="true"],
+textarea[aria-invalid="true"] {
+  border-color: var(--blocked-line);
+  border-width: 1.5px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23e0574a' stroke-width='2.4' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 7.5v5.5M12 16.5h.01'/%3E%3C/svg%3E");
+}
+.field[data-filled-by="ai"] > label::after,
+.join__agreement[data-filled-by="ai"] label::after {
+  content: "IA";
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 0.6875rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  vertical-align: 2px;
+  color: var(--live-ink);
+  background: var(--live);
+}
+:root[lang="en"] .field[data-filled-by="ai"] > label::after {
+  content: "AI";
+}
+.field.is-ai-pulse > :is(input, select, textarea) {
+  animation: ai-pulse 900ms var(--ease-out) 1;
+}
+@keyframes ai-pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--live) 55%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 12px transparent;
+  }
+}
+[data-agent-highlight="true"] {
+  outline: 3px solid var(--live) !important;
+  outline-offset: 3px;
+  animation: agent-highlight 1.2s var(--ease-out) infinite;
+}
+@keyframes agent-highlight {
+  50% {
+    outline-offset: 7px;
+  }
+}
+
+/* The live chip under the focused field. */
+.fa-chip {
+  position: fixed;
+  z-index: var(--z-assist);
+  pointer-events: none;
+  display: grid;
+  gap: 2px;
+  padding: 8px 12px;
+  border-radius: 14px;
+  background: #0b0d0d;
+  color: #eef1f1;
+  border: 1px solid #2a2f30;
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.35);
+  font-size: 0.8125rem;
+  line-height: 1.35;
+  animation: fa-in 160ms var(--ease-out);
+}
+@keyframes fa-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+.fa-chip__row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 700;
+}
+.fa-chip__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #8a9293;
+}
+.fa-chip--valid .fa-chip__dot {
+  background: #5be58c;
+}
+.fa-chip--valid .fa-chip__state {
+  color: #5be58c;
+}
+.fa-chip--hint .fa-chip__dot,
+.fa-chip--typing .fa-chip__dot {
+  background: #ffcf5c;
+  animation: fa-blink 900ms steps(2) infinite;
+}
+.fa-chip--invalid .fa-chip__dot {
+  background: #ff8a7e;
+}
+.fa-chip--invalid .fa-chip__state {
+  color: #ff8a7e;
+}
+@keyframes fa-blink {
+  50% {
+    opacity: 0.35;
+  }
+}
+.fa-chip__src {
+  margin-left: auto;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 0.6875rem;
+  font-weight: 800;
+}
+.fa-chip__src--ai {
+  background: #5be58c;
+  color: #04140a;
+}
+.fa-chip__src--manual {
+  background: #2a2f30;
+  color: #dfe3e3;
+}
+.fa-chip__value {
+  color: #c9cfcf;
+  overflow-wrap: anywhere;
+}
+.fa-chip__label {
+  color: #8f9798;
+}
+.fa-chip__msg {
+  color: #ffd9a0;
+}
+.fa-chip--invalid .fa-chip__msg {
+  color: #ffb4ab;
+}
+
+/* Progress ring primitive (reference: circular trackers). Set --pct (0–100) and the label inside. */
+.ds-ring {
+  --pct: 0;
+  --ring: var(--live);
+  width: var(--size, 96px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(closest-side, var(--surface) 78%, transparent 79% 100%),
+    conic-gradient(
+      var(--ring) calc(var(--pct) * 1%),
+      color-mix(in srgb, var(--text) 10%, transparent) 0
+    );
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Segmented control (reference: Day / Week / Month). */
+.ds-seg {
+  display: inline-flex;
+  padding: 4px;
+  gap: 4px;
+  border-radius: 999px;
+  background: var(--surface-2);
+}
+.ds-seg > * {
+  border: 0;
+  border-radius: 999px;
+  min-height: 38px;
+  padding: 6px 16px;
+  background: transparent;
+  color: var(--text-muted);
+  font: 600 0.9375rem var(--font-body);
+  cursor: pointer;
+}
+.ds-seg > [aria-pressed="true"],
+.ds-seg > [aria-selected="true"] {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+.avatar--photo {
+  object-fit: cover;
+  border-radius: 50%;
+  padding: 0;
+  border: 2px solid color-mix(in srgb, var(--live) 60%, transparent);
+}
+.sched-match__photo {
+  flex: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .field.is-ai-pulse > :is(input, select, textarea),
+  [data-agent-highlight="true"],
+  .fa-chip,
+  .fa-chip__dot {
+    animation: none !important;
+  }
+}
+/* Controls inside dense tables keep the compact height. */
+.table-wrap :is(input:not([type="checkbox"]):not([type="radio"]), select) {
+  min-height: 40px;
+  padding-block: 6px;
+  padding-inline: 12px 32px;
+}
