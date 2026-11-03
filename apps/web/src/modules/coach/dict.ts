@@ -18,6 +18,10 @@ export const dict = defineDict({
       "Estás hablando con una inteligencia artificial, no con una persona ni con un profesional de la salud. No es un dispositivo médico.",
     "member.pick": "Socio",
 
+    "today.seePlan": "Ver mi plan",
+    "mem.stat.total": "Datos guardados",
+    "mem.stat.mine": "Escritos por ti",
+    "mem.stat.injury": "Lesiones o limitaciones",
     "today.title": "Hoy",
     "today.lede":
       "Tres preguntas rápidas. Comparamos tu día con tus propios días, no con otras personas.",
@@ -169,6 +173,10 @@ export const dict = defineDict({
       "You are talking to an artificial intelligence, not a person or a health professional. It is not a medical device.",
     "member.pick": "Member",
 
+    "today.seePlan": "See my plan",
+    "mem.stat.total": "Saved facts",
+    "mem.stat.mine": "Written by you",
+    "mem.stat.injury": "Injuries or limitations",
     "today.title": "Today",
     "today.lede":
       "Three quick questions. We compare your day with your own days, not with other people.",

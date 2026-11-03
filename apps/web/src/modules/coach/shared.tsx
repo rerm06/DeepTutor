@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import type { Member } from "../../api/types";
+import { Icon } from "../../components/icons";
 import { useAsync } from "../../lib/useAsync";
 import { useSession } from "../../session/SessionContext";
 import { useModuleT } from "../i18n";
@@ -38,7 +39,8 @@ export function MemberPick({
   const { t } = useCoachT();
   if (list.length < 2) return null;
   return (
-    <div className="field field--inline">
+    <div className="field field--inline coach-pick">
+      <Icon name="users" size={24} />
       <label htmlFor="coach-member">{t("member.pick")}</label>
       <select
         id="coach-member"
@@ -60,7 +62,22 @@ export function EstimateNotice() {
   const { t } = useCoachT();
   return (
     <p className="note note--warn coach-notice" data-tour-id="coach-estimate-notice">
+      <Icon name="help" size={20} />
       {t("notice.estimate")}
     </p>
+  );
+}
+
+/** The coach's face (decorative: the visible "Coach (IA)" label names it). */
+export function CoachAvatar({ size = 40 }: { size?: number }) {
+  return (
+    <img
+      className="coach-avatar"
+      src="/brand/coach-robot.jpg"
+      alt=""
+      width={size}
+      height={size}
+      style={{ width: size, height: size }}
+    />
   );
 }

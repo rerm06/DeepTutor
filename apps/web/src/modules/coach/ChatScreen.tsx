@@ -1,11 +1,14 @@
 import { type FormEvent, useId, useState } from "react";
 import { type ErrorCode, toErrorCode } from "../../api/client";
+import { Icon } from "../../components/icons";
 import { ErrorNote, LiveResult, Loading } from "../../components/ui";
 import { useAsync } from "../../lib/useAsync";
 import { useSession } from "../../session/SessionContext";
-import { EmergencyBanner } from "../health/components";
+import { EmergencyBanner, HICON } from "../health/components";
 import type { Proposal } from "./api";
-import { useCoachApi, useCoachT, useMyMembers } from "./shared";
+import { CoachAvatar, useCoachApi, useCoachT, useMyMembers } from "./shared";
+
+const SEND = "M4 12 20 4l-6 16-3-7-7-1Z";
 
 interface Line {
   role: "member" | "coach";
@@ -29,9 +32,12 @@ export function ChatScreen() {
 
   if (role && role !== "member")
     return (
-      <div className="page">
+      <div className="page coach">
         <h1 className="page__title">{t("chat.title")}</h1>
-        <p className="muted">{t("chat.membersOnly")}</p>
+        <div className="ds-empty">
+          <Icon name="chat" size={34} />
+          <strong>{t("chat.membersOnly")}</strong>
+        </div>
       </div>
     );
 
@@ -76,104 +82,137 @@ export function ChatScreen() {
   const enabled = status.data?.enabled === true;
 
   return (
-    <div className="page">
-      <h1 className="page__title">{t("chat.title")}</h1>
-      <p className="note note--warn coach-notice" data-tour-id="coach-ai-notice">
+    <div className="page coach">
+      <div className="coach-head">
+        <CoachAvatar size={64} />
+        <div>
+          <h1 className="page__title">{t("chat.title")}</h1>
+          <span className="ds-pill">IA</span>
+        </div>
+      </div>
+      <p className="note note--warn coach-notice coach-ai-notice" data-tour-id="coach-ai-notice">
+        <Icon name="sparkle" size={20} />
         {t("notice.ai")}
       </p>
       {emergency ? <EmergencyBanner location={locationName(list[0])} /> : null}
-      {status.loading ? <Loading /> : null}
-      {status.data && !enabled ? (
-        <p className="coach-card" data-tour-id="coach-chat-disabled">
-          {t("chat.disabled")}
-        </p>
-      ) : null}
-      <div className="row-actions">
+      <section className="coach-help" aria-label={t("chat.human")}>
         <button
           type="button"
-          className="btn"
+          className="btn coach-help__human"
           disabled={busy}
           onClick={() => void send(t("chat.humanAsk"))}
           data-tour-id="coach-chat-human"
         >
+          <Icon name="headset" size={22} />
           {t("chat.human")}
         </button>
-      </div>
-      {proposals.length ? (
-        <section aria-labelledby={`${id}-p`} className="coach-stack">
-          <h2 id={`${id}-p`} className="section__title">
-            {t("chat.proposal")}
-          </h2>
-          <p className="help">{t("chat.proposalHelp")}</p>
-          {proposals.map((p) => (
-            <article
-              key={p.id}
-              className="coach-card coach-card--proposal"
-              data-tour-id="coach-proposal"
-            >
-              <p>{p.summary}</p>
-              {p.state ? (
-                <LiveResult>{p.state}</LiveResult>
-              ) : (
-                <div className="row-actions">
-                  <button
-                    type="button"
-                    className="btn btn--primary"
-                    onClick={() => void decide(p, true)}
-                    data-tour-id="coach-proposal-confirm"
-                  >
-                    {t("chat.confirm")}
-                    <span className="sr-only">: {p.summary}</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn--ghost"
-                    onClick={() => void decide(p, false)}
-                    data-tour-id="coach-proposal-reject"
-                  >
-                    {t("chat.reject")}
-                    <span className="sr-only">: {p.summary}</span>
-                  </button>
-                </div>
-              )}
-            </article>
+        <p className="coach-help__911">
+          <Icon d={HICON.alert} size={20} />
+          <span>{t("sugg.emergency")}</span>
+          <a className="btn btn--danger coach-help__call" href="tel:911">
+            <Icon d={HICON.phone} size={18} />
+            911
+          </a>
+        </p>
+      </section>
+      {status.loading ? <Loading /> : null}
+      <div className="coach-chatbox">
+        {status.data && !enabled ? (
+          <div className="ds-empty">
+            <Icon name="chat" size={34} />
+            <p className="coach-disabled" data-tour-id="coach-chat-disabled">
+              {t("chat.disabled")}
+            </p>
+          </div>
+        ) : null}
+        {lines.length === 0 && enabled ? (
+          <div className="ds-empty">
+            <Icon name="chat" size={34} />
+            <strong>{t("chat.empty")}</strong>
+          </div>
+        ) : null}
+        <ol className="coach-chat" aria-live="polite">
+          {lines.map((l, i) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: an append-only transcript; lines never reorder.
+            <li key={i} className={`coach-msg coach-msg--${l.role}`}>
+              {l.role === "coach" ? <CoachAvatar size={36} /> : null}
+              <div className="coach-msg__bubble">
+                <span className="coach-msg__who">
+                  {l.role === "member" ? t("chat.you") : t("chat.coach")}
+                </span>
+                {l.content}
+              </div>
+            </li>
           ))}
-        </section>
-      ) : null}
-      {lines.length === 0 && enabled ? <p className="muted">{t("chat.empty")}</p> : null}
-      <ol className="coach-chat" aria-live="polite">
-        {lines.map((l, i) => (
-          // biome-ignore lint/suspicious/noArrayIndexKey: an append-only transcript; lines never reorder.
-          <li key={i} className={`coach-msg coach-msg--${l.role}`}>
-            <span className="coach-msg__who">
-              {l.role === "member" ? t("chat.you") : t("chat.coach")}
-            </span>
-            {l.content}
-          </li>
-        ))}
-      </ol>
-      {error ? <ErrorNote code={error} /> : null}
-      <form className="coach-composer" onSubmit={submit}>
-        <div className="field">
-          <label htmlFor={`${id}-m`}>{t("chat.input")}</label>
+        </ol>
+        {proposals.length ? (
+          <section aria-labelledby={`${id}-p`} className="coach-stack">
+            <h2 id={`${id}-p`} className="section__title">
+              <Icon name="sparkle" size={24} />
+              <span>{t("chat.proposal")}</span>
+            </h2>
+            <p className="help">{t("chat.proposalHelp")}</p>
+            {proposals.map((p) => (
+              <article
+                key={p.id}
+                className="coach-card coach-card--proposal"
+                data-tour-id="coach-proposal"
+              >
+                <p>{p.summary}</p>
+                {p.state ? (
+                  <LiveResult>{p.state}</LiveResult>
+                ) : (
+                  <div className="row-actions">
+                    <button
+                      type="button"
+                      className="ds-cta"
+                      onClick={() => void decide(p, true)}
+                      data-tour-id="coach-proposal-confirm"
+                    >
+                      <Icon name="check" size={18} />
+                      {t("chat.confirm")}
+                      <span className="sr-only">: {p.summary}</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn--ghost"
+                      onClick={() => void decide(p, false)}
+                      data-tour-id="coach-proposal-reject"
+                    >
+                      {t("chat.reject")}
+                      <span className="sr-only">: {p.summary}</span>
+                    </button>
+                  </div>
+                )}
+              </article>
+            ))}
+          </section>
+        ) : null}
+        {error ? <ErrorNote code={error} /> : null}
+        <form className="coach-composer" onSubmit={submit}>
+          <label htmlFor={`${id}-m`} className="sr-only">
+            {t("chat.input")}
+          </label>
           <input
             id={`${id}-m`}
             value={text}
             maxLength={1000}
+            placeholder={t("chat.input")}
             onChange={(e) => setText(e.target.value)}
             disabled={busy}
             data-tour-id="coach-chat-input"
           />
-        </div>
-        <button
-          type="submit"
-          className="btn btn--primary"
-          disabled={busy || !text.trim()}
-          data-tour-id="coach-chat-send"
-        >
-          {t("chat.send")}
-        </button>
-      </form>
+          <button
+            type="submit"
+            className="ds-cta coach-composer__send"
+            disabled={busy || !text.trim()}
+            data-tour-id="coach-chat-send"
+          >
+            <Icon d={SEND} size={20} />
+            {t("chat.send")}
+          </button>
+        </form>
+      </div>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { type FormEvent, useId, useMemo, useState } from "react";
 import { type ErrorCode, toErrorCode } from "../../api/client";
-import { ErrorNote, LiveResult, Loading, Plate, Section, TableWrap } from "../../components/ui";
+import { Icon } from "../../components/icons";
+import { ErrorNote, LiveResult, Loading, Plate, TableWrap } from "../../components/ui";
 import { useI18n } from "../../i18n/I18nContext";
 import { formatDateTime } from "../../lib/format";
 import { useAsync } from "../../lib/useAsync";
@@ -15,7 +16,18 @@ import {
   type Triage,
   healthApi,
 } from "./api";
-import { EmergencyBanner, MemberPicker, TriagePanel, levelTone, useHealthT } from "./components";
+import {
+  EmergencyBanner,
+  Empty,
+  HICON,
+  IconSection,
+  MemberPicker,
+  Stat,
+  TriagePanel,
+  formatDay,
+  levelTone,
+  useHealthT,
+} from "./components";
 
 /** Staff "Evaluaciones": PAR-Q+ onboarding form, sign-off and the deterministic triage (spec §6.1–6.2). */
 export function AssessmentsScreen() {
@@ -40,6 +52,8 @@ export function AssessmentsScreen() {
   const locationName =
     locations.data?.data.find((l) => l.id === member?.home_location_id)?.name ?? "";
   const rows = list.data?.data ?? [];
+  const signed = rows.filter((a) => a.status === "signed");
+  const lastSigned = signed[0]?.signed_at ?? null;
 
   async function sign(a: Assessment) {
     setBusy(true);
@@ -58,9 +72,12 @@ export function AssessmentsScreen() {
   }
 
   return (
-    <div className="page">
+    <div className="page health">
       <div className="page__head">
-        <h1 className="page__title">{t("a.title")}</h1>
+        <div>
+          <h1 className="page__title">{t("a.title")}</h1>
+          <p className="lede">{t("notice.draftTool")}</p>
+        </div>
         {memberId ? (
           <button
             type="button"
@@ -73,19 +90,20 @@ export function AssessmentsScreen() {
               setLastTriage(null);
             }}
           >
+            <Icon d={HICON.plus} size={20} />
             {t("a.new")}
           </button>
         ) : null}
       </div>
-      <p className="muted">{t("notice.draftTool")}</p>
 
       {members.loading ? <Loading /> : null}
       {members.error ? <ErrorNote code={members.error} onRetry={members.reload} /> : null}
       {members.data && members.data.data.length === 0 ? (
-        <p className="muted">{t("member.none")}</p>
+        <Empty icon="users">{t("member.none")}</Empty>
       ) : null}
       {members.data && members.data.data.length > 0 ? (
-        <div className="toolbar">
+        <div className="health-picker">
+          <Icon name="users" size={26} />
           <MemberPicker
             members={members.data.data}
             value={memberId}
@@ -97,6 +115,21 @@ export function AssessmentsScreen() {
             }}
           />
         </div>
+      ) : null}
+      {memberId && list.data ? (
+        <div className="ds-stats">
+          <Stat d={HICON.clipboard} label={t("a.stat.total")} value={rows.length} />
+          <Stat icon="checkCircle" label={t("a.stat.signed")} value={signed.length} />
+          <Stat d={HICON.pen} label={t("a.stat.drafts")} value={rows.length - signed.length} />
+          <Stat
+            icon="calendar"
+            label={t("a.stat.last")}
+            value={<span className="health-date">{formatDay(lastSigned, lang)}</span>}
+          />
+        </div>
+      ) : null}
+      {members.data && members.data.data.length > 0 && !memberId ? (
+        <Empty icon="users">{t("member.pickFirst")}</Empty>
       ) : null}
 
       <LiveResult tone={announce ? "ok" : undefined}>{announce}</LiveResult>
@@ -121,10 +154,12 @@ export function AssessmentsScreen() {
       ) : null}
 
       {memberId ? (
-        <Section title={t("a.list")}>
+        <IconSection title={t("a.list")} d={HICON.clipboard}>
           {list.loading ? <Loading /> : null}
           {list.error ? <ErrorNote code={list.error} onRetry={list.reload} /> : null}
-          {list.data && rows.length === 0 ? <p className="muted">{t("a.empty")}</p> : null}
+          {list.data && rows.length === 0 ? (
+            <Empty d={HICON.clipboard}>{t("a.empty")}</Empty>
+          ) : null}
           {rows.length > 0 ? (
             <TableWrap label={t("a.list")}>
               <table className="table">
@@ -208,7 +243,7 @@ export function AssessmentsScreen() {
               </table>
             </TableWrap>
           ) : null}
-        </Section>
+        </IconSection>
       ) : null}
     </div>
   );
@@ -349,8 +384,11 @@ function AssessmentForm({
   }
 
   return (
-    <form className="form form--boxed" onSubmit={submit} noValidate>
-      <h2 className="form__title">{t("a.formTitle")}</h2>
+    <form className="form section health-form" onSubmit={submit} noValidate>
+      <h2 className="section__title">
+        <Icon d={HICON.clipboard} size={24} />
+        <span>{t("a.formTitle")}</span>
+      </h2>
       {acute ? <EmergencyBanner location={locationName} preview /> : null}
 
       <fieldset className="health-parq">

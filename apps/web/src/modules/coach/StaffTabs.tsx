@@ -1,16 +1,9 @@
 import { type FormEvent, useId, useState } from "react";
 import { type ErrorCode, toErrorCode } from "../../api/client";
-import {
-  ErrorNote,
-  LiveResult,
-  Loading,
-  Plate,
-  Section,
-  TableWrap,
-  type Tone,
-} from "../../components/ui";
+import { ErrorNote, LiveResult, Loading, Plate, TableWrap, type Tone } from "../../components/ui";
 import { formatDateTime } from "../../lib/format";
 import { useAsync } from "../../lib/useAsync";
+import { Empty, IconSection } from "../health/components";
 import type { Escalation } from "./api";
 import type { CoachKey } from "./dict";
 import { EstimateNotice, useCoachApi, useCoachT } from "./shared";
@@ -39,14 +32,16 @@ export function CoachMemberTab({ memberId }: { memberId: string }) {
   if (!d) return null;
   return (
     <div className="coach-stack">
-      <Section title={t("staff.escalations")}>
+      <IconSection title={t("staff.escalations")} icon="bell">
         {error ? <ErrorNote code={error} /> : null}
-        {d.escalations.length === 0 ? <p className="muted">{t("staff.escalationsEmpty")}</p> : null}
-        <ul className="coach-facts">
+        {d.escalations.length === 0 ? (
+          <Empty icon="bell">{t("staff.escalationsEmpty")}</Empty>
+        ) : null}
+        <ul className="coach-facts ds-grid">
           {d.escalations.map((e) => (
             <li key={e.id} className="coach-card">
-              <p>
-                <Plate tone={escTone(e.status)}>{t(`escs.${e.status}` as CoachKey)}</Plate>{" "}
+              <p className="coach-fact__meta">
+                <Plate tone={escTone(e.status)}>{t(`escs.${e.status}` as CoachKey)}</Plate>
                 <strong>{t(`esc.${e.reason}` as CoachKey)}</strong>
               </p>
               <p className="muted">
@@ -80,11 +75,11 @@ export function CoachMemberTab({ memberId }: { memberId: string }) {
             </li>
           ))}
         </ul>
-      </Section>
-      <Section title={t("staff.trend")}>
+      </IconSection>
+      <IconSection title={t("staff.trend")} icon="chart">
         <EstimateNotice />
         {d.checkins.length === 0 ? (
-          <p className="muted">{t("staff.trendEmpty")}</p>
+          <Empty icon="chart">{t("staff.trendEmpty")}</Empty>
         ) : (
           <TableWrap label={t("staff.trend")}>
             <table className="table" data-tour-id="coach-trend">
@@ -124,20 +119,22 @@ export function CoachMemberTab({ memberId }: { memberId: string }) {
             </table>
           </TableWrap>
         )}
-      </Section>
-      <Section title={t("staff.memory")}>
-        {d.memory.length === 0 ? <p className="muted">{t("staff.memoryEmpty")}</p> : null}
-        <ul className="coach-facts" data-tour-id="coach-staff-memory">
+      </IconSection>
+      <IconSection title={t("staff.memory")} icon="layers">
+        {d.memory.length === 0 ? <Empty icon="layers">{t("staff.memoryEmpty")}</Empty> : null}
+        <ul className="coach-facts ds-grid" data-tour-id="coach-staff-memory">
           {d.memory.map((f) => (
             <li key={f.id} className="coach-card">
-              <Plate tone={f.category === "injury" ? "warn" : "neutral"}>
-                {t(`cat.${f.category}` as CoachKey)}
-              </Plate>
+              <p className="coach-fact__meta">
+                <Plate tone={f.category === "injury" ? "warn" : "neutral"}>
+                  {t(`cat.${f.category}` as CoachKey)}
+                </Plate>
+              </p>
               <p className="coach-fact__text">{f.content}</p>
             </li>
           ))}
         </ul>
-      </Section>
+      </IconSection>
     </div>
   );
 }
@@ -173,7 +170,7 @@ export function NutritionDraftTab({ memberId }: { memberId: string }) {
     }
   }
   return (
-    <Section title={t("nd.title")}>
+    <IconSection title={t("nd.title")} icon="apple">
       <p className="help">{t("nd.lede")}</p>
       <form className="form" onSubmit={submit}>
         <div className="form__grid">
@@ -226,6 +223,6 @@ export function NutritionDraftTab({ memberId }: { memberId: string }) {
       </form>
       {error ? <ErrorNote code={error} /> : null}
       <LiveResult>{msg}</LiveResult>
-    </Section>
+    </IconSection>
   );
 }

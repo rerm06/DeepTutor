@@ -1,77 +1,265 @@
-/* Module coach — only what styles.css does not already provide. Colours reuse the brand/core tokens (AA in light
-   and dark), so the member PWA follows the gym's theme. Mobile-first: everything stacks at 360 px. */
+/* Module coach — design system v2 (client member-portal design). Tokens only (light + dark), so the member PWA
+   follows the gym's theme. Mobile-first: everything stacks at 360 px; 44 px targets. */
 .coach-notice {
-  margin-bottom: 12px;
+  margin: 0;
 }
 .coach-stack {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
   min-width: 0;
 }
+.coach-grid {
+  display: grid;
+  gap: 16px;
+  align-items: start;
+}
+@media (min-width: 1100px) {
+  .coach-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+  }
+}
+.coach-pick > .icon {
+  color: var(--gold-text);
+}
+
+/* Check-in scale: 44 px pills, the chosen one is gold. */
 .coach-scale {
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 8px 12px;
   margin: 0;
+  padding: 12px 16px 14px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-2);
   min-width: 0;
 }
 .coach-scale legend {
+  padding: 0 6px;
   font-weight: 600;
-  padding: 0 4px;
 }
 .coach-scale__options {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 8px;
 }
 .coach-scale__options label {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  min-width: 44px;
-  min-height: 44px;
-  padding: 0 10px;
+  min-width: 48px;
+  min-height: 48px;
+  padding: 0 12px;
   border: 1px solid var(--border-strong);
-  border-radius: var(--radius);
+  border-radius: 999px;
   background: var(--surface);
+  font-size: 1.125rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
   cursor: pointer;
+  transition: border-color 150ms var(--ease-out), background-color 150ms var(--ease-out);
 }
-.coach-scale__options input:checked + span {
-  font-weight: 700;
-  text-decoration: underline;
+.coach-scale__options label:hover {
+  border-color: var(--gold);
 }
 .coach-scale__options label:has(input:checked) {
-  border-color: var(--accent);
-  background: var(--accent-soft);
+  border-color: var(--gold);
+  background: var(--gold);
+  color: var(--accent-text);
+  font-weight: 700;
 }
-.coach-scale__options input:focus-visible + span {
-  outline: 2px solid var(--accent);
+.coach-scale__options label:has(input:focus-visible) {
+  outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
-.coach-card {
+.coach-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+}
+.coach-check input {
+  width: 20px;
+  height: 20px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--gold);
+}
+.coach-ready__line {
+  margin: 0;
+  font-size: 1.125rem;
+}
+
+/* Suggestion of the day. */
+.coach-sugg {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 20px;
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 12px;
-  background: var(--surface);
-  min-width: 0;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--gold) 10%, var(--surface));
+}
+.coach-sugg p {
+  margin: 0;
+  font-size: 1.0625rem;
+  font-weight: 600;
   overflow-wrap: anywhere;
 }
+.coach-sugg__icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--gold);
+  color: var(--accent-text);
+}
+.coach-plan__title {
+  margin: 0;
+  font-size: 1.25rem;
+  overflow-wrap: anywhere;
+}
+.coach-signoff {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--text-muted);
+}
+.coach-signoff > .icon {
+  flex: none;
+  color: var(--gold-text);
+}
+.coach-plan__cta {
+  align-self: flex-start;
+}
+
+/* Cards (memory facts, escalations, proposals). */
+.coach-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  overflow-wrap: anywhere;
+}
+.coach-card > p {
+  margin: 0;
+}
 .coach-card--proposal {
-  border: 2px solid var(--accent-fg);
-  background: color-mix(in srgb, var(--accent) 6%, var(--surface));
+  border: 2px solid var(--gold);
+  background: color-mix(in srgb, var(--gold) 8%, var(--surface));
 }
 .coach-facts {
   list-style: none;
   margin: 0;
   padding: 0;
+}
+.coach-facts:not(.ds-grid) {
   display: flex;
   flex-direction: column;
+  gap: 12px;
+}
+.coach-fact__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
 }
 .coach-fact__text {
-  margin: 4px 0;
+  margin: 0;
+  font-size: 1.0625rem;
+}
+.coach-fact__actions {
+  margin-top: auto;
+}
+
+/* Chat: page header with the coach's face, permanent disclosure, help strip, then the conversation. */
+.coach-head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.coach-head > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+}
+.coach-avatar {
+  flex: none;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--gold);
+  background: var(--surface-2);
+}
+.coach-ai-notice {
+  position: sticky;
+  top: calc(var(--topbar-h) + 8px);
+  z-index: 1;
+  font-weight: 600;
+}
+@media (max-width: 1023.98px) {
+  .coach-ai-notice {
+    top: 72px;
+  }
+}
+.coach-help {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 20px;
+  padding: 14px 18px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+}
+.coach-help__human {
+  min-height: 48px;
+  border-color: var(--gold);
+  border-radius: 999px;
+  font-size: 1rem;
+}
+.coach-help__human > .icon {
+  color: var(--gold-text);
+}
+.coach-help__911 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin: 0;
+  color: var(--blocked-text);
+  font-weight: 600;
+}
+.coach-help__911 > span {
+  flex: 1 1 200px;
+}
+.coach-help__call {
+  min-height: 44px;
+  border-radius: 999px;
+  font-weight: 700;
+}
+
+.coach-chatbox {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+  min-width: 0;
+}
+.coach-disabled {
+  margin: 0;
+  max-width: 60ch;
+  color: var(--text);
+  font-weight: 600;
 }
 .coach-chat {
   list-style: none;
@@ -79,19 +267,33 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
+}
+.coach-chat:empty {
+  display: none;
 }
 .coach-msg {
-  max-width: 100%;
-  padding: 8px 12px;
-  border-radius: var(--radius);
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  max-width: min(78ch, 88%);
+}
+.coach-msg__bubble {
+  min-width: 0;
+  padding: 10px 14px;
+  border-radius: 18px 18px 18px 6px;
   border: 1px solid var(--border);
-  background: var(--surface);
+  background: var(--surface-2);
   overflow-wrap: anywhere;
 }
 .coach-msg--member {
   align-self: flex-end;
-  background: var(--accent-soft);
+}
+.coach-msg--member .coach-msg__bubble {
+  border-color: var(--gold);
+  border-radius: 18px 18px 6px 18px;
+  background: var(--gold);
+  color: var(--accent-text);
 }
 .coach-msg__who {
   display: block;
@@ -99,12 +301,33 @@
   font-weight: 700;
   color: var(--text-muted);
 }
+.coach-msg--member .coach-msg__who {
+  color: inherit;
+  opacity: 0.85;
+}
 .coach-composer {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: flex-end;
+  gap: 10px;
+  align-items: center;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
 }
-.coach-composer .field {
-  flex: 1 1 200px;
+.coach-composer input {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 48px;
+  padding: 0 18px;
+  border-radius: 999px;
+  background: var(--surface-2);
+}
+.coach-composer__send {
+  min-height: 48px;
+}
+@media (max-width: 480px) {
+  .coach-composer__send {
+    padding: 0 14px;
+  }
+  .coach-msg {
+    max-width: 100%;
+  }
 }
