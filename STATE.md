@@ -59,6 +59,9 @@
   right layer → regression → mutation → sweep → record). Used by the next cycle once the loop restarts.
 
 ### Deployment — Netlify (demo), 2026-11-02
+- 2026-11-03 00:16 UTC, deploy 6ae927bb40f62b017da62210 (commit a22fdaf): member portal (Mi Panel, Progreso,
+  Mis Programas, Nutrición, Documentos, PWA), every module restyled by the design swarm (9 branches), join hero
+  from the theme (0022). 3 migrations applied; 39 pinned.
 - 23:13 UTC, deploy 6ae918fe92cb0b15cb3ea764 (commit 10a3974): home/shell matched to the client's Fitness R Us
   design, dark gold brand mode, executive dashboard data with 12 months of synthetic history, public "Únete"
   sign-up, Agentes IA and Ayuda y Academia pages. 6 migrations applied (0018 signup, 0019 exec, 0020 brand modes);
