@@ -5,6 +5,7 @@ import { useI18n } from "../i18n/I18nContext";
 import { brandsFor } from "../lib/brands";
 import { useAsync } from "../lib/useAsync";
 import { useSession } from "../session/SessionContext";
+import { Empty } from "./kit";
 
 export function MyConsentsScreen() {
   const { t } = useI18n();
@@ -29,16 +30,18 @@ export function MyConsentsScreen() {
   );
 
   return (
-    <div className="page">
-      <h1 className="page__title">{t("myConsents.title")}</h1>
-      <p className="lede">{t("myConsents.intro")}</p>
+    <div className="page core-page">
+      <header className="core-head">
+        <h1 className="page__title">{t("myConsents.title")}</h1>
+        <p className="lede">{t("myConsents.intro")}</p>
+      </header>
       {members.loading ? <Loading /> : null}
       {members.error ? <ErrorNote code={members.error} onRetry={members.reload} /> : null}
       {members.data && rows.length === 0 ? (
-        <p className="muted">{t("account.noMemberships")}</p>
+        <Empty icon="idCard" title={t("account.noMemberships")} />
       ) : null}
       {rows.length > 1 ? (
-        <div className="field field--inline">
+        <div className="field field--inline core-picker">
           <label htmlFor={selectId}>{t("account.chooseMember")}</label>
           <select
             id={selectId}

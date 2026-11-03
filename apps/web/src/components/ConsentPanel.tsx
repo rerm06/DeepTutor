@@ -11,8 +11,9 @@ import {
 import { useI18n } from "../i18n/I18nContext";
 import { formatDateTime, shortId } from "../lib/format";
 import { useAsync } from "../lib/useAsync";
+import { Card, GoldIcon, useCoreCopy } from "../screens/kit";
 import { useSession } from "../session/SessionContext";
-import { ErrorNote, LiveResult, Loading, Plate, Section, TableWrap } from "./ui";
+import { ErrorNote, LiveResult, Loading, Plate, TableWrap } from "./ui";
 
 export interface BrandOption {
   id: string;
@@ -38,14 +39,15 @@ export function ConsentPanel({
   onChanged?: () => void;
 }) {
   const { t, tv, lang } = useI18n();
+  const copy = useCoreCopy();
   const { api } = useSession();
   const consents = useAsync(() => api.consents(memberId), [api, memberId]);
 
   // Brands come from the member's location and from any consent row already on file.
   const all: BrandOption[] = [...brands];
-  for (const c of consents.data?.data ?? [])
-    if (!all.some((b) => b.id === c.brand_id))
-      all.push({ id: c.brand_id, label: `${t("consent.brand")} ${shortId(c.brand_id)}` });
+  for (const r of consents.data?.data ?? [])
+    if (!all.some((b) => b.id === r.brand_id))
+      all.push({ id: r.brand_id, label: `${t("consent.brand")} ${shortId(r.brand_id)}` });
 
   const [brandId, setBrandId] = useState("");
   const firstBrand = all[0]?.id ?? "";
@@ -60,7 +62,9 @@ export function ConsentPanel({
 
   const rows = (consents.data?.data ?? []).filter((c) => c.brand_id === brandId);
   const find = (ch: Channel, p: Purpose): Consent | undefined =>
-    rows.find((c) => c.channel === ch && c.purpose === p);
+    rows.find((r) => r.channel === ch && r.purpose === p);
+  const grantedCount = rows.filter((r) => r.status === "granted").length;
+  const revokedCount = rows.length - grantedCount;
 
   const label = (ch: Channel, p: Purpose) => ({
     channel: tv("channel", ch),
@@ -101,7 +105,7 @@ export function ConsentPanel({
   const revokeSource: ConsentSource = mode === "member" ? "member_portal" : "front_desk";
 
   return (
-    <Section title={t("consent.title")}>
+    <Card icon="shield" title={t("consent.title")}>
       {all.length === 0 && !consents.loading ? (
         <p className="muted">{t("consent.noBrand")}</p>
       ) : null}
@@ -117,8 +121,19 @@ export function ConsentPanel({
           </select>
         </div>
       ) : all[0] ? (
-        <p className="muted">
-          {t("consent.brand")}: {all[0].label}
+        <p className="core-brand">
+          <span className="muted">{t("consent.brand")}:</span>{" "}
+          <span className="ds-pill">{all[0].label}</span>
+        </p>
+      ) : null}
+      {brandId && consents.data ? (
+        <p className="core-counts">
+          <Plate tone="ok">
+            {grantedCount} {copy("consent.granted")}
+          </Plate>
+          <Plate tone={revokedCount ? "blocked" : "neutral"}>
+            {revokedCount} {copy("consent.revoked")}
+          </Plate>
         </p>
       ) : null}
 
@@ -220,7 +235,7 @@ export function ConsentPanel({
           />
         </>
       ) : null}
-    </Section>
+    </Card>
   );
 }
 
@@ -259,7 +274,10 @@ function GrantForm({
 
   return (
     <form className="form form--boxed" onSubmit={submit} noValidate>
-      <h3 className="form__title">{t("consent.grantTitle")}</h3>
+      <h3 className="form__title core-form-title">
+        <GoldIcon icon="checkCircle" size={20} />
+        {t("consent.grantTitle")}
+      </h3>
       <div className="form__grid">
         <div className="field">
           <label htmlFor={ids.ch}>{t("consent.channel")}</label>

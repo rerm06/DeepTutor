@@ -1,0 +1,277 @@
+/* Core screens (entry, members, member record, inbox, audit, organization, my account, my consents) on design
+   system v2. Tokens only; every rule works in light and dark. No side stripes, no gradient text. */
+
+/* ── Page header: title, lede and the short gold rule of the client design ── */
+.core-head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.core-head__rule {
+  display: block;
+  width: 44px;
+  height: 4px;
+  margin-top: 6px;
+  border-radius: 2px;
+  background: var(--gold);
+}
+
+/* ── Stats: values that are words (names, emails) read smaller than numbers and may wrap ── */
+.core-stat {
+  margin: 0;
+}
+.core-stat dd {
+  margin: 0;
+}
+.core-stat .ds-stat__value {
+  overflow-wrap: anywhere;
+}
+.core-facts .ds-stat__value {
+  font-size: 1.25rem;
+  line-height: 1.25;
+}
+.core-stat__mono {
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+.core-facts .core-stat__mono {
+  font-size: 0.9375rem;
+}
+/* Phones: number stats sit two per row and every stat card is more compact. */
+@media (max-width: 480px) {
+  .core-page .ds-stats {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 10px;
+  }
+  .core-page .ds-stats.core-facts {
+    grid-template-columns: 1fr;
+  }
+  .core-page .ds-stat {
+    min-height: 76px;
+    gap: 12px;
+    padding: 12px 14px;
+  }
+  .core-page .ds-stat__value {
+    font-size: 1.5rem;
+  }
+  .core-page .core-facts .ds-stat__value {
+    font-size: 1.125rem;
+  }
+  .core-page .core-facts .core-stat__mono {
+    font-size: 0.9375rem;
+  }
+}
+
+/* ── Entry (persona picker) ── */
+.core-page .org-group {
+  gap: 16px;
+}
+.core-page .org-group__title {
+  margin: 0;
+  flex-wrap: wrap;
+}
+.core-page .persona {
+  border-radius: 14px;
+  box-shadow: none;
+  background: var(--surface-2);
+}
+.core-page .persona__avatar {
+  width: 44px;
+  height: 44px;
+  background: var(--gold);
+  color: var(--accent-text);
+  border: 0;
+}
+.core-page .persona:hover:not(:disabled) {
+  border-color: var(--gold);
+}
+.core-page .persona:hover:not(:disabled) .persona__go {
+  color: var(--gold-text);
+}
+
+/* ── Members ── */
+.core-page .page__head .btn--primary {
+  min-height: 44px;
+}
+
+/* ── Member record header (hero surface of the client design) ── */
+.core-member.ds-hero {
+  padding: 24px 28px;
+}
+.core-member {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  min-width: 0;
+}
+.core-member .core-member__avatar {
+  width: 72px;
+  height: 72px;
+  font-size: 1.5rem;
+  background: var(--gold);
+  color: var(--accent-text);
+}
+.core-member__text {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.core-member__text .page__title {
+  overflow-wrap: anywhere;
+}
+.core-member__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 1.0625rem;
+}
+@media (max-width: 480px) {
+  .core-member {
+    gap: 12px;
+  }
+  .core-member.ds-hero {
+    padding: 18px 16px;
+  }
+  .core-member .core-member__avatar {
+    width: 56px;
+    height: 56px;
+    font-size: 1.125rem;
+  }
+}
+
+/* ── Record tab strip: segmented control with the gold pill for the selected tab ── */
+.core-tabs {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+.core-tabs__strip {
+  min-width: 0;
+  padding: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+.core-tabs__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.core-tabs__tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-muted);
+  font: 600 1rem var(--font-body);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.core-tabs__tab:hover {
+  color: var(--text);
+  background: var(--surface-2);
+}
+.core-tabs__tab[aria-selected="true"] {
+  background: var(--gold);
+  color: var(--accent-text);
+}
+.core-tabs__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+.core-tabs__panel[hidden] {
+  display: none;
+}
+/* Phones: one scrolling row inside the strip (never the page). */
+@media (max-width: 640px) {
+  .core-tabs__strip {
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: thin;
+  }
+  .core-tabs__list {
+    flex-wrap: nowrap;
+    width: max-content;
+  }
+}
+@media (forced-colors: active) {
+  .core-tabs__tab[aria-selected="true"] {
+    outline: 2px solid Highlight;
+  }
+}
+
+/* ── Card lists (my memberships) ── */
+.core-cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.core-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  min-width: 0;
+  padding: 16px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+.core-card .core-card__avatar {
+  width: 48px;
+  height: 48px;
+  font-size: 1rem;
+  background: var(--gold);
+  color: var(--accent-text);
+}
+.core-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.core-card__body dd {
+  margin: 0;
+}
+.core-card__name {
+  font-weight: 700;
+  font-size: 1.125rem;
+}
+
+/* ── Consents ── */
+.core-brand,
+.core-counts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+.core-brand .ds-pill {
+  overflow-wrap: anywhere;
+}
+.core-form-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.core-form-title > .icon {
+  color: var(--gold-text);
+}
+.core-picker select {
+  min-height: 44px;
+}

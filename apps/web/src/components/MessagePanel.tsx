@@ -13,9 +13,10 @@ import {
   previewSegments,
 } from "../lib/template";
 import { useAsync } from "../lib/useAsync";
+import { Card, Empty } from "../screens/kit";
 import { useSession } from "../session/SessionContext";
 import type { BrandOption } from "./ConsentPanel";
-import { ErrorNote, LiveResult, Loading, Plate, Section, TableWrap, messageStatusTone } from "./ui";
+import { ErrorNote, LiveResult, Loading, Plate, TableWrap, messageStatusTone } from "./ui";
 
 const VAR_LABEL: Record<ClientVar, MessageKey> = {
   date: "send.var.date",
@@ -138,7 +139,7 @@ export function MessagePanel({
   }
 
   return (
-    <Section title={t("send.title")}>
+    <Card icon="send" title={t("send.title")}>
       {templates.loading ? <Loading /> : null}
       {templates.error ? <ErrorNote code={templates.error} onRetry={templates.reload} /> : null}
       <form className="form form--boxed" onSubmit={submit} noValidate>
@@ -265,7 +266,7 @@ export function MessagePanel({
         </LiveResult>
         {error ? <ErrorNote code={error} /> : null}
       </form>
-    </Section>
+    </Card>
   );
 }
 
@@ -353,10 +354,12 @@ export function MessageHistory({ memberId, version }: { memberId: string; versio
   const messages = useAsync(() => api.messages(memberId), [api, memberId, version]);
   const rows = messages.data?.data ?? [];
   return (
-    <Section title={t("messages.title")}>
+    <Card icon="history" title={t("messages.title")}>
       {messages.loading ? <Loading /> : null}
       {messages.error ? <ErrorNote code={messages.error} onRetry={messages.reload} /> : null}
-      {messages.data && rows.length === 0 ? <p className="muted">{t("messages.empty")}</p> : null}
+      {messages.data && rows.length === 0 ? (
+        <Empty icon="chat" title={t("messages.empty")} />
+      ) : null}
       {rows.length > 0 ? (
         <TableWrap label={t("messages.title")}>
           <table className="table">
@@ -393,6 +396,6 @@ export function MessageHistory({ memberId, version }: { memberId: string; versio
           </table>
         </TableWrap>
       ) : null}
-    </Section>
+    </Card>
   );
 }
