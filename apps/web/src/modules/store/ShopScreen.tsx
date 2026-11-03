@@ -1,11 +1,21 @@
 import { useEffect, useId, useState } from "react";
-import { ErrorNote, LiveResult, Loading, Plate, Section, TableWrap } from "../../components/ui";
+import { Icon } from "../../components/icons";
+import { ErrorNote, LiveResult, Loading, Plate, TableWrap } from "../../components/ui";
 import { formatDateTime } from "../../lib/format";
 import { useAsync } from "../../lib/useAsync";
 import { useSession } from "../../session/SessionContext";
 import { errorKey, money, useStoreApi } from "./api";
 import { useCart } from "./cart";
-import { IvuBreakdown, SaleStatusPlate, SupplementNotice } from "./components";
+import {
+  CategoryIcon,
+  IvuBreakdown,
+  STORE_ICON,
+  SaleStatusPlate,
+  StoreEmpty,
+  StoreSection,
+  StoreStat,
+  SupplementNotice,
+} from "./components";
 import { type StoreKey, useStoreT } from "./dict";
 
 /**
@@ -33,6 +43,7 @@ export function ShopScreen() {
   const [error, setError] = useState<StoreKey | null>(null);
   const [announce, setAnnounce] = useState<string | null>(null);
   const locId = useId();
+  const catId = useId();
   const items = catalogue.data?.data ?? [];
   const byId = new Map(items.map((p) => [p.product_id, p]));
 
@@ -53,127 +64,173 @@ export function ShopScreen() {
     }
   }
 
+  const orderRows = orders.data?.data ?? [];
+  const pendingCount = orderRows.filter((o) => o.status === "pending_pickup").length;
+  const availableCount = items.filter((p) => p.available > 0).length;
+
   return (
-    <div className="page">
-      <h1 className="page__title">{t("shop.title")}</h1>
-      <p className="lede">{t("shop.lede")}</p>
+    <div className="page store-page">
+      <div className="page__head">
+        <div className="store-head">
+          <h1 className="page__title">{t("shop.title")}</h1>
+          <p className="lede">{t("shop.lede")}</p>
+        </div>
+        <div className="field field--inline store-shop-loc">
+          <label htmlFor={locId}>
+            <Icon name="pin" />
+            {t("pickupLocation")}
+          </label>
+          <select
+            id={locId}
+            value={locationId}
+            onChange={(e) => {
+              setLocationId(e.target.value);
+              cart.clear();
+            }}
+            data-tour-id="store-shop-location"
+          >
+            {locs.map((l) => (
+              <option key={l.id} value={l.id}>
+                {l.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
       <LiveResult tone={announce ? "ok" : undefined}>{announce}</LiveResult>
       {error ? (
         <p className="note note--error" role="alert">
           {t(error)}
         </p>
       ) : null}
-      <div className="field field--inline">
-        <label htmlFor={locId}>{t("pickupLocation")}</label>
-        <select
-          id={locId}
-          value={locationId}
-          onChange={(e) => {
-            setLocationId(e.target.value);
-            cart.clear();
-          }}
-          data-tour-id="store-shop-location"
-        >
-          {locs.map((l) => (
-            <option key={l.id} value={l.id}>
-              {l.name}
-            </option>
-          ))}
-        </select>
-      </div>
 
-      <Section title={t("shop.catalogue")}>
-        {catalogue.loading ? <Loading /> : null}
-        {catalogue.error ? <ErrorNote code={catalogue.error} onRetry={catalogue.reload} /> : null}
-        {catalogue.data && items.length === 0 ? <p className="muted">{t("shop.empty")}</p> : null}
-        <ul className="store-grid">
-          {items.map((p) => (
-            <li key={p.product_id} className="store-card">
-              <h3 className="store-card__name">{p.name}</h3>
-              <p className="muted">
-                {t(`cat.${p.category}`)} ·{" "}
-                <span className="mono">{money(p.price_cents, lang)}</span>
-              </p>
-              <p>
-                {p.available > 0 ? (
-                  <Plate tone="ok">
-                    {t("available")}: {p.available}
-                  </Plate>
-                ) : (
-                  <Plate tone="neutral">{t("soldOut")}</Plate>
-                )}
-              </p>
-              {p.age_restricted ? <p className="help">{t("ageAtPickup")}</p> : null}
-              <SupplementNotice categories={[p.category]} />
-              {canOrder ? (
-                <button
-                  type="button"
-                  className="btn"
-                  disabled={p.available <= (cart.qty[p.product_id] ?? 0)}
-                  onClick={() => cart.add(p.product_id, p.available)}
-                  data-tour-id="store-shop-add"
-                >
-                  {t("pos.add")}
-                  <span className="sr-only">: {p.name}</span>
-                </button>
-              ) : null}
-            </li>
-          ))}
-        </ul>
-      </Section>
-
-      {canOrder && cart.lines.length > 0 ? (
-        <Section title={t("pos.cart")}>
-          <ul className="store-lines">
-            {cart.lines.map((l) => {
-              const name = byId.get(l.product_id)?.name ?? l.product_id;
-              return (
-                <li key={l.product_id}>
-                  <span>
-                    {name} × {l.qty}
-                  </span>
-                  <button
-                    type="button"
-                    className="btn btn--ghost"
-                    onClick={() => cart.remove(l.product_id)}
-                  >
-                    {t("pos.remove")}
-                    <span className="sr-only">: {name}</span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-          {cart.quote.data ? <IvuBreakdown m={cart.quote.data} /> : null}
-          <div className="form__actions">
-            <button
-              type="button"
-              className="btn btn--primary"
-              disabled={busy || !cart.quote.data}
-              onClick={async () => {
-                if (
-                  await run(
-                    () => store.order({ location_id: locationId, lines: cart.lines }),
-                    "shop.ordered",
-                  )
-                )
-                  cart.clear();
-              }}
-              data-tour-id="store-shop-order"
-            >
-              {t("shop.order")}
-            </button>
-          </div>
-        </Section>
+      {catalogue.data || orders.data ? (
+        <div className="ds-stats">
+          {catalogue.data ? (
+            <StoreStat icon="bag" label={t("shop.statAvailable")} value={availableCount} />
+          ) : null}
+          {orders.data ? (
+            <StoreStat icon="receipt" label={t("shop.statPending")} value={pendingCount} />
+          ) : null}
+        </div>
       ) : null}
 
-      <Section title={t("shop.myOrders")}>
+      <div className={canOrder ? "store-split" : undefined}>
+        <section className="store-block store-split__main" aria-labelledby={catId}>
+          <h2 id={catId} className="section__title">
+            <Icon name="bag" size={24} />
+            {t("shop.catalogue")}
+          </h2>
+          {catalogue.loading ? <Loading /> : null}
+          {catalogue.error ? <ErrorNote code={catalogue.error} onRetry={catalogue.reload} /> : null}
+          {catalogue.data && items.length === 0 ? (
+            <StoreEmpty icon="bag" title={t("shop.empty")} />
+          ) : null}
+          <ul className="ds-grid store-products">
+            {items.map((p) => (
+              <li key={p.product_id} className="store-product">
+                <div className="store-product__art" aria-hidden="true">
+                  <CategoryIcon category={p.category} size={44} />
+                </div>
+                <div className="store-product__body">
+                  <p className="store-product__cat">{t(`cat.${p.category}`)}</p>
+                  <h3 className="store-product__name">{p.name}</h3>
+                  <p className="store-product__price">{money(p.price_cents, lang)}</p>
+                  <p>
+                    {p.available > 0 ? (
+                      <Plate tone="ok">
+                        {t("available")}: {p.available}
+                      </Plate>
+                    ) : (
+                      <Plate tone="neutral">{t("soldOut")}</Plate>
+                    )}
+                  </p>
+                  {p.age_restricted ? (
+                    <p className="store-product__age">
+                      <Icon d={STORE_ICON.shield} size={18} />
+                      <span>{t("ageAtPickup")}</span>
+                    </p>
+                  ) : null}
+                  <SupplementNotice categories={[p.category]} />
+                  {canOrder ? (
+                    <button
+                      type="button"
+                      className="ds-cta store-product__cta"
+                      disabled={p.available <= (cart.qty[p.product_id] ?? 0)}
+                      onClick={() => cart.add(p.product_id, p.available)}
+                      data-tour-id="store-shop-add"
+                    >
+                      <Icon name="cart" />
+                      {t("pos.add")}
+                      <span className="sr-only">: {p.name}</span>
+                    </button>
+                  ) : null}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        {canOrder ? (
+          <StoreSection title={t("pos.cart")} icon="cart" className="store-cart">
+            {cart.lines.length === 0 ? (
+              <StoreEmpty icon="cart" title={t("pos.cartEmpty")}>
+                <p className="help">{t("shop.cartHint")}</p>
+              </StoreEmpty>
+            ) : (
+              <>
+                <ul className="store-lines">
+                  {cart.lines.map((l) => {
+                    const name = byId.get(l.product_id)?.name ?? l.product_id;
+                    return (
+                      <li key={l.product_id} className="store-line store-line--simple">
+                        <span className="store-line__name">
+                          <strong>{name}</strong>
+                          <span className="muted">× {l.qty}</span>
+                        </span>
+                        <button
+                          type="button"
+                          className="btn btn--ghost store-line__remove"
+                          onClick={() => cart.remove(l.product_id)}
+                        >
+                          {t("pos.remove")}
+                          <span className="sr-only">: {name}</span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+                {cart.quote.data ? <IvuBreakdown m={cart.quote.data} /> : null}
+                <button
+                  type="button"
+                  className="ds-cta store-charge"
+                  disabled={busy || !cart.quote.data}
+                  onClick={async () => {
+                    if (
+                      await run(
+                        () => store.order({ location_id: locationId, lines: cart.lines }),
+                        "shop.ordered",
+                      )
+                    )
+                      cart.clear();
+                  }}
+                  data-tour-id="store-shop-order"
+                >
+                  {t("shop.order")}
+                </button>
+              </>
+            )}
+          </StoreSection>
+        ) : null}
+      </div>
+
+      <StoreSection title={t("shop.myOrders")} icon="receipt">
         {orders.loading ? <Loading /> : null}
         {orders.error ? <ErrorNote code={orders.error} onRetry={orders.reload} /> : null}
-        {orders.data && orders.data.data.length === 0 ? (
-          <p className="muted">{t("shop.noOrders")}</p>
+        {orders.data && orderRows.length === 0 ? (
+          <StoreEmpty icon="receipt" title={t("shop.noOrders")} />
         ) : null}
-        {orders.data && orders.data.data.length > 0 ? (
+        {orderRows.length > 0 ? (
           <TableWrap label={t("shop.myOrders")}>
             <table className="table">
               <thead>
@@ -186,7 +243,7 @@ export function ShopScreen() {
                 </tr>
               </thead>
               <tbody>
-                {orders.data.data.map((o) => (
+                {orderRows.map((o) => (
                   <tr key={o.id}>
                     <td>{formatDateTime(o.created_at, lang)}</td>
                     <td className="mono">{o.units ?? ""}</td>
@@ -213,7 +270,7 @@ export function ShopScreen() {
             </table>
           </TableWrap>
         ) : null}
-      </Section>
+      </StoreSection>
     </div>
   );
 }

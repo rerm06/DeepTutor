@@ -1,5 +1,6 @@
 import { type FormEvent, type KeyboardEvent, useEffect, useId, useState } from "react";
-import { ErrorNote, LiveResult, Loading, Section, TableWrap } from "../../components/ui";
+import { Icon } from "../../components/icons";
+import { ErrorNote, LiveResult, Loading } from "../../components/ui";
 import { useAsync } from "../../lib/useAsync";
 import { useSession } from "../../session/SessionContext";
 import {
@@ -12,7 +13,15 @@ import {
   useStoreApi,
 } from "./api";
 import { useCart } from "./cart";
-import { IvuBreakdown, Receipt, SupplementNotice } from "./components";
+import {
+  CategoryIcon,
+  IvuBreakdown,
+  Receipt,
+  STORE_ICON,
+  StoreEmpty,
+  StoreSection,
+  SupplementNotice,
+} from "./components";
 import { type StoreKey, useStoreT } from "./dict";
 
 /** Filter the location catalogue by name or SKU (case-insensitive). */
@@ -48,10 +57,9 @@ export function PosScreen() {
   const [error, setError] = useState<StoreKey | null>(null);
   const [announce, setAnnounce] = useState<string | null>(null);
   const [receipt, setReceipt] = useState<Sale | null>(null);
-  const ids = { loc: useId(), search: useId(), help: useId(), age: useId() };
+  const ids = { loc: useId(), search: useId(), help: useId(), age: useId(), tile: useId() };
 
   const byId = new Map(items.map((p) => [p.product_id, p]));
-  const results = search.trim() ? searchCatalogue(items, search).slice(0, 8) : [];
   const quote = cart.quote.data;
   const restricted = cart.lines.some((l) => byId.get(l.product_id)?.age_restricted);
   useEffect(() => {
@@ -99,15 +107,24 @@ export function PosScreen() {
     }
   }
 
+  const visible = search.trim() ? searchCatalogue(items, search) : items;
+  const units = cart.lines.reduce((n, l) => n + l.qty, 0);
+
   return (
-    <div className="page">
-      <h1 className="page__title">{t("pos.title")}</h1>
+    <div className="page store-page">
+      <div className="page__head">
+        <div className="store-head">
+          <h1 className="page__title">{t("pos.title")}</h1>
+          <p className="lede">{t("pos.lede")}</p>
+        </div>
+      </div>
       <LiveResult>{announce}</LiveResult>
       {locations.error ? <ErrorNote code={locations.error} onRetry={locations.reload} /> : null}
 
       {receipt ? (
-        <Section
+        <StoreSection
           title={t("receipt.title")}
+          icon="receipt"
           actions={
             <>
               <button
@@ -116,204 +133,235 @@ export function PosScreen() {
                 onClick={() => window.print()}
                 data-tour-id="store-receipt-print"
               >
+                <Icon d={STORE_ICON.printer} />
                 {t("receipt.print")}
               </button>
               <button
                 type="button"
-                className="btn btn--primary"
+                className="ds-cta"
                 onClick={() => setReceipt(null)}
                 data-tour-id="store-pos-new"
               >
+                <Icon d={STORE_ICON.plus} />
                 {t("pos.newSale")}
               </button>
             </>
           }
         >
           <Receipt sale={receipt} />
-        </Section>
+        </StoreSection>
       ) : null}
 
-      <div className="toolbar">
-        <div className="field">
-          <label htmlFor={ids.loc}>{t("location")}</label>
-          <select
-            id={ids.loc}
-            value={locationId}
-            onChange={(e) => {
-              setLocationId(e.target.value);
-              cart.clear();
-            }}
-            data-tour-id="store-pos-location"
-          >
-            {locs.map((l) => (
-              <option key={l.id} value={l.id}>
-                {l.name}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="field field--grow">
-          <label htmlFor={ids.search}>{t("pos.search")}</label>
-          <input
-            id={ids.search}
-            type="search"
-            autoComplete="off"
-            value={search}
-            aria-describedby={ids.help}
-            onChange={(e) => setSearch(e.target.value)}
-            onKeyDown={onSearchKey}
-            data-tour-id="store-pos-search"
-          />
-          <p id={ids.help} className="help">
-            {t("pos.searchHelp")}
-          </p>
-        </div>
-      </div>
-
-      {catalogue.loading ? <Loading /> : null}
-      {catalogue.error ? <ErrorNote code={catalogue.error} onRetry={catalogue.reload} /> : null}
-      {search.trim() ? (
-        <section aria-label={t("pos.results")}>
-          {results.length === 0 ? <p className="muted">{t("pos.noMatch")}</p> : null}
-          <ul className="store-results">
-            {results.map((p) => (
-              <li key={p.product_id} className="store-results__item">
-                <span>
-                  <strong>{p.name}</strong> <span className="mono muted">{p.sku}</span>
-                  <br />
-                  <span className="mono">{money(p.price_cents, lang)}</span> ·{" "}
-                  {p.available > 0 ? `${t("available")}: ${p.available}` : t("soldOut")}
-                  {p.age_restricted ? ` · ${t("ageRestricted")}` : ""}
-                </span>
-                <button
-                  type="button"
-                  className="btn"
-                  disabled={p.available <= (cart.qty[p.product_id] ?? 0)}
-                  onClick={() => add(p)}
-                  data-tour-id="store-pos-add"
-                >
-                  {t("pos.add")}
-                  <span className="sr-only">: {p.name}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
-
-      <Section title={t("pos.cart")}>
-        {cart.lines.length === 0 ? (
-          <p className="muted">{t("pos.cartEmpty")}</p>
-        ) : (
-          <form className="form" onSubmit={charge} data-tour-id="store-pos-cart">
-            <TableWrap label={t("pos.cart")}>
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th scope="col">{t("product")}</th>
-                    <th scope="col">{t("qty")}</th>
-                    <th scope="col">{t("price")}</th>
-                    <th scope="col">{t("total")}</th>
-                    <th scope="col">{t("actions")}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {cart.lines.map((l) => {
-                    const p = byId.get(l.product_id);
-                    const q = quote?.lines.find((x) => x.product_id === l.product_id);
-                    const name = p?.name ?? l.product_id;
-                    return (
-                      <tr key={l.product_id}>
-                        <th scope="row">
-                          {name}
-                          {p?.age_restricted ? (
-                            <span className="muted"> · {t("ageRestricted")}</span>
-                          ) : null}
-                        </th>
-                        <td>
-                          <input
-                            type="number"
-                            className="store-qty"
-                            min={1}
-                            max={p?.available ?? 999}
-                            value={l.qty}
-                            aria-label={t("pos.qtyFor", { name })}
-                            onChange={(e) => cart.set(l.product_id, Number(e.target.value))}
-                          />
-                        </td>
-                        <td className="mono">{p ? money(p.price_cents, lang) : ""}</td>
-                        <td className="mono">{q ? money(q.total_cents, lang) : ""}</td>
-                        <td>
-                          <button
-                            type="button"
-                            className="btn btn--ghost"
-                            onClick={() => cart.remove(l.product_id)}
-                          >
-                            {t("pos.remove")}
-                            <span className="sr-only">: {name}</span>
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </TableWrap>
-
-            {cart.quote.error ? <ErrorNote code={cart.quote.error} /> : null}
-            {quote ? <IvuBreakdown m={quote} /> : null}
-            <SupplementNotice
-              categories={cart.lines.map((l) => byId.get(l.product_id)?.category ?? null)}
-            />
-
-            {restricted ? (
-              <div className="note note--warn store-check">
-                <p>{t("pos.ageNeeded")}</p>
-                <input
-                  id={ids.age}
-                  type="checkbox"
-                  checked={ageOk}
-                  onChange={(e) => setAgeOk(e.target.checked)}
-                  data-tour-id="store-pos-age"
-                />
-                <label htmlFor={ids.age}>{t("pos.age")}</label>
-              </div>
-            ) : null}
-
-            <fieldset className="store-fieldset" data-tour-id="store-pos-payment">
-              <legend>{t("pos.payment")}</legend>
-              {PAYMENT_METHODS.map((m) => (
-                <label key={m} className="store-radio">
-                  <input
-                    type="radio"
-                    name="payment"
-                    value={m}
-                    checked={payment === m}
-                    onChange={() => setPayment(m)}
-                  />
-                  {t(`pay.${m}`)}
-                </label>
-              ))}
-            </fieldset>
-
-            <div className="form__actions">
-              <button
-                type="submit"
-                className="btn btn--primary"
-                disabled={busy || !quote || (restricted && !ageOk)}
-                data-tour-id="store-pos-submit"
+      <div className="store-split">
+        <div className="store-split__main">
+          <div className="toolbar store-toolbar">
+            <div className="field">
+              <label htmlFor={ids.loc}>{t("location")}</label>
+              <select
+                id={ids.loc}
+                value={locationId}
+                onChange={(e) => {
+                  setLocationId(e.target.value);
+                  cart.clear();
+                }}
+                data-tour-id="store-pos-location"
               >
-                {t("pos.charge", { total: quote ? money(quote.total_cents, lang) : "" })}
-              </button>
+                {locs.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.name}
+                  </option>
+                ))}
+              </select>
             </div>
-            {error ? (
-              <p className="note note--error" role="alert">
-                {t(error)}
+            <div className="field field--grow store-search">
+              <label htmlFor={ids.search}>{t("pos.search")}</label>
+              <span className="store-search__box">
+                <Icon d={STORE_ICON.search} size={22} />
+                <input
+                  id={ids.search}
+                  type="search"
+                  autoComplete="off"
+                  value={search}
+                  aria-describedby={ids.help}
+                  onChange={(e) => setSearch(e.target.value)}
+                  onKeyDown={onSearchKey}
+                  data-tour-id="store-pos-search"
+                />
+              </span>
+              <p id={ids.help} className="help">
+                {t("pos.searchHelp")}
               </p>
+            </div>
+          </div>
+
+          {catalogue.loading ? <Loading /> : null}
+          {catalogue.error ? <ErrorNote code={catalogue.error} onRetry={catalogue.reload} /> : null}
+          <section
+            className="store-block"
+            aria-label={search.trim() ? t("pos.results") : t("pos.catalogue")}
+          >
+            {search.trim() && visible.length === 0 ? (
+              <StoreEmpty iconD={STORE_ICON.search} title={t("pos.noMatch")} />
             ) : null}
-          </form>
-        )}
-      </Section>
+            <ul className="ds-grid store-tiles">
+              {visible.map((p) => {
+                const inCart = cart.qty[p.product_id] ?? 0;
+                const metaId = `${ids.tile}-${p.product_id}`;
+                return (
+                  <li key={p.product_id}>
+                    <button
+                      type="button"
+                      className="store-tile"
+                      disabled={p.available <= inCart}
+                      aria-label={`${t("pos.add")}: ${p.name}`}
+                      aria-describedby={metaId}
+                      onClick={() => add(p)}
+                      data-tour-id="store-pos-add"
+                    >
+                      <span className="store-tile__top">
+                        <span className="store-tile__art">
+                          <CategoryIcon category={p.category} size={24} />
+                        </span>
+                        {inCart > 0 ? <span className="ds-pill">× {inCart}</span> : null}
+                      </span>
+                      <span className="store-tile__name">{p.name}</span>
+                      <span className="store-tile__sku mono">{p.sku}</span>
+                      <span id={metaId} className="store-tile__meta">
+                        <span className="store-tile__price">{money(p.price_cents, lang)}</span>
+                        <span className={p.available > 0 ? "store-tile__stock" : "store-tile__out"}>
+                          {p.available > 0 ? `${t("available")}: ${p.available}` : t("soldOut")}
+                        </span>
+                        {p.age_restricted ? (
+                          <span className="store-tile__age">
+                            <Icon d={STORE_ICON.shield} size={16} />
+                            {t("ageRestricted")}
+                          </span>
+                        ) : null}
+                      </span>
+                      <span className="store-tile__add" aria-hidden="true">
+                        <Icon d={STORE_ICON.plus} size={18} />
+                        {t("pos.add")}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        </div>
+
+        <StoreSection
+          title={t("pos.cart")}
+          icon="cart"
+          className="store-cart"
+          actions={
+            units > 0 ? <span className="ds-pill">{t("pos.units", { n: units })}</span> : null
+          }
+        >
+          {cart.lines.length === 0 ? (
+            <StoreEmpty icon="cart" title={t("pos.cartEmpty")}>
+              <p className="help">{t("pos.cartHint")}</p>
+            </StoreEmpty>
+          ) : (
+            <form className="form store-cart__form" onSubmit={charge} data-tour-id="store-pos-cart">
+              <ul className="store-lines">
+                {cart.lines.map((l) => {
+                  const p = byId.get(l.product_id);
+                  const q = quote?.lines.find((x) => x.product_id === l.product_id);
+                  const name = p?.name ?? l.product_id;
+                  return (
+                    <li key={l.product_id} className="store-line">
+                      <span className="store-line__name">
+                        <strong>{name}</strong>
+                        <span className="muted mono">{p ? money(p.price_cents, lang) : ""}</span>
+                        {p?.age_restricted ? (
+                          <span className="store-line__age">{t("ageRestricted")}</span>
+                        ) : null}
+                      </span>
+                      <input
+                        type="number"
+                        className="store-qty"
+                        min={1}
+                        max={p?.available ?? 999}
+                        value={l.qty}
+                        aria-label={t("pos.qtyFor", { name })}
+                        onChange={(e) => cart.set(l.product_id, Number(e.target.value))}
+                      />
+                      <span className="store-line__total mono">
+                        {q ? money(q.total_cents, lang) : ""}
+                      </span>
+                      <button
+                        type="button"
+                        className="btn btn--ghost store-line__remove"
+                        onClick={() => cart.remove(l.product_id)}
+                      >
+                        {t("pos.remove")}
+                        <span className="sr-only">: {name}</span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+
+              {cart.quote.error ? <ErrorNote code={cart.quote.error} /> : null}
+              {quote ? <IvuBreakdown m={quote} /> : null}
+              <SupplementNotice
+                categories={cart.lines.map((l) => byId.get(l.product_id)?.category ?? null)}
+              />
+
+              {restricted ? (
+                <div className="note note--warn store-check">
+                  <p>
+                    <Icon d={STORE_ICON.shield} size={20} />
+                    {t("pos.ageNeeded")}
+                  </p>
+                  <input
+                    id={ids.age}
+                    type="checkbox"
+                    checked={ageOk}
+                    onChange={(e) => setAgeOk(e.target.checked)}
+                    data-tour-id="store-pos-age"
+                  />
+                  <label htmlFor={ids.age}>{t("pos.age")}</label>
+                </div>
+              ) : null}
+
+              <fieldset className="store-fieldset" data-tour-id="store-pos-payment">
+                <legend>{t("pos.payment")}</legend>
+                {PAYMENT_METHODS.map((m) => (
+                  <label key={m} className="store-radio">
+                    <input
+                      type="radio"
+                      name="payment"
+                      value={m}
+                      checked={payment === m}
+                      onChange={() => setPayment(m)}
+                    />
+                    <Icon name={m === "cash" ? "coin" : "card"} size={22} />
+                    {t(`pay.${m}`)}
+                  </label>
+                ))}
+              </fieldset>
+
+              <div className="store-charge-bar">
+                <button
+                  type="submit"
+                  className="ds-cta store-charge"
+                  disabled={busy || !quote || (restricted && !ageOk)}
+                  data-tour-id="store-pos-submit"
+                >
+                  {t("pos.charge", { total: quote ? money(quote.total_cents, lang) : "" })}
+                </button>
+                {error ? (
+                  <p className="note note--error" role="alert">
+                    {t(error)}
+                  </p>
+                ) : null}
+              </div>
+            </form>
+          )}
+        </StoreSection>
+      </div>
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { type FormEvent, useId, useState } from "react";
-import { ErrorNote, LiveResult, Loading, Plate, Section, TableWrap } from "../../components/ui";
+import { Icon } from "../../components/icons";
+import { ErrorNote, LiveResult, Loading, Plate, TableWrap } from "../../components/ui";
 import { useAsync } from "../../lib/useAsync";
 import {
   CATEGORIES,
@@ -10,6 +11,7 @@ import {
   parsePriceCents,
   useStoreApi,
 } from "./api";
+import { CategoryIcon, STORE_ICON, StoreEmpty, StoreSection, StoreStat } from "./components";
 import { type StoreKey, useStoreT } from "./dict";
 
 /** Product catalogue maintenance (owner, location manager). Prices are typed in dollars, stored in cents. */
@@ -25,10 +27,15 @@ export function ProductsScreen() {
     products.reload();
   };
 
+  const rows = products.data?.data ?? [];
+
   return (
-    <div className="page">
+    <div className="page store-page">
       <div className="page__head">
-        <h1 className="page__title">{t("prod.title")}</h1>
+        <div className="store-head">
+          <h1 className="page__title">{t("prod.title")}</h1>
+          <p className="lede">{t("prod.lede")}</p>
+        </div>
         <button
           type="button"
           className="btn btn--primary"
@@ -37,40 +44,61 @@ export function ProductsScreen() {
           onClick={() => setShowNew((v) => !v)}
           data-tour-id="store-product-new"
         >
+          <Icon d={STORE_ICON.plus} />
           {t("prod.new")}
         </button>
       </div>
       <LiveResult tone={announce ? "ok" : undefined}>{announce}</LiveResult>
+      {products.data ? (
+        <div className="ds-stats">
+          <StoreStat iconD={STORE_ICON.tag} label={t("prod.title")} value={rows.length} />
+          <StoreStat
+            icon="checkCircle"
+            label={t("prod.statActive")}
+            value={rows.filter((p) => p.active).length}
+          />
+          <StoreStat
+            iconD={STORE_ICON.shield}
+            label={t("prod.statAge")}
+            value={rows.filter((p) => p.age_restricted).length}
+          />
+        </div>
+      ) : null}
       {showNew ? (
         <div id={formId}>
           <NewProduct onCreated={() => changed(t("prod.created"))} />
         </div>
       ) : null}
-      {products.loading ? <Loading /> : null}
-      {products.error ? <ErrorNote code={products.error} onRetry={products.reload} /> : null}
-      {products.data ? (
-        <TableWrap label={t("prod.title")}>
-          <table className="table">
-            <thead>
-              <tr>
-                <th scope="col">{t("sku")}</th>
-                <th scope="col">{t("prod.name")}</th>
-                <th scope="col">{t("category")}</th>
-                <th scope="col">{t("price")}</th>
-                <th scope="col">{t("taxable")}</th>
-                <th scope="col">{t("ageRestricted")}</th>
-                <th scope="col">{t("status")}</th>
-                <th scope="col">{t("actions")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {products.data.data.map((p) => (
-                <ProductRow key={p.id} product={p} onChanged={() => changed(t("prod.saved"))} />
-              ))}
-            </tbody>
-          </table>
-        </TableWrap>
-      ) : null}
+      <StoreSection title={t("prod.list")} iconD={STORE_ICON.tag}>
+        {products.loading ? <Loading /> : null}
+        {products.error ? <ErrorNote code={products.error} onRetry={products.reload} /> : null}
+        {products.data && rows.length === 0 ? (
+          <StoreEmpty iconD={STORE_ICON.tag} title={t("shop.empty")} />
+        ) : null}
+        {rows.length > 0 ? (
+          <TableWrap label={t("prod.title")}>
+            <table className="table">
+              <thead>
+                <tr>
+                  <th scope="col">{t("sku")}</th>
+                  <th scope="col">{t("prod.name")}</th>
+                  <th scope="col">{t("category")}</th>
+                  <th scope="col">{t("price")}</th>
+                  <th scope="col">{t("taxable")}</th>
+                  <th scope="col">{t("ageRestricted")}</th>
+                  <th scope="col">{t("status")}</th>
+                  <th scope="col">{t("actions")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((p) => (
+                  <ProductRow key={p.id} product={p} onChanged={() => changed(t("prod.saved"))} />
+                ))}
+              </tbody>
+            </table>
+          </TableWrap>
+        ) : null}
+      </StoreSection>
     </div>
   );
 }
@@ -98,12 +126,28 @@ function ProductRow({ product, onChanged }: { product: Product; onChanged: () =>
 
   return (
     <tr>
-      <td className="mono">{product.sku}</td>
-      <th scope="row">{product.name}</th>
-      <td>{t(`cat.${product.category}`)}</td>
-      <td className="mono">{money(product.price_cents, lang)}</td>
+      <td className="mono nowrap">{product.sku}</td>
+      <th scope="row" className="store-name">
+        {product.name}
+      </th>
+      <td>
+        <span className="store-cat">
+          <CategoryIcon category={product.category} size={20} />
+          {t(`cat.${product.category}`)}
+        </span>
+      </td>
+      <td className="mono store-money">{money(product.price_cents, lang)}</td>
       <td>{product.taxable ? t("taxable") : t("notTaxable")}</td>
-      <td>{product.age_restricted ? "✓" : t("none")}</td>
+      <td>
+        {product.age_restricted ? (
+          <span className="store-cat">
+            <Icon d={STORE_ICON.shield} size={20} className="store-gold" />
+            {t("yes")}
+          </span>
+        ) : (
+          t("none")
+        )}
+      </td>
       <td>
         <Plate tone={product.active ? "ok" : "neutral"}>
           {product.active ? t("prod.active") : t("prod.inactive")}
@@ -206,7 +250,7 @@ function NewProduct({ onCreated }: { onCreated: () => void }) {
   }
 
   return (
-    <Section title={t("prod.new")}>
+    <StoreSection title={t("prod.new")} iconD={STORE_ICON.plus}>
       <form className="form" onSubmit={submit}>
         <div className="form__grid">
           <div className="field">
@@ -266,23 +310,25 @@ function NewProduct({ onCreated }: { onCreated: () => void }) {
             ) : null}
           </div>
         </div>
-        <div className="store-check">
-          <input
-            id={ids.tax}
-            type="checkbox"
-            checked={f.taxable}
-            onChange={(e) => setF({ ...f, taxable: e.target.checked })}
-          />
-          <label htmlFor={ids.tax}>{t("taxable")}</label>
-        </div>
-        <div className="store-check">
-          <input
-            id={ids.age}
-            type="checkbox"
-            checked={f.age_restricted}
-            onChange={(e) => setF({ ...f, age_restricted: e.target.checked })}
-          />
-          <label htmlFor={ids.age}>{t("ageRestricted")}</label>
+        <div className="store-checks">
+          <div className="store-check">
+            <input
+              id={ids.tax}
+              type="checkbox"
+              checked={f.taxable}
+              onChange={(e) => setF({ ...f, taxable: e.target.checked })}
+            />
+            <label htmlFor={ids.tax}>{t("taxable")}</label>
+          </div>
+          <div className="store-check">
+            <input
+              id={ids.age}
+              type="checkbox"
+              checked={f.age_restricted}
+              onChange={(e) => setF({ ...f, age_restricted: e.target.checked })}
+            />
+            <label htmlFor={ids.age}>{t("ageRestricted")}</label>
+          </div>
         </div>
         <div className="form__actions">
           <button
@@ -300,6 +346,6 @@ function NewProduct({ onCreated }: { onCreated: () => void }) {
           </p>
         ) : null}
       </form>
-    </Section>
+    </StoreSection>
   );
 }
