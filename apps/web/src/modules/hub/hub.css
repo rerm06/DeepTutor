@@ -1,83 +1,154 @@
-/* Hub pages (AI agents, help). */
+/* Hub pages (AI agents, help). Design system v2: hero band, gold-icon section titles, card grid. */
+.hub-hero {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 30px 32px;
+  min-height: 210px;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: radial-gradient(
+      120% 140% at 0% 0%,
+      color-mix(in srgb, var(--gold) 20%, transparent),
+      transparent 60%
+    ), var(--surface);
+}
+.hub-hero--photo {
+  padding-right: min(46%, 480px);
+}
+.hub-hero--photo::after {
+  content: "";
+  position: absolute;
+  inset: 0 0 0 auto;
+  width: min(48%, 520px);
+  z-index: -1;
+  background: var(--hub-img) center 40% / cover no-repeat;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 34%);
+  mask-image: linear-gradient(90deg, transparent 0%, #000 34%);
+}
+.hub-hero__mark {
+  display: inline-grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  border-radius: 14px;
+  color: var(--gold-text);
+  background: color-mix(in srgb, var(--gold) 16%, var(--surface-2));
+  border: 1px solid color-mix(in srgb, var(--gold) 40%, transparent);
+}
+.hub-hero__rule {
+  display: block;
+  width: 50px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--gold);
+}
+.hub-hero__lede {
+  font-size: 1.125rem;
+}
+
+.hub-block {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
 .hub-list,
 .hub-guides {
   list-style: none;
   margin: 0;
   padding: 0;
   display: grid;
-  gap: 12px;
-}
-.hub-card {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 16px;
-  align-items: start;
-  padding: 18px 20px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+}
+.hub-list {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
+}
+.hub-card__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
 }
 .hub-card__icon {
   display: inline-grid;
   place-items: center;
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
-  color: var(--accent-fg);
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  color: var(--gold-text);
+  background: color-mix(in srgb, var(--gold) 16%, var(--surface-2));
 }
-.hub-card__title,
-.hub-guide__title {
-  font-size: 1.0625rem;
-  margin-bottom: 4px;
+.hub-card__title {
+  margin: 4px 0 0;
+  font-size: 1.25rem;
+  font-weight: 700;
 }
-.hub-card__body p {
-  margin: 0 0 4px;
+.hub-card__body,
+.hub-card__note {
+  margin: 0;
   max-width: 70ch;
 }
-.hub-card__side {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 10px;
+.hub-card__note {
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
 }
-@media (max-width: 640px) {
-  .hub-card {
-    grid-template-columns: auto minmax(0, 1fr);
-  }
-  .hub-card__side {
-    grid-column: 1 / -1;
-    flex-direction: row;
-    justify-content: space-between;
-    align-items: center;
-  }
+.hub-card__cta {
+  align-self: flex-start;
 }
+
 .hub-guides {
   counter-reset: guide;
 }
 .hub-guide {
   counter-increment: guide;
   position: relative;
-  padding: 16px 20px 16px 64px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
 }
-.hub-guide::before {
+.hub-guide::after {
   content: counter(guide);
   position: absolute;
-  left: 20px;
-  top: 16px;
+  top: 18px;
+  right: 20px;
   display: inline-grid;
   place-items: center;
   width: 30px;
   height: 30px;
   border-radius: 50%;
-  background: var(--accent);
+  background: var(--gold);
   color: var(--accent-text);
   font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.hub-guide__title {
+  padding-right: 40px;
+  font-size: 1.125rem;
 }
 .hub-guide p {
   margin: 0;
   max-width: 72ch;
+}
+
+@media (max-width: 720px) {
+  .hub-hero {
+    padding: 22px 20px;
+  }
+  .hub-hero--photo {
+    padding-top: 150px;
+    padding-right: 20px;
+  }
+  .hub-hero--photo::after {
+    inset: 0 0 auto 0;
+    width: auto;
+    height: 190px;
+    -webkit-mask-image: linear-gradient(180deg, #000 45%, transparent 100%);
+    mask-image: linear-gradient(180deg, #000 45%, transparent 100%);
+  }
 }
