@@ -1,6 +1,7 @@
 import { type FormEvent, useId, useState } from "react";
 import type { ErrorCode } from "../../api/client";
-import { ErrorNote, LiveResult, Loading, Plate, Section, TableWrap } from "../../components/ui";
+import { Icon } from "../../components/icons";
+import { ErrorNote, LiveResult, Loading, Plate, TableWrap } from "../../components/ui";
 import { useAsync } from "../../lib/useAsync";
 import { useSession } from "../../session/SessionContext";
 import {
@@ -11,7 +12,7 @@ import {
   type ChallengeMetric,
 } from "./api";
 import { type EngKey, useEngT } from "./dict";
-import { act, isConfig, isFront, useEng } from "./shared";
+import { Card, ENG_ICON, Empty, PageHead, Stat, act, isConfig, isFront, useEng } from "./shared";
 
 const today = (offset = 0) => new Date(Date.now() + offset * 86_400_000).toISOString().slice(0, 10);
 
@@ -23,20 +24,29 @@ export function StaffChallengesScreen() {
   const list = useAsync(() => eng.challenges(), [eng]);
   const [selected, setSelected] = useState<string | null>(null);
   const current = list.data?.data.find((c) => c.id === selected) ?? null;
+  const all = list.data?.data ?? [];
+  const now = today();
+  const running = all.filter((c) => c.starts_on <= now && c.ends_on >= now).length;
 
   return (
-    <div className="page">
-      <h1 className="page__title">{t("challenges.title")}</h1>
-      <Section title={t("challenges.title")}>
+    <div className="page eng-page">
+      <PageHead title={t("challenges.title")} lede={t("challenges.lede")} />
+      {list.data ? (
+        <div className="ds-stats">
+          <Stat icon={{ name: "trophy" }} label={t("challenges.statTotal")} value={all.length} />
+          <Stat icon={{ name: "flame" }} label={t("challenges.statActive")} value={running} />
+        </div>
+      ) : null}
+      <Card title={t("challenges.title")} icon={{ name: "trophy" }}>
         {list.loading && !list.data ? <Loading /> : null}
         {list.error ? <ErrorNote code={list.error} onRetry={list.reload} /> : null}
         {list.data && list.data.data.length === 0 ? (
-          <p className="muted">{t("challenges.none")}</p>
+          <Empty icon={{ name: "trophy" }} text={t("challenges.none")} />
         ) : null}
         {list.data && list.data.data.length > 0 ? (
           <ChallengeTable rows={list.data.data} onOpen={setSelected} lang={lang} />
         ) : null}
-      </Section>
+      </Card>
       {isConfig(role) ? <CreateChallenge onCreated={list.reload} /> : null}
       {current ? <ChallengeDetail challenge={current} /> : null}
     </div>
@@ -70,7 +80,9 @@ export function ChallengeTable({
           {rows.map((c) => (
             <tr key={c.id}>
               <th scope="row">{c.name}</th>
-              <td>{t(`kind.${c.kind}` as EngKey)}</td>
+              <td>
+                <Plate tone="neutral">{t(`kind.${c.kind}` as EngKey)}</Plate>
+              </td>
               <td>{t(`metric.${c.metric}` as EngKey)}</td>
               <td className="nowrap" lang={lang}>
                 {c.starts_on} → {c.ends_on}
@@ -85,6 +97,7 @@ export function ChallengeTable({
                 >
                   {t("challenges.open")}
                   <span className="sr-only">: {c.name}</span>
+                  <Icon name="arrowRight" size={16} />
                 </button>
               </td>
             </tr>
@@ -150,8 +163,8 @@ function CreateChallenge({ onCreated }: { onCreated: () => void }) {
   }
 
   return (
-    <Section title={t("challenges.create")}>
-      <form className="form form--boxed" onSubmit={submit}>
+    <Card title={t("challenges.create")} icon={{ name: "calendarPlus" }}>
+      <form className="form" onSubmit={submit}>
         <div className="form__grid">
           <div className="field field--wide">
             <label htmlFor={ids.n}>{t("challenges.name")}</label>
@@ -267,7 +280,7 @@ function CreateChallenge({ onCreated }: { onCreated: () => void }) {
       </form>
       <LiveResult tone={announce ? "ok" : undefined}>{announce}</LiveResult>
       {error ? <ErrorNote code={error} /> : null}
-    </Section>
+    </Card>
   );
 }
 
@@ -276,7 +289,13 @@ function ChallengeDetail({ challenge }: { challenge: Challenge }) {
   const { role } = useSession();
   return (
     <>
-      <h2 className="page__title eng-subtitle">{challenge.name}</h2>
+      <h2 className="eng-subtitle">
+        <Icon name="trophy" size={28} />
+        {challenge.name}
+        <span className="ds-pill">
+          {t(`metric.${challenge.metric}` as EngKey)} · {challenge.goal}
+        </span>
+      </h2>
       {challenge.kind === "team" ? <Teams challenge={challenge} canEdit={isConfig(role)} /> : null}
       {isFront(role) ? <Participants challengeId={challenge.id} /> : null}
       <Leaderboard challengeId={challenge.id} title={t("challenges.leaderboard")} />
@@ -294,12 +313,12 @@ function Teams({ challenge, canEdit }: { challenge: Challenge; canEdit: boolean 
   const [announce, setAnnounce] = useState<string | null>(null);
   const id = useId();
   return (
-    <Section title={t("challenges.teams")} level={3}>
+    <Card title={t("challenges.teams")} icon={{ name: "users" }} level={3}>
       {teams.error ? <ErrorNote code={teams.error} onRetry={teams.reload} /> : null}
       {teams.data && teams.data.data.length === 0 ? (
-        <p className="muted">{t("challenges.noTeams")}</p>
+        <Empty icon={{ name: "users" }} text={t("challenges.noTeams")} />
       ) : null}
-      <ul className="eng-badges">
+      <ul className="eng-teams">
         {(teams.data?.data ?? []).map((tm) => (
           <li key={tm.id}>
             <Plate tone="neutral">{tm.name}</Plate>
@@ -308,7 +327,7 @@ function Teams({ challenge, canEdit }: { challenge: Challenge; canEdit: boolean 
       </ul>
       {canEdit ? (
         <form
-          className="inline-form"
+          className="inline-form eng-inline"
           onSubmit={async (e) => {
             e.preventDefault();
             const ok = await act(
@@ -340,7 +359,7 @@ function Teams({ challenge, canEdit }: { challenge: Challenge; canEdit: boolean 
       ) : null}
       <LiveResult tone={announce ? "ok" : undefined}>{announce}</LiveResult>
       {error ? <ErrorNote code={error} /> : null}
-    </Section>
+    </Card>
   );
 }
 
@@ -349,10 +368,10 @@ function Participants({ challengeId }: { challengeId: string }) {
   const eng = useEng();
   const rows = useAsync(() => eng.participants(challengeId), [eng, challengeId]);
   return (
-    <Section title={t("challenges.participants")} level={3}>
+    <Card title={t("challenges.participants")} icon={{ d: ENG_ICON.list }} level={3}>
       {rows.error ? <ErrorNote code={rows.error} onRetry={rows.reload} /> : null}
       {rows.data && rows.data.data.length === 0 ? (
-        <p className="muted">{t("challenges.noParticipants")}</p>
+        <Empty icon={{ name: "users" }} text={t("challenges.noParticipants")} />
       ) : null}
       {rows.data && rows.data.data.length > 0 ? (
         <TableWrap label={t("challenges.participants")}>
@@ -370,7 +389,16 @@ function Participants({ challengeId }: { challengeId: string }) {
                 <tr key={p.id}>
                   <th scope="row">{p.member_name ?? "—"}</th>
                   <td className="mono">{p.progress}</td>
-                  <td>{p.show_on_leaderboard ? "✓" : "—"}</td>
+                  <td>
+                    {p.show_on_leaderboard ? (
+                      <span className="eng-yes">
+                        <Icon name="check" size={18} />
+                        <span className="sr-only">✓</span>
+                      </span>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
                   <td>{t(`mode.${p.compare_mode}` as EngKey)}</td>
                 </tr>
               ))}
@@ -378,7 +406,7 @@ function Participants({ challengeId }: { challengeId: string }) {
           </table>
         </TableWrap>
       ) : null}
-    </Section>
+    </Card>
   );
 }
 
@@ -387,20 +415,24 @@ export function Leaderboard({
   challengeId,
   title,
   version = 0,
-}: { challengeId: string; title: string; version?: number }) {
+  bare = false,
+}: { challengeId: string; title: string; version?: number; bare?: boolean }) {
   const { t } = useEngT();
   const eng = useEng();
   const board = useAsync(() => eng.leaderboard(challengeId), [eng, challengeId, version]);
   const ranked = (board.data?.data ?? []).filter((r) => r.division !== "self");
-  return (
-    <Section title={title} level={3}>
+  const body = (
+    <>
       {board.error ? <ErrorNote code={board.error} onRetry={board.reload} /> : null}
       {board.data && ranked.length === 0 ? (
-        <p className="muted">{t("challenges.noBoard")}</p>
+        <p className="muted eng-noboard">
+          <Icon d={ENG_ICON.shield} size={20} />
+          {t("challenges.noBoard")}
+        </p>
       ) : null}
       {ranked.length > 0 ? (
         <TableWrap label={title}>
-          <table className="table" data-testid="eng-leaderboard">
+          <table className="table eng-board" data-testid="eng-leaderboard">
             <thead>
               <tr>
                 <th scope="col">{t("challenges.col.rank")}</th>
@@ -414,13 +446,28 @@ export function Leaderboard({
                   key={`${r.division}-${r.label}-${r.rank}`}
                   aria-current={r.is_me ? "true" : undefined}
                 >
-                  <td className="mono">{r.rank}</td>
+                  <td>
+                    <span className={`eng-rank${r.rank === 1 ? " eng-rank--top" : ""}`}>
+                      {r.rank}
+                    </span>
+                  </td>
                   <th scope="row">
                     {r.label}
                     {r.is_me ? <span className="muted"> ({t("challenges.you")})</span> : null}
                   </th>
-                  <td className="mono">
-                    {r.progress} / {r.goal}
+                  <td>
+                    <span className="eng-board__progress">
+                      <span className="ds-bar" aria-hidden="true">
+                        <span
+                          style={{
+                            width: `${r.goal > 0 ? Math.min(100, (r.progress / r.goal) * 100) : 0}%`,
+                          }}
+                        />
+                      </span>
+                      <span className="mono">
+                        {r.progress} / {r.goal}
+                      </span>
+                    </span>
                   </td>
                 </tr>
               ))}
@@ -428,6 +475,21 @@ export function Leaderboard({
           </table>
         </TableWrap>
       ) : null}
-    </Section>
+    </>
+  );
+  if (bare)
+    return (
+      <div className="eng-board-wrap">
+        <h3 className="eng-h3">
+          <Icon name="trophy" size={20} />
+          {title}
+        </h3>
+        {body}
+      </div>
+    );
+  return (
+    <Card title={title} icon={{ name: "trophy" }} level={3}>
+      {body}
+    </Card>
   );
 }

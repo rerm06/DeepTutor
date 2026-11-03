@@ -1,6 +1,7 @@
 import { type FormEvent, useId, useMemo, useState } from "react";
 import { type ErrorCode, toErrorCode } from "../../api/client";
-import { ErrorNote, LiveResult, Loading, Plate, Section } from "../../components/ui";
+import { Icon } from "../../components/icons";
+import { ErrorNote, LiveResult, Loading, Plate } from "../../components/ui";
 import { useAsync } from "../../lib/useAsync";
 import { useSession } from "../../session/SessionContext";
 import {
@@ -13,6 +14,7 @@ import {
 import { useFloorT } from "./dict";
 import { assetTone, formatWhen } from "./shared";
 import "./floor.css";
+import { Card, Empty, FLOOR_ICON } from "./ui";
 
 /** Member "Mis circuitos": pick a circuit, run it step by step, log sets, report busy/out-of-service machines. */
 export function MyCircuitsScreen() {
@@ -40,9 +42,11 @@ export function MyCircuitsScreen() {
   }
 
   return (
-    <div className="page">
-      <h1 className="page__title">{t("my.title")}</h1>
-      <p className="lede">{t("my.lede")}</p>
+    <div className="page floor-page">
+      <div className="floor-head">
+        <h1 className="page__title">{t("my.title")}</h1>
+        <p className="lede">{t("my.lede")}</p>
+      </div>
       <LiveResult>{announce}</LiveResult>
       {error ? <ErrorNote code={error} /> : null}
 
@@ -60,58 +64,74 @@ export function MyCircuitsScreen() {
           }}
         />
       ) : (
-        <Section title={t("nav.myCircuits")}>
+        <Card title={t("nav.myCircuits")} icon={{ name: "layers" }}>
           {circuits.loading ? <Loading /> : null}
           {circuits.error ? <ErrorNote code={circuits.error} onRetry={circuits.reload} /> : null}
-          {circuits.data && list.length === 0 ? <p className="muted">{t("my.empty")}</p> : null}
-          <ul className="floor-cards">
+          {circuits.data && list.length === 0 ? (
+            <Empty icon={{ name: "layers" }} text={t("my.empty")} />
+          ) : null}
+          <ul className="ds-grid floor-programs">
             {list.map((c) => (
-              <li key={c.id} className="floor-card">
-                <h3 className="floor-card__title">{c.name}</h3>
-                <div className="floor-card__meta">
-                  <span>{locName.get(c.location_id) ?? ""}</span>
-                  <span>
+              <li key={c.id} className="floor-program">
+                <img
+                  className="ds-media floor-program__img"
+                  src="/brand/program-strength.jpg"
+                  alt=""
+                  width={104}
+                  height={140}
+                />
+                <div className="floor-program__text">
+                  <h3 className="floor-card__title">{c.name}</h3>
+                  <span className="floor-meta-item">
+                    <Icon name="pin" size={16} />
+                    {locName.get(c.location_id) ?? ""}
+                  </span>
+                  <span className="floor-meta-item">
+                    <Icon name="dumbbell" size={16} />
                     {c.steps} {t("circuits.steps").toLowerCase()}
                   </span>
-                </div>
-                <div>
                   <button
                     type="button"
-                    className="btn btn--primary"
+                    className="ds-cta"
                     data-tour-id="floor-run-start"
                     onClick={() => start(c)}
                   >
                     {t("my.start")}
                     <span className="sr-only">: {c.name}</span>
+                    <Icon name="arrowRight" size={18} />
                   </button>
                 </div>
               </li>
             ))}
           </ul>
-        </Section>
+        </Card>
       )}
 
-      <Section title={t("my.history")}>
+      <Card title={t("my.history")} icon={{ d: FLOOR_ICON.clock }}>
         {sets.error ? <ErrorNote code={sets.error} onRetry={sets.reload} /> : null}
         {sets.data && sets.data.data.length === 0 ? (
-          <p className="muted">{t("my.historyEmpty")}</p>
+          <Empty icon={{ name: "dumbbell" }} text={t("my.historyEmpty")} />
         ) : null}
-        <ul className="floor-cards">
+        <ul className="floor-history">
           {(sets.data?.data ?? []).map((s) => (
-            <li key={s.id} className="floor-card">
-              <div className="floor-step-row">
+            <li key={s.id} className="floor-history__row">
+              <span className="floor-history__icon" aria-hidden="true">
+                <Icon name="dumbbell" size={22} />
+              </span>
+              <span className="floor-history__text">
                 <strong>{s.exercise_name}</strong>
-                <span className="mono">
-                  {s.reps} × {s.weight_kg} kg
+                <span className="muted">
+                  {formatWhen(s.at, lang)} · {locName.get(s.location_id) ?? ""}
                 </span>
-              </div>
-              <span className="muted">
-                {formatWhen(s.at, lang)} · {locName.get(s.location_id) ?? ""}
+              </span>
+              <span className="floor-history__pills">
+                <span className="floor-pill floor-pill--sm">{s.weight_kg} kg</span>
+                <span className="floor-pill floor-pill--sm">{s.reps}×</span>
               </span>
             </li>
           ))}
         </ul>
-      </Section>
+      </Card>
     </div>
   );
 }
@@ -139,7 +159,7 @@ function Runner({
   const { api } = useSession();
   const floor = useMemo(() => floorApi(api), [api]);
   const [index, setIndex] = useState(0);
-  const [done, setDone] = useState<Record<number, number>>({});
+  const [logged, setLogged] = useState<Record<number, Array<{ reps: number; kg: number }>>>({});
   const [overrides, setOverrides] = useState<Record<number, Override>>({});
   const [subs, setSubs] = useState<Substitute[] | null>(null);
   const [error, setError] = useState<ErrorCode | null>(null);
@@ -151,7 +171,8 @@ function Runner({
   const assetId = ov ? ov.asset_id : step.asset_id;
   const stationCode = ov ? ov.station_code : step.station_code;
   const total = circuit.steps.length;
-  const doneHere = done[index] ?? 0;
+  const loggedHere = logged[index] ?? [];
+  const doneHere = loggedHere.length;
 
   async function busyMachine() {
     setError(null);
@@ -206,126 +227,190 @@ function Runner({
     }
   }
 
+  const stepPct = Math.round(((index + 1) / total) * 100);
+
   return (
-    <Section title={circuit.name}>
-      <p className="muted" aria-live="polite">
-        {t("my.step", { n: index + 1, total })}
-      </p>
-      <article className="floor-card" aria-labelledby={`floor-step-${index}`}>
-        <h3 id={`floor-step-${index}`} className="floor-card__title">
-          {ov ? ov.name : step.exercise_name}
-        </h3>
-        {ov ? <p className="note note--warn">{t("my.usingSub", { name: ov.name })}</p> : null}
-        <div className="floor-card__meta">
-          <span>{t("my.target", { sets: step.sets, reps: step.reps })}</span>
-          <span>
-            {stationCode
-              ? t("my.atStation", { code: stationCode })
-              : t("my.anyStation", { type: label("eq", step.equipment_type) })}
-          </span>
-          {!ov && step.asset_status ? (
-            <Plate tone={assetTone(step.asset_status)}>{label("status", step.asset_status)}</Plate>
-          ) : null}
-        </div>
-        <p className="floor-cues">{ov ? ov.cues : step.cues}</p>
-        <p>
-          <strong>
-            {t("my.setOf", { done: Math.min(doneHere + 1, step.sets), sets: step.sets })}
-          </strong>
+    <Card title={circuit.name} icon={{ name: "dumbbell" }} className="floor-run">
+      <div className="floor-run__progress">
+        <p className="floor-run__step" aria-live="polite">
+          {t("my.step", { n: index + 1, total })}
         </p>
-        <LogSetForm
-          key={`${index}:${exerciseId}`}
-          defaultReps={step.reps}
-          onLog={async (reps, kg) => {
-            await floor.logSet({
-              exercise_id: exerciseId,
-              location_id: circuit.location_id,
-              asset_id: assetId ?? undefined,
-              circuit_run_id: run,
-              reps,
-              weight_kg: kg,
-            });
-            setDone((d) => ({ ...d, [index]: (d[index] ?? 0) + 1 }));
-            onLogged(t("my.logged", { reps, kg }));
-          }}
-        />
-        <div className="row-actions">
-          <button type="button" className="btn" data-tour-id="floor-run-busy" onClick={busyMachine}>
-            {t("my.busy")}
-          </button>
-          {assetId ? (
+        <ol className="floor-run__dots" aria-hidden="true">
+          {circuit.steps.map((s, i) => (
+            <li
+              key={s.id}
+              className={i === index ? "is-current" : done_(logged, i) ? "is-done" : undefined}
+            >
+              {i + 1}
+            </li>
+          ))}
+        </ol>
+        <span className="ds-bar" aria-hidden="true">
+          <span style={{ width: `${stepPct}%` }} />
+        </span>
+      </div>
+      <article className="floor-step-card" aria-labelledby={`floor-step-${index}`}>
+        <div className="floor-step-card__media">
+          <div className="floor-step-card__photo">
+            <img src="/brand/fitnessrus-hero.jpg" alt="" width={592} height={265} />
+            <div className="floor-step-card__over">
+              <h3 id={`floor-step-${index}`} className="floor-step-card__title">
+                {ov ? ov.name : step.exercise_name}
+              </h3>
+              <div className="floor-card__meta">
+                <span className="floor-chip floor-chip--solid">
+                  {t("my.target", { sets: step.sets, reps: step.reps })}
+                </span>
+                <span className="floor-chip floor-chip--solid">
+                  {stationCode
+                    ? t("my.atStation", { code: stationCode })
+                    : t("my.anyStation", { type: label("eq", step.equipment_type) })}
+                </span>
+                {!ov && step.asset_status ? (
+                  <Plate tone={assetTone(step.asset_status)}>
+                    {label("status", step.asset_status)}
+                  </Plate>
+                ) : null}
+              </div>
+            </div>
+          </div>
+          {ov ? (
+            <p className="note note--warn">
+              <Icon d={FLOOR_ICON.swap} size={18} />
+              {t("my.usingSub", { name: ov.name })}
+            </p>
+          ) : null}
+          <p className="floor-cues">{ov ? ov.cues : step.cues}</p>
+        </div>
+        <div className="floor-step-card__log">
+          <p className="floor-run__setof">
+            <strong>
+              {t("my.setOf", { done: Math.min(doneHere + 1, step.sets), sets: step.sets })}
+            </strong>
+          </p>
+          <LogSetForm
+            key={`${index}:${exerciseId}`}
+            defaultReps={step.reps}
+            planned={step.sets}
+            logged={loggedHere}
+            onLog={async (reps, kg) => {
+              await floor.logSet({
+                exercise_id: exerciseId,
+                location_id: circuit.location_id,
+                asset_id: assetId ?? undefined,
+                circuit_run_id: run,
+                reps,
+                weight_kg: kg,
+              });
+              setLogged((d) => ({ ...d, [index]: [...(d[index] ?? []), { reps, kg }] }));
+              onLogged(t("my.logged", { reps, kg }));
+            }}
+          />
+          <div className="row-actions">
             <button
               type="button"
-              className="btn btn--danger-outline"
-              data-tour-id="floor-run-oos"
-              onClick={outOfService}
+              className="btn"
+              data-tour-id="floor-run-busy"
+              onClick={busyMachine}
             >
-              {t("my.oos")}
+              <Icon name="users" size={18} />
+              {t("my.busy")}
             </button>
+            {assetId ? (
+              <button
+                type="button"
+                className="btn btn--danger-outline"
+                data-tour-id="floor-run-oos"
+                onClick={outOfService}
+              >
+                <Icon d={FLOOR_ICON.alert} size={18} />
+                {t("my.oos")}
+              </button>
+            ) : null}
+          </div>
+          <LiveResult tone={note ? "ok" : undefined}>{note}</LiveResult>
+          {error ? <ErrorNote code={error} /> : null}
+          {subs ? (
+            <section className="floor-subs" aria-label={t("my.subsTitle")}>
+              <h4 className="floor-h3">
+                <Icon d={FLOOR_ICON.swap} size={20} />
+                {t("my.subsTitle")}
+              </h4>
+              {subs.length === 0 ? <p className="muted">{t("my.subsEmpty")}</p> : null}
+              <ul className="floor-cards">
+                {subs.map((s) => (
+                  <li key={`${s.exercise_id}:${s.asset_id ?? "none"}`} className="floor-card">
+                    <div className="floor-step-row">
+                      <strong>{s.name}</strong>
+                      <span className="floor-chip mono">
+                        {s.station_code ?? t("my.noEquipment")}
+                      </span>
+                    </div>
+                    <div>
+                      <button
+                        type="button"
+                        className="btn"
+                        data-tour-id="floor-run-substitute"
+                        onClick={() => use(s)}
+                      >
+                        {t("my.use", { name: s.name })}
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </section>
           ) : null}
         </div>
-        <LiveResult tone={note ? "ok" : undefined}>{note}</LiveResult>
-        {error ? <ErrorNote code={error} /> : null}
-        {subs ? (
-          <section aria-label={t("my.subsTitle")}>
-            <h4>{t("my.subsTitle")}</h4>
-            {subs.length === 0 ? <p className="muted">{t("my.subsEmpty")}</p> : null}
-            <ul className="floor-cards">
-              {subs.map((s) => (
-                <li key={`${s.exercise_id}:${s.asset_id ?? "none"}`} className="floor-card">
-                  <div className="floor-step-row">
-                    <strong>{s.name}</strong>
-                    <span className="mono">{s.station_code ?? t("my.noEquipment")}</span>
-                  </div>
-                  <div>
-                    <button
-                      type="button"
-                      className="btn"
-                      data-tour-id="floor-run-substitute"
-                      onClick={() => use(s)}
-                    >
-                      {t("my.use", { name: s.name })}
-                    </button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </section>
-        ) : null}
       </article>
-      <div className="form__actions">
+      <div className="form__actions floor-run__nav">
         <button
           type="button"
           className="btn btn--ghost"
           disabled={index === 0}
           onClick={() => go(-1)}
         >
+          <Icon d="M15 6l-6 6 6 6" size={18} />
           {t("my.prev")}
         </button>
         {index < total - 1 ? (
           <button type="button" className="btn" data-tour-id="floor-run-next" onClick={() => go(1)}>
             {t("my.next")}
+            <Icon name="chevronRight" size={18} />
           </button>
         ) : null}
         <button
           type="button"
-          className="btn btn--primary"
+          className="ds-cta"
           disabled={busy}
           data-tour-id="floor-run-finish"
           onClick={finish}
         >
+          <Icon name="checkCircle" size={18} />
           {t("my.finish")}
         </button>
       </div>
-    </Section>
+    </Card>
   );
 }
 
+function done_(logged: Record<number, unknown[]>, i: number): boolean {
+  return (logged[i]?.length ?? 0) > 0;
+}
+
+/**
+ * Set logging like the client's reference: one row per set (set number · weight pill · reps pill · check).
+ * Logged sets are read-only rows; the next set is the editable row whose check button logs it.
+ */
 function LogSetForm({
   defaultReps,
+  planned,
+  logged,
   onLog,
 }: {
   defaultReps: number;
+  planned: number;
+  logged: Array<{ reps: number; kg: number }>;
   onLog: (reps: number, kg: number) => Promise<void>;
 }) {
   const { t } = useFloorT();
@@ -334,6 +419,11 @@ function LogSetForm({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<ErrorCode | null>(null);
   const ids = { reps: useId(), kg: useId() };
+  const current = logged.length + 1;
+  const upcoming = Array.from(
+    { length: Math.max(0, planned - current) },
+    (_, i) => current + 1 + i,
+  );
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -355,43 +445,85 @@ function LogSetForm({
   }
 
   return (
-    <form className="form" onSubmit={submit} noValidate>
-      <div className="form__grid">
-        <div className="field">
-          <label htmlFor={ids.reps}>{t("my.reps")}</label>
-          <input
-            id={ids.reps}
-            className="floor-number"
-            type="number"
-            inputMode="numeric"
-            min={0}
-            max={1000}
-            value={reps}
-            onChange={(e) => setReps(e.target.value)}
-          />
-        </div>
-        <div className="field">
-          <label htmlFor={ids.kg}>{t("my.kg")}</label>
-          <input
-            id={ids.kg}
-            className="floor-number"
-            inputMode="decimal"
-            value={kg}
-            onChange={(e) => setKg(e.target.value)}
-          />
-        </div>
+    <div className="floor-sets">
+      <div className="floor-set floor-set--head" aria-hidden="true">
+        <span>{t("my.setCol")}</span>
+        <span>{t("my.kg")}</span>
+        <span>{t("my.repsCol")}</span>
+        <span />
       </div>
+      <ol className="floor-sets__list">
+        {logged.map((s, i) => (
+          // biome-ignore lint/suspicious/noArrayIndexKey: sets are append-only; the position is the set number
+          <li key={i} className="floor-set is-done">
+            <span className="floor-set__n">{i + 1}</span>
+            <span className="floor-pill">{s.kg} kg</span>
+            <span className="floor-pill">{s.reps}×</span>
+            <span className="floor-set__check is-done">
+              <Icon name="check" size={22} />
+              <span className="sr-only">{t("my.setDone", { n: i + 1 })}</span>
+            </span>
+          </li>
+        ))}
+        <li className="floor-set is-current">
+          <form className="floor-set__form" onSubmit={submit} noValidate>
+            <span className="floor-set__n">
+              <span className="floor-set__dot" aria-hidden="true" />
+              <span className="sr-only">{current}</span>
+            </span>
+            <span className="floor-pill floor-pill--input">
+              <label htmlFor={ids.kg} className="sr-only">
+                {t("my.kg")}
+              </label>
+              <input
+                id={ids.kg}
+                className="floor-number"
+                inputMode="decimal"
+                value={kg}
+                onChange={(e) => setKg(e.target.value)}
+              />
+              <span aria-hidden="true">kg</span>
+            </span>
+            <span className="floor-pill floor-pill--input">
+              <label htmlFor={ids.reps} className="sr-only">
+                {t("my.reps")}
+              </label>
+              <input
+                id={ids.reps}
+                className="floor-number"
+                type="number"
+                inputMode="numeric"
+                min={0}
+                max={1000}
+                value={reps}
+                onChange={(e) => setReps(e.target.value)}
+              />
+              <span aria-hidden="true">×</span>
+            </span>
+            <button
+              type="submit"
+              className="floor-set__check floor-set__check--go"
+              disabled={busy}
+              data-tour-id="floor-run-log"
+            >
+              <Icon name="check" size={24} />
+              <span className="sr-only">{t("my.log")}</span>
+            </button>
+          </form>
+        </li>
+        {upcoming.map((n) => (
+          <li key={n} className="floor-set is-planned">
+            <span className="floor-set__n">{n}</span>
+            <span className="floor-pill">— kg</span>
+            <span className="floor-pill">{defaultReps}×</span>
+            <span className="floor-set__check">
+              <Icon name="check" size={22} />
+              <span className="sr-only">{t("my.setPlanned", { n })}</span>
+            </span>
+          </li>
+        ))}
+      </ol>
       {error ? <ErrorNote code={error} /> : null}
-      <div className="form__actions">
-        <button
-          type="submit"
-          className="btn btn--primary"
-          disabled={busy}
-          data-tour-id="floor-run-log"
-        >
-          {t("my.log")}
-        </button>
-      </div>
-    </form>
+    </div>
   );
 }
