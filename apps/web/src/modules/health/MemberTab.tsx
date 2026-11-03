@@ -1,9 +1,10 @@
 import { useMemo } from "react";
-import { ErrorNote, Loading, Section } from "../../components/ui";
+import { Icon } from "../../components/icons";
+import { ErrorNote, Loading } from "../../components/ui";
 import { useAsync } from "../../lib/useAsync";
 import { useSession } from "../../session/SessionContext";
 import { healthApi, latestTriage } from "./api";
-import { TriagePanel, useHealthT } from "./components";
+import { Empty, HICON, IconSection, TriagePanel, useHealthT } from "./components";
 
 /** Compact health summary inside the staff member record (health roles only). */
 export function HealthMemberTab({ memberId }: { memberId: string }) {
@@ -15,14 +16,19 @@ export function HealthMemberTab({ memberId }: { memberId: string }) {
   const triage = latestTriage(assessments.data?.data ?? []);
   const published = (plans.data?.data ?? []).filter((p) => p.status === "published").length;
   return (
-    <Section title={t("tab.title")}>
+    <IconSection title={t("tab.title")} d={HICON.pulse}>
       {assessments.loading ? <Loading /> : null}
       {assessments.error ? (
         <ErrorNote code={assessments.error} onRetry={assessments.reload} />
       ) : null}
-      {assessments.data && !triage ? <p className="muted">{t("tab.none")}</p> : null}
+      {assessments.data && !triage ? <Empty d={HICON.clipboard}>{t("tab.none")}</Empty> : null}
       {triage ? <TriagePanel triage={triage} title={t("tab.latest")} /> : null}
-      {plans.data ? <p>{t("tab.plans", { n: published })}</p> : null}
-    </Section>
+      {plans.data ? (
+        <p className="health-signoff">
+          <Icon name="layers" size={20} />
+          {t("tab.plans", { n: published })}
+        </p>
+      ) : null}
+    </IconSection>
   );
 }

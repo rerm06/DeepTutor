@@ -1,6 +1,7 @@
 import { type FormEvent, useEffect, useId, useMemo, useState } from "react";
 import { type ErrorCode, toErrorCode } from "../../api/client";
-import { ErrorNote, LiveResult, Loading, Plate, Section, type Tone } from "../../components/ui";
+import { Icon } from "../../components/icons";
+import { ErrorNote, LiveResult, Loading, Plate, type Tone } from "../../components/ui";
 import { useAsync } from "../../lib/useAsync";
 import { useSession } from "../../session/SessionContext";
 import {
@@ -18,7 +19,17 @@ import {
   latestTriage,
   parseBody,
 } from "./api";
-import { MemberPicker, PlanBodyView, TriagePanel, useHealthT } from "./components";
+import {
+  Empty,
+  HICON,
+  IconSection,
+  KIND_ICON,
+  MemberPicker,
+  PlanBodyView,
+  Stat,
+  TriagePanel,
+  useHealthT,
+} from "./components";
 import { TEMPLATES } from "./templates";
 
 export const statusTone = (s: Plan["status"]): Tone =>
@@ -47,11 +58,15 @@ export function PlansScreen() {
   const authorable = PLAN_KINDS.filter((k) => AUTHORS[k].includes(String(role)));
   const triage = latestTriage(assessments.data?.data ?? []);
   const rows = plans.data?.data ?? [];
+  const count = (st: Plan["status"]) => rows.filter((p) => p.status === st).length;
 
   return (
-    <div className="page">
+    <div className="page health">
       <div className="page__head">
-        <h1 className="page__title">{t("p.title")}</h1>
+        <div>
+          <h1 className="page__title">{t("p.title")}</h1>
+          <p className="lede">{t("notice.draftTool")}</p>
+        </div>
         {memberId && authorable.length > 0 ? (
           <button
             type="button"
@@ -61,16 +76,17 @@ export function PlansScreen() {
             aria-controls={formId}
             onClick={() => setShowNew((v) => !v)}
           >
+            <Icon d={HICON.plus} size={20} />
             {t("p.new")}
           </button>
         ) : null}
       </div>
-      <p className="muted">{t("notice.draftTool")}</p>
 
       {members.loading ? <Loading /> : null}
       {members.error ? <ErrorNote code={members.error} onRetry={members.reload} /> : null}
       {members.data && members.data.data.length > 0 ? (
-        <div className="toolbar">
+        <div className="health-picker">
+          <Icon name="users" size={26} />
           <MemberPicker
             members={members.data.data}
             value={memberId}
@@ -83,12 +99,32 @@ export function PlansScreen() {
         </div>
       ) : null}
       {members.data && members.data.data.length === 0 ? (
-        <p className="muted">{t("member.none")}</p>
+        <Empty icon="users">{t("member.none")}</Empty>
+      ) : null}
+      {members.data && members.data.data.length > 0 && !memberId ? (
+        <Empty icon="users">{t("member.pickFirst")}</Empty>
+      ) : null}
+      {memberId && plans.data ? (
+        <div className="ds-stats">
+          <Stat icon="layers" label={t("p.stat.total")} value={rows.length} />
+          <Stat icon="checkCircle" label={t("p.stat.published")} value={count("published")} />
+          <Stat
+            d={HICON.shieldCheck}
+            label={t("p.stat.review")}
+            value={count("review") + count("approved")}
+          />
+          <Stat d={HICON.pen} label={t("p.stat.drafts")} value={count("draft")} />
+        </div>
       ) : null}
 
       <LiveResult tone={announce ? "ok" : undefined}>{announce}</LiveResult>
       {memberId && triage ? <TriagePanel triage={triage} /> : null}
-      {memberId && assessments.data && !triage ? <p className="muted">{t("p.noTriage")}</p> : null}
+      {memberId && assessments.data && !triage ? (
+        <p className="note note--warn">
+          <Icon d={HICON.info} size={20} />
+          {t("p.noTriage")}
+        </p>
+      ) : null}
 
       {memberId && showNew ? (
         <div id={formId}>
@@ -105,11 +141,11 @@ export function PlansScreen() {
       ) : null}
 
       {memberId ? (
-        <Section title={t("p.list")}>
+        <IconSection title={t("p.list")} icon="layers">
           {plans.loading ? <Loading /> : null}
           {plans.error ? <ErrorNote code={plans.error} onRetry={plans.reload} /> : null}
-          {plans.data && rows.length === 0 ? <p className="muted">{t("p.empty")}</p> : null}
-          <div className="health-stack">
+          {plans.data && rows.length === 0 ? <Empty icon="layers">{t("p.empty")}</Empty> : null}
+          <div className="ds-grid health-plans">
             {rows.map((p) => (
               <PlanCard
                 key={p.id}
@@ -128,7 +164,7 @@ export function PlansScreen() {
               />
             ))}
           </div>
-        </Section>
+        </IconSection>
       ) : null}
     </div>
   );
@@ -185,8 +221,11 @@ function NewPlanForm({
   }
 
   return (
-    <form className="form form--boxed" onSubmit={submit}>
-      <h2 className="form__title">{t("p.formTitle")}</h2>
+    <form className="form section health-form" onSubmit={submit}>
+      <h2 className="section__title">
+        <Icon d={HICON.pen} size={24} />
+        <span>{t("p.formTitle")}</span>
+      </h2>
       <div className="form__grid">
         <div className="field">
           <label htmlFor={`${uid}-kind`}>{t("p.kind")}</label>
@@ -327,15 +366,23 @@ function PlanCard({
   return (
     <article className="health-plan" aria-labelledby={headingId}>
       <div className="health-plan__head">
-        <h3 id={headingId} className="health-plan__title">
-          {plan.title}
-        </h3>
-        <Plate tone="neutral">{t(`p.kind.${plan.kind}`)}</Plate>
-        <Plate tone="neutral">{t("p.version", { n: plan.version })}</Plate>
-        <Plate tone={statusTone(plan.status)}>{t(`p.status.${plan.status}`)}</Plate>
+        <span className="health-plan__badge">
+          <Icon name={KIND_ICON[plan.kind]} size={26} />
+        </span>
+        <div className="health-plan__heading">
+          <h3 id={headingId} className="health-plan__title">
+            {plan.title}
+          </h3>
+          <p className="health-plan__plates">
+            <span className="ds-pill">{t(`p.kind.${plan.kind}`)}</span>
+            <Plate tone="neutral">{t("p.version", { n: plan.version })}</Plate>
+            <Plate tone={statusTone(plan.status)}>{t(`p.status.${plan.status}`)}</Plate>
+          </p>
+        </div>
       </div>
       {plan.approver_name ? (
         <p className="health-signoff">
+          <Icon d={HICON.shieldCheck} size={20} />
           {plan.approver_license_no
             ? t("p.approvedByLic", { name: plan.approver_name, no: plan.approver_license_no })
             : t("p.approvedBy", { name: plan.approver_name })}
@@ -389,6 +436,7 @@ function PlanCard({
           {licensedKind && me?.staff ? (
             licensed ? (
               <p className="health-signoff">
+                <Icon d={HICON.pen} size={20} />
                 {t("p.signAs", { name: me.staff.display_name, no: me.staff.license_no ?? "" })}
               </p>
             ) : (
@@ -396,6 +444,7 @@ function PlanCard({
             )
           ) : me?.staff ? (
             <p className="health-signoff">
+              <Icon d={HICON.pen} size={20} />
               {t("p.signAsTrainer", { name: me.staff.display_name })}
             </p>
           ) : null}
@@ -415,7 +464,7 @@ function PlanCard({
       ) : null}
 
       {error ? <ErrorNote code={error} /> : null}
-      <div className="row-actions">
+      <div className="row-actions health-plan__actions">
         {plan.status === "draft" && isAuthor ? (
           <>
             <button

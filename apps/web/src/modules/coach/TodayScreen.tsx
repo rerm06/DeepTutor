@@ -1,8 +1,10 @@
 import { type FormEvent, useEffect, useId, useState } from "react";
+import { Link } from "react-router-dom";
 import { type ErrorCode, toErrorCode } from "../../api/client";
-import { ErrorNote, LiveResult, Loading, Plate, Section, type Tone } from "../../components/ui";
+import { Icon } from "../../components/icons";
+import { ErrorNote, LiveResult, Loading, Plate, type Tone } from "../../components/ui";
 import { useAsync } from "../../lib/useAsync";
-import { EmergencyBanner, PlanBodyView } from "../health/components";
+import { EmergencyBanner, Empty, HICON, IconSection, PlanBodyView } from "../health/components";
 import { BODY_AREAS, type Band, type BodyArea } from "./api";
 import type { CoachKey } from "./dict";
 import { EstimateNotice, MemberPick, useCoachApi, useCoachT, useMyMembers } from "./shared";
@@ -58,44 +60,57 @@ export function TodayScreen() {
   const member = list.find((m) => m.id === (memberId || today.data?.member_id));
 
   return (
-    <div className="page">
-      <h1 className="page__title">{t("today.title")}</h1>
-      <p className="lede">{t("today.lede")}</p>
+    <div className="page coach">
+      <div>
+        <h1 className="page__title">{t("today.title")}</h1>
+        <p className="lede">{t("today.lede")}</p>
+      </div>
       <EstimateNotice />
       <MemberPick list={list} value={memberId} onChange={setMemberId} />
       {today.loading && !today.data ? <Loading /> : null}
       {today.error ? <ErrorNote code={today.error} onRetry={today.reload} /> : null}
       {today.data?.checkin?.emergency ? <EmergencyBanner location={locationName(member)} /> : null}
       {today.data ? (
-        <div className="coach-stack">
-          {today.data.checkin ? (
-            <Readiness
-              band={today.data.band ?? "baseline"}
-              score={today.data.checkin.score}
-              baselineDays={today.data.baseline_days}
-              escalated={today.data.checkin.escalated}
-            />
-          ) : (
-            <CheckinForm memberId={memberId || today.data.member_id} onDone={today.reload} />
-          )}
-          <p className="coach-card" data-tour-id="coach-today-suggestion">
-            {t(`sugg.${today.data.suggestion}` as CoachKey)}
-          </p>
-          <Section title={t("today.plan")}>
+        <div className="coach-grid">
+          <div className="coach-stack">
+            {today.data.checkin ? (
+              <Readiness
+                band={today.data.band ?? "baseline"}
+                score={today.data.checkin.score}
+                baselineDays={today.data.baseline_days}
+                escalated={today.data.checkin.escalated}
+              />
+            ) : (
+              <CheckinForm memberId={memberId || today.data.member_id} onDone={today.reload} />
+            )}
+            <div className="coach-sugg">
+              <span className="coach-sugg__icon">
+                <Icon name="sparkle" size={24} />
+              </span>
+              <p data-tour-id="coach-today-suggestion">
+                {t(`sugg.${today.data.suggestion}` as CoachKey)}
+              </p>
+            </div>
+          </div>
+          <IconSection title={t("today.plan")} icon="dumbbell">
             {today.data.plan ? (
               <>
-                <h3 className="section__title">{today.data.plan.title}</h3>
+                <h3 className="coach-plan__title">{today.data.plan.title}</h3>
                 {today.data.plan.approver_name ? (
-                  <p className="muted">
+                  <p className="coach-signoff">
+                    <Icon d={HICON.shieldCheck} size={20} />
                     {t("today.planBy", { name: today.data.plan.approver_name })}
                   </p>
                 ) : null}
                 <PlanBodyView sections={today.data.plan.body.sections} />
+                <Link className="ds-cta coach-plan__cta" to="/me/health/plan">
+                  {t("today.seePlan")} <Icon name="arrowRight" size={18} />
+                </Link>
               </>
             ) : (
-              <p className="muted">{t("today.noPlan")}</p>
+              <Empty icon="dumbbell">{t("today.noPlan")}</Empty>
             )}
-          </Section>
+          </IconSection>
         </div>
       ) : null}
     </div>
@@ -114,17 +129,33 @@ function Readiness({
   escalated: boolean;
 }) {
   const { t } = useCoachT();
+  const pct =
+    score === null
+      ? Math.round((Math.min(baselineDays, 7) / 7) * 100)
+      : Math.max(0, Math.min(100, score));
   return (
-    <section className="coach-card" data-tour-id="coach-readiness" aria-label={t("today.form")}>
+    <section className="section" data-tour-id="coach-readiness" aria-label={t("today.form")}>
+      <p className="section__title" aria-hidden="true">
+        <Icon name="flame" size={24} />
+        <span>{t("today.form")}</span>
+      </p>
       <p>
         <Plate tone={bandTone(band)}>{t(`band.${band}` as CoachKey)}</Plate>
       </p>
-      <p>
+      <p className="coach-ready__line">
         {score === null
           ? t("today.baseline", { n: Math.min(baselineDays, 7) })
           : t("today.score", { score })}
       </p>
-      {escalated ? <p className="note note--warn">{t("today.talk")}</p> : null}
+      <span className="ds-bar" aria-hidden="true">
+        <span style={{ width: `${pct}%` }} />
+      </span>
+      {escalated ? (
+        <p className="note note--warn">
+          <Icon name="headset" size={20} />
+          {t("today.talk")}
+        </p>
+      ) : null}
     </section>
   );
 }
@@ -170,9 +201,10 @@ function CheckinForm({ memberId, onDone }: { memberId: string; onDone: () => voi
   }
 
   return (
-    <form className="form coach-card" onSubmit={submit} aria-labelledby={`${id}-t`}>
-      <h2 id={`${id}-t`} className="form__title">
-        {t("today.form")}
+    <form className="form section" onSubmit={submit} aria-labelledby={`${id}-t`}>
+      <h2 className="section__title">
+        <Icon name="flame" size={24} />
+        <span id={`${id}-t`}>{t("today.form")}</span>
       </h2>
       <Scale
         name="sleep"
@@ -219,8 +251,8 @@ function CheckinForm({ memberId, onDone }: { memberId: string; onDone: () => voi
               ))}
             </select>
           </div>
-          <label className="field--inline">
-            <input type="checkbox" checked={acute} onChange={(e) => setAcute(e.target.checked)} />{" "}
+          <label className="coach-check">
+            <input type="checkbox" checked={acute} onChange={(e) => setAcute(e.target.checked)} />
             {t("today.painAcute")}
           </label>
         </>

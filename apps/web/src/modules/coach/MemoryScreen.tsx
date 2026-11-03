@@ -1,7 +1,9 @@
 import { type FormEvent, useEffect, useId, useState } from "react";
 import { type ErrorCode, toErrorCode } from "../../api/client";
-import { ErrorNote, LiveResult, Loading, Plate, Section } from "../../components/ui";
+import { Icon } from "../../components/icons";
+import { ErrorNote, LiveResult, Loading, Plate } from "../../components/ui";
 import { useAsync } from "../../lib/useAsync";
+import { Empty, HICON, IconSection, Stat } from "../health/components";
 import { MEMORY_CATEGORIES, type MemoryCategory, type MemoryFact } from "./api";
 import type { CoachKey } from "./dict";
 import { MemberPick, useCoachApi, useCoachT, useMyMembers } from "./shared";
@@ -34,11 +36,30 @@ export function MemoryScreen() {
     }
   }
 
+  const rows = facts.data?.data ?? [];
+
   return (
-    <div className="page">
-      <h1 className="page__title">{t("mem.title")}</h1>
-      <p className="lede">{t("mem.lede")}</p>
+    <div className="page coach">
+      <div>
+        <h1 className="page__title">{t("mem.title")}</h1>
+        <p className="lede">{t("mem.lede")}</p>
+      </div>
       <MemberPick list={list} value={memberId} onChange={setMemberId} />
+      {facts.data && rows.length > 0 ? (
+        <div className="ds-stats">
+          <Stat icon="layers" label={t("mem.stat.total")} value={rows.length} />
+          <Stat
+            icon="users"
+            label={t("mem.stat.mine")}
+            value={rows.filter((f) => f.source === "member").length}
+          />
+          <Stat
+            d={HICON.alert}
+            label={t("mem.stat.injury")}
+            value={rows.filter((f) => f.category === "injury").length}
+          />
+        </div>
+      ) : null}
       <AddFact
         onAdd={(content, category) =>
           run(async () => {
@@ -57,11 +78,9 @@ export function MemoryScreen() {
       <LiveResult>{msg}</LiveResult>
       {facts.loading && !facts.data ? <Loading /> : null}
       {facts.error ? <ErrorNote code={facts.error} onRetry={facts.reload} /> : null}
-      {facts.data && facts.data.data.length === 0 ? (
-        <p className="muted">{t("mem.empty")}</p>
-      ) : null}
-      <ul className="coach-facts" data-tour-id="coach-memory-list">
-        {(facts.data?.data ?? []).map((f) => (
+      {facts.data && rows.length === 0 ? <Empty icon="layers">{t("mem.empty")}</Empty> : null}
+      <ul className="coach-facts ds-grid" data-tour-id="coach-memory-list">
+        {rows.map((f) => (
           <FactItem
             key={f.id}
             fact={f}
@@ -121,7 +140,7 @@ function AddFact({ onAdd }: { onAdd: (content: string, category?: MemoryCategory
     setContent("");
   }
   return (
-    <Section title={t("mem.add")}>
+    <IconSection title={t("mem.add")} d={HICON.plus}>
       <form className="form" onSubmit={submit}>
         <div className="form__grid">
           <div className="field field--wide">
@@ -152,7 +171,7 @@ function AddFact({ onAdd }: { onAdd: (content: string, category?: MemoryCategory
           </button>
         </div>
       </form>
-    </Section>
+    </IconSection>
   );
 }
 
@@ -171,11 +190,11 @@ function FactItem({
   const [content, setContent] = useState(fact.content);
   const [category, setCategory] = useState<MemoryCategory | "">(fact.category);
   return (
-    <li className="coach-card">
-      <p>
+    <li className="coach-card coach-fact">
+      <p className="coach-fact__meta">
         <Plate tone={fact.category === "injury" ? "warn" : "neutral"}>
           {t(`cat.${fact.category}` as CoachKey)}
-        </Plate>{" "}
+        </Plate>
         <span className="muted">{t(`mem.from.${fact.source}` as CoachKey)}</span>
       </p>
       {mode === "edit" ? (
@@ -234,13 +253,14 @@ function FactItem({
         </div>
       ) : null}
       {mode === "view" ? (
-        <div className="row-actions">
+        <div className="row-actions coach-fact__actions">
           <button
             type="button"
             className="btn"
             onClick={() => setMode("edit")}
             data-tour-id="coach-memory-edit"
           >
+            <Icon d={HICON.pen} size={18} />
             {t("mem.edit")}
             <span className="sr-only">: {fact.content}</span>
           </button>
