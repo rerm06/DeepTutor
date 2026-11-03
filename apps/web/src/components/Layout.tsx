@@ -119,7 +119,7 @@ const STAFF_SECTIONS: SectionDef[] = [
   {
     id: "agenda",
     icon: "calendar",
-    match: /^\/staff\/(schedule|check-in|appointments|floor)(\/|$)/,
+    match: /^\/staff\/(schedule|check-in|appointments|floor|door)(\/|$)/,
   },
   { id: "pos", icon: "card", match: /^\/staff\/store\/(pos|sales)(\/|$)/ },
   { id: "store", icon: "bag", match: /^\/staff\/store(\/|$)/ },
@@ -133,7 +133,7 @@ const STAFF_SECTIONS: SectionDef[] = [
 const MEMBER_SECTIONS: SectionDef[] = [
   { id: "account", icon: "home", match: /^\/me\/account(\/|$)/ },
   { id: "panel", icon: "grid", match: /^\/me\/(home|coach)(\/|$)/ },
-  { id: "magenda", icon: "calendar", match: /^\/me\/(classes|credential)(\/|$)/ },
+  { id: "magenda", icon: "calendar", match: /^\/me\/(classes|credential|access)(\/|$)/ },
   { id: "plan", icon: "card", match: /^\/me\/health(\/|$)/ },
   { id: "pay", icon: "receipt", match: /^\/me\/membership(\/|$)/ },
   { id: "programs", icon: "dumbbell", match: /^\/me\/(programs|circuits|station)(\/|$)/ },

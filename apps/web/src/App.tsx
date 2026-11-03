@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { Layout } from "./components/Layout";
 import { canSeeAudit, homeFor, isMemberRole } from "./lib/roles";
+import { DoorScreen } from "./modules/access";
 import { MODULES } from "./modules/registry";
 import { JoinScreen, JoinWelcome } from "./modules/signup";
 import { allows } from "./modules/types";
@@ -22,6 +23,7 @@ export function AppRoutes() {
     return (
       <Routes>
         <Route path="/join/:orgId" element={<JoinScreen />} />
+        <Route path="/door/:token" element={<DoorScreen />} />
         <Route
           path="*"
           element={
@@ -38,6 +40,7 @@ export function AppRoutes() {
   return (
     <Layout>
       <Routes>
+        <Route path="/door/:token" element={<DoorScreen />} />
         {member ? (
           <>
             <Route

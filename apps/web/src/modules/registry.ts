@@ -1,3 +1,4 @@
+import { module as access } from "./access";
 import { module as billing } from "./billing";
 import { module as coach } from "./coach";
 import { module as crm } from "./crm";
@@ -18,6 +19,7 @@ import type { AppModule } from "./types";
 export const MODULES: readonly AppModule[] = [
   billing,
   schedule,
+  access,
   crm,
   store,
   health,

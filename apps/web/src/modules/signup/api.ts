@@ -97,16 +97,20 @@ export interface Welcome {
   location: string;
 }
 
-/** Hand the new session to the app and open the member portal. */
-export function adoptSession(s: NonNullable<JoinAccepted["session"]>, welcome: Welcome): void {
+/** Hand the new session to the app and open the member portal (or `path`). */
+export function adoptSession(
+  s: NonNullable<JoinAccepted["session"]>,
+  welcome: Welcome | null,
+  path = "/me/account",
+): void {
   const store = joinEnv.storage();
   try {
     store?.setItem(SESSION_KEY, JSON.stringify({ token: s.token, persona: s.persona }));
-    store?.setItem(WELCOME_KEY, JSON.stringify(welcome));
+    if (welcome) store?.setItem(WELCOME_KEY, JSON.stringify(welcome));
   } catch {
     // Storage blocked: the visitor lands on the start screen and can sign in at the location.
   }
-  joinEnv.go("/me/account");
+  joinEnv.go(path);
 }
 
 // ── Signed-in calls (staff switch, agreements) through the app's API client ─────────────────────────────────
