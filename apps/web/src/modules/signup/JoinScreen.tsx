@@ -15,7 +15,6 @@ import { applyTheme, sanitizeTheme } from "../../lib/brandTheme";
 import { setBrandMode, useMode } from "../../lib/themeMode";
 import { useModuleT } from "../i18n";
 import { type JoinInfo, adoptSession, fetchJoinInfo, submitJoin } from "./api";
-import { DEMO_JOIN_HERO } from "./demoOrgs";
 import { type SignupKey, dict } from "./dict";
 
 export type Field = "location" | "name" | "email" | "phone" | "birth" | "terms" | "waiver";
@@ -356,7 +355,7 @@ function JoinForm({ info }: { info: JoinInfo }) {
       </p>
     ) : null;
   const m = info.model;
-  const hero = sanitizeTheme(info.brand.theme).hero_url ?? DEMO_JOIN_HERO[info.org_id];
+  const hero = sanitizeTheme(info.brand.theme).hero_url;
 
   return (
     <div className="join__layout">

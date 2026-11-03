@@ -213,6 +213,16 @@ describe("public join info", () => {
     });
   });
 
+  it("passes the brand's own hero photo and drops unsafe ones (0022)", async () => {
+    const o = await newOrg({ dropInCents: 1500 });
+    await t.admin.query(
+      `UPDATE app.brand SET theme = theme || '{"hero_url":"/brand/demo-hero.jpg"}'::jsonb WHERE org_id = $1`,
+      [o.org],
+    );
+    const r = (await info(o.org)) as { brand: { theme: Record<string, unknown> } };
+    expect(r.brand.theme.hero_url).toBe("/brand/demo-hero.jpg");
+  });
+
   it("returns null for an unknown org and for an org without open locations", async () => {
     expect(await info("00000000-0000-4000-8000-000000000999")).toBeNull();
     const o = await newOrg();
