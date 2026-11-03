@@ -59,6 +59,9 @@
   right layer → regression → mutation → sweep → record). Used by the next cycle once the loop restarts.
 
 ### Deployment — Netlify (demo), 2026-11-02
+- 2026-11-03 05:55 UTC, deploy 6ae9751e360bfacd5156f024 (commit adff93c): Wyze/RTSP — review-only cameras (0025),
+  agent CAMERA_PROFILE=wyze + --probe. 1 migration applied; 42 pinned. Verified in production: a 0.99 match from a
+  review-only camera goes to the front-desk queue (demo tidied afterwards: event dismissed, device revoked, face off).
 - 2026-11-03 05:35 UTC, deploy 6ae9717b836e809630a14ed3 (commit 1c281cd): access — sign-in by code, door QR
   entry/exit kiosk, check-out, opt-in face recognition backbone + reference camera agent. 1 migration applied;
   41 pinned. Verified in production: code sign-in → exit → entry → exit by door QR.
