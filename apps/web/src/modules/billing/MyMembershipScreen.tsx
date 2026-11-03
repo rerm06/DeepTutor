@@ -1,58 +1,85 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { type ErrorCode, toErrorCode } from "../../api/client";
-import { ErrorNote, Loading, Section } from "../../components/ui";
+import { Icon } from "../../components/icons";
+import { ErrorNote, Loading } from "../../components/ui";
 import { useAsync } from "../../lib/useAsync";
 import { SubscriptionFacts } from "./MemberBillingTab";
 import type { Subscription } from "./api";
-import { CreditsSummary, InvoiceTable, day, useBillingApi } from "./components";
+import {
+  BILLING_ICON,
+  CreditsSummary,
+  Empty,
+  InvoiceTable,
+  Panel,
+  day,
+  money,
+  useBillingApi,
+} from "./components";
 import { useBillingT } from "./dict";
 
 /**
- * Member portal "Mi membresía": sessions and credits first (pay-per-session model), then the plan with online
+ * Member portal "Pagos y facturas" (nav: Mi membresía): sessions and credits first (pay-per-session model), then the plan with online
  * cancellation in three steps or fewer (spec E4/E7), then invoices with the IVU breakdown.
  */
 export function MyMembershipScreen() {
-  const { t } = useBillingT();
+  const { t, lang } = useBillingT();
   const bapi = useBillingApi();
   const billing = useAsync(() => bapi.myBilling(), [bapi]);
   const b = billing.data;
   const live = b?.subscriptions.filter((s) => s.status !== "cancelled") ?? [];
+  const balance = (b?.invoices ?? []).reduce(
+    (sum, i) => sum + (i.status === "open" ? i.balance_cents : 0),
+    0,
+  );
 
   return (
     <div className="page">
-      <h1 className="page__title">{t("my.title")}</h1>
-      <p className="lede">{t("my.lede")}</p>
+      <h1 className="page__title">{t("my.pageTitle")}</h1>
+      <p className="lede">{t("my.pageLede")}</p>
       {billing.loading ? <Loading /> : null}
       {billing.error ? <ErrorNote code={billing.error} onRetry={billing.reload} /> : null}
       {b ? (
         <>
-          <section
-            className="section billing-quick"
-            aria-labelledby="my-credits"
-            data-tour-id="my-credits"
-          >
-            <h2 id="my-credits" className="section__title">
-              {t("credits.myTitle")}
-            </h2>
+          {/* Stats sit on the page (not inside a card): no nested cards. */}
+          <section className="billing-block" aria-labelledby="my-credits" data-tour-id="my-credits">
+            <div className="billing-block__head">
+              <h2 id="my-credits" className="section__title">
+                <Icon d={BILLING_ICON.ticket} size={22} />
+                {t("credits.myTitle")}
+              </h2>
+              {live.length === 0 ? (
+                <span className="ds-pill">{t("model.payPerSession")}</span>
+              ) : null}
+            </div>
             <CreditsSummary credits={b.credits} passes={b.passes} />
           </section>
-          <Section title={t("my.plan")}>
-            {live.length === 0 ? <p className="muted">{t("my.noPlan")}</p> : null}
+          <Panel title={t("my.plan")} icon="star">
+            {live.length === 0 ? <Empty icon="checkCircle" text={t("my.noPlan")} /> : null}
             {live.map((s) => (
               <div key={s.id} className="billing-sub">
                 <SubscriptionFacts sub={s} />
                 {!s.cancel_at_period_end ? <CancelFlow sub={s} onDone={billing.reload} /> : null}
               </div>
             ))}
-          </Section>
-          <Section title={t("my.invoices")}>
+          </Panel>
+          <Panel
+            title={t("my.invoices")}
+            icon="receipt"
+            actions={
+              b.invoices.length > 0 ? (
+                <span className="billing-balance">
+                  {t("billing.totalOpen", { amount: money(balance, lang) })}
+                </span>
+              ) : null
+            }
+          >
             <InvoiceTable
               invoices={b.invoices}
               lines={b.lines}
               canPay={false}
               label={t("my.invoices")}
             />
-          </Section>
+          </Panel>
         </>
       ) : null}
     </div>

@@ -1,8 +1,16 @@
-import { type FormEvent, Fragment, useEffect, useId, useMemo, useState } from "react";
+import {
+  type FormEvent,
+  Fragment,
+  type ReactNode,
+  useEffect,
+  useId,
+  useMemo,
+  useState,
+} from "react";
 import { type ErrorCode, toErrorCode } from "../../api/client";
 import type { Location } from "../../api/types";
+import { Icon, type IconName } from "../../components/icons";
 import { ErrorNote, LiveResult, Plate, TableWrap, type Tone } from "../../components/ui";
-import { formatDateTime } from "../../lib/format";
 import { useSession } from "../../session/SessionContext";
 import {
   type BillingApi,
@@ -27,6 +35,129 @@ type Lang = "es" | "en";
 export const SELLERS = ["owner", "location_manager", "front_desk"];
 export const CYCLE_RUNNERS = ["owner", "location_manager"];
 export const FEE_READERS = ["owner", "accountant", "location_manager"];
+
+/** Extra stroke icons for this module only (24-unit grid, same style as components/icons.tsx). */
+export const BILLING_ICON = {
+  ticket: "M3 7h18v3a2 2 0 0 0 0 4v3H3v-3a2 2 0 0 0 0-4V7ZM15 7v2M15 11v2M15 15v2",
+  tag: "M3 12.5V4h8.5l9 9-8.5 8.5-9-9ZM7.5 8h.01",
+  plus: "M12 5v14M5 12h14",
+  alert: "M12 3 2 20h20L12 3ZM12 10v4M12 17h.01",
+} as const;
+type IconSpec = IconName | { d: string };
+function GoldIcon({ icon, size = 22 }: { icon: IconSpec; size?: number }) {
+  return typeof icon === "string" ? (
+    <Icon name={icon} size={size} />
+  ) : (
+    <Icon d={icon.d} size={size} />
+  );
+}
+
+/** A design-system v2 card: `.section` whose title starts with a gold icon. */
+export function Panel({
+  title,
+  icon,
+  level = 2,
+  actions,
+  className,
+  tourId,
+  titleId,
+  children,
+}: {
+  title: string;
+  icon: IconSpec;
+  level?: 2 | 3;
+  actions?: ReactNode;
+  className?: string;
+  tourId?: string;
+  titleId?: string;
+  children: ReactNode;
+}) {
+  const autoId = useId();
+  const id = titleId ?? autoId;
+  const Heading = level === 2 ? "h2" : "h3";
+  return (
+    <section
+      className={className ? `section ${className}` : "section"}
+      aria-labelledby={id}
+      data-tour-id={tourId}
+    >
+      <div className="section__head">
+        <Heading id={id} className="section__title">
+          <GoldIcon icon={icon} />
+          {title}
+        </Heading>
+        {actions ? <div className="section__actions">{actions}</div> : null}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+/** One `.ds-stat` (gold icon · label · value · hint). Only for numbers the screen already loaded. */
+export function Stat({
+  icon,
+  label,
+  value,
+  hint,
+  children,
+  as: Tag = "div",
+}: {
+  icon: IconSpec;
+  label: string;
+  value: ReactNode;
+  hint?: ReactNode;
+  children?: ReactNode;
+  as?: "div" | "li";
+}) {
+  return (
+    <Tag className="ds-stat billing-stat">
+      <GoldIcon icon={icon} size={32} />
+      <span className="ds-stat__text">
+        <span className="ds-stat__label">{label}</span>
+        <span className="ds-stat__value">{value}</span>
+        {hint ? <span className="ds-stat__hint">{hint}</span> : null}
+        {children}
+      </span>
+    </Tag>
+  );
+}
+
+/** Empty state: gold icon, one bold line, optional helpful action. */
+export function Empty({
+  icon,
+  text,
+  action,
+}: { icon: IconSpec; text: string; action?: ReactNode }) {
+  return (
+    <div className="ds-empty">
+      <GoldIcon icon={icon} size={34} />
+      <strong>{text}</strong>
+      {action}
+    </div>
+  );
+}
+
+/** Clock time of a timestamp in the gym's time zone (display only). */
+export function timeOnly(iso: string | null | undefined, lang: Lang): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return new Intl.DateTimeFormat(lang === "es" ? "es-PR" : "en-US", {
+    timeStyle: "short",
+    timeZone: "America/Puerto_Rico",
+  }).format(d);
+}
+
+/** Calendar date of a timestamp in the gym's time zone (display only). */
+export function dateOnly(iso: string | null | undefined, lang: Lang): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return new Intl.DateTimeFormat(lang === "es" ? "es-PR" : "en-US", {
+    dateStyle: "medium",
+    timeZone: "America/Puerto_Rico",
+  }).format(d);
+}
 
 export function useBillingApi(): BillingApi {
   const { api } = useSession();
@@ -117,8 +248,11 @@ export function InvoiceTable({
 }) {
   const { t, lang } = useBillingT();
   const [open, setOpen] = useState<string | null>(null);
-  if (invoices.length === 0) return <p className="muted">{t("inv.none")}</p>;
-  const cols = 9 + (showMember ? 1 : 0) + (fees ? 1 : 0) + (canPay || lines ? 1 : 0);
+  if (invoices.length === 0) return <Empty icon="receipt" text={t("inv.none")} />;
+  // "Detalle" lives in the row; the payment form gets its own strip under the invoice so the row reads like a
+  // document line (number · date · amounts · status) instead of a stack of inputs.
+  const actionsCol = Boolean(lines);
+  const cols = 9 + (showMember ? 1 : 0) + (fees ? 1 : 0) + (actionsCol ? 1 : 0);
   return (
     <TableWrap label={label}>
       <table className="table billing-table">
@@ -149,7 +283,7 @@ export function InvoiceTable({
                 {t("inv.col.fee")}
               </th>
             ) : null}
-            {canPay || lines ? <th scope="col">{t("inv.col.actions")}</th> : null}
+            {actionsCol ? <th scope="col">{t("inv.col.actions")}</th> : null}
           </tr>
         </thead>
         <tbody>
@@ -157,27 +291,35 @@ export function InvoiceTable({
             const mine = lines?.filter((l) => l.invoice_id === inv.id) ?? [];
             const expanded = open === inv.id;
             const detailId = `inv-detail-${inv.id}`;
+            const payable = canPay && inv.status === "open" && inv.balance_cents > 0;
             return (
               <Fragment key={inv.id}>
-                <tr>
-                  <th scope="row" className="mono">
+                <tr className={payable ? "billing-row billing-row--pay" : "billing-row"}>
+                  <th scope="row" className="mono billing-no">
                     {String(inv.number).padStart(6, "0")}
                   </th>
-                  <td className="nowrap">{formatDateTime(inv.issued_at, lang)}</td>
-                  {showMember ? <td>{inv.member_name ?? ""}</td> : null}
+                  <td className="billing-when">
+                    <time dateTime={inv.issued_at}>
+                      <span>{dateOnly(inv.issued_at, lang)}</span>
+                      <span className="billing-when__time">{timeOnly(inv.issued_at, lang)}</span>
+                    </time>
+                  </td>
+                  {showMember ? <td className="billing-member">{inv.member_name ?? ""}</td> : null}
                   <td className="num">{money(inv.subtotal_cents, lang)}</td>
                   <td className="num">{money(inv.ivu_state_cents, lang)}</td>
                   <td className="num">{money(inv.ivu_municipal_cents, lang)}</td>
                   <td className="num">
                     <strong>{money(inv.total_cents, lang)}</strong>
                   </td>
-                  <td className="num">{money(inv.balance_cents, lang)}</td>
+                  <td className={inv.balance_cents > 0 ? "num billing-due" : "num"}>
+                    {money(inv.balance_cents, lang)}
+                  </td>
                   <td className="nowrap">{day(inv.due_date, lang)}</td>
                   <td>
                     <InvoiceStatus inv={inv} />
                   </td>
                   {fees ? <td className="num">{money(fees.get(inv.id) ?? null, lang)}</td> : null}
-                  {canPay || lines ? (
+                  {actionsCol ? (
                     <td>
                       <div className="row-actions">
                         {mine.length > 0 ? (
@@ -194,17 +336,21 @@ export function InvoiceTable({
                             </span>
                           </button>
                         ) : null}
-                        {canPay && inv.status === "open" && inv.balance_cents > 0 ? (
-                          <PayForm invoice={inv} onPaid={onPaid} />
-                        ) : null}
                       </div>
                     </td>
                   ) : null}
                 </tr>
                 {expanded ? (
-                  <tr id={detailId}>
+                  <tr id={detailId} className="billing-subrow">
                     <td colSpan={cols}>
                       <InvoiceLines lines={mine} />
+                    </td>
+                  </tr>
+                ) : null}
+                {payable ? (
+                  <tr className="billing-subrow billing-payrow">
+                    <td colSpan={cols}>
+                      <PayForm invoice={inv} onPaid={onPaid} />
                     </td>
                   </tr>
                 ) : null}
@@ -221,7 +367,7 @@ function InvoiceLines({ lines }: { lines: InvoiceLine[] }) {
   const { t, lang } = useBillingT();
   return (
     <div className="billing-lines">
-      <table className="table">
+      <table className="table billing-lines__table">
         <thead>
           <tr>
             <th scope="col">{t("inv.line")}</th>
@@ -301,6 +447,7 @@ function PayForm({ invoice, onPaid }: { invoice: Invoice; onPaid?: () => void })
       <span id={ids.legend} className="sr-only">
         {t("pay.forInvoice", { number: invoice.number })} ({money(invoice.balance_cents, lang)})
       </span>
+      <Icon name="card" size={20} className="billing-pay__icon" />
       <div className="field">
         <label htmlFor={ids.amount}>{t("pay.amount")}</label>
         <input
@@ -518,29 +665,48 @@ export function CreditsSummary({ credits, passes }: { credits: Credit[]; passes:
   const live = credits.filter((c) => c.live && c.credits_remaining > 0);
   const livePasses = passes.filter((p) => p.live);
   if (live.length === 0 && livePasses.length === 0)
-    return <p className="muted">{t("credits.none")}</p>;
+    return <Empty icon={{ d: BILLING_ICON.ticket }} text={t("credits.none")} />;
   return (
-    <ul className="billing-credits">
-      {live.map((c) => (
-        <li key={c.id} className="billing-credit">
-          <span className="billing-credit__name">{c.product_name}</span>
-          <span className="billing-credit__count">
-            {t("credits.remaining", { n: c.credits_remaining, total: c.credits_total })}
-          </span>
-          <span className="muted">
-            {c.expires_at
-              ? t("credits.expires", { date: formatDateTime(c.expires_at, lang) })
-              : t("credits.noExpiry")}
-          </span>
-        </li>
-      ))}
+    <ul className="ds-stats billing-stats billing-credits">
+      {live.map((c) => {
+        const pct = c.credits_total
+          ? Math.min(100, Math.round((c.credits_remaining / c.credits_total) * 100))
+          : 0;
+        return (
+          <Stat
+            key={c.id}
+            as="li"
+            icon={{ d: BILLING_ICON.ticket }}
+            label={c.product_name ?? ""}
+            value={
+              <span aria-hidden="true">
+                {c.credits_remaining}
+                <span className="billing-stat__of"> / {c.credits_total}</span>
+              </span>
+            }
+            hint={t("credits.remaining", { n: c.credits_remaining, total: c.credits_total })}
+          >
+            <span className="ds-bar billing-stat__bar" aria-hidden="true">
+              <span style={{ width: `${pct}%` }} />
+            </span>
+            <span className="billing-stat__expiry">
+              <Icon name="calendar" size={16} />
+              {c.expires_at
+                ? t("credits.expires", { date: dateOnly(c.expires_at, lang) })
+                : t("credits.noExpiry")}
+            </span>
+          </Stat>
+        );
+      })}
       {livePasses.map((p) => (
-        <li key={p.id} className="billing-credit">
-          <span className="billing-credit__name">{p.product_name}</span>
-          <span className="billing-credit__count">
-            {t("pass.validUntil", { date: formatDateTime(p.valid_to, lang) })}
-          </span>
-        </li>
+        <Stat
+          key={p.id}
+          as="li"
+          icon="calendar"
+          label={t("pass.validLabel")}
+          value={<span className="billing-stat__date">{dateOnly(p.valid_to, lang)}</span>}
+          hint={p.product_name ?? ""}
+        />
       ))}
     </ul>
   );

@@ -1,12 +1,16 @@
 import { type FormEvent, useId, useState } from "react";
 import { type ErrorCode, toErrorCode } from "../../api/client";
-import { ErrorNote, LiveResult, Loading, Plate, Section } from "../../components/ui";
+import { Icon } from "../../components/icons";
+import { ErrorNote, LiveResult, Loading, Plate } from "../../components/ui";
 import { useAsync } from "../../lib/useAsync";
 import { useSession } from "../../session/SessionContext";
 import type { Catalog, Freeze, Subscription } from "./api";
 import {
+  BILLING_ICON,
   CreditsSummary,
+  Empty,
   InvoiceTable,
+  Panel,
   SELLERS,
   SellForm,
   day,
@@ -29,16 +33,27 @@ export function MemberBillingTab({ memberId }: { memberId: string }) {
   const home = members.data?.data.find((m) => m.id === memberId)?.home_location_id;
   const b = billing.data;
 
+  // A chapter of the member record: a titled group of cards (no card inside a card).
   return (
-    <Section title={t("tab.title")}>
+    <section className="billing-tab" aria-labelledby={`billing-tab-${memberId}`}>
+      <div className="billing-block__head">
+        <h2 id={`billing-tab-${memberId}`} className="section__title billing-tab__title">
+          <Icon name="card" size={24} />
+          {t("tab.title")}
+        </h2>
+      </div>
       {billing.loading ? <Loading /> : null}
       {billing.error ? <ErrorNote code={billing.error} onRetry={billing.reload} /> : null}
 
       {seller && catalog.data && locations.data ? (
-        <section className="section billing-quick" aria-labelledby={`sell-${memberId}`}>
-          <h3 id={`sell-${memberId}`} className="section__title">
-            {t("sell.title")}
-          </h3>
+        <Panel
+          title={t("sell.title")}
+          icon="coin"
+          level={3}
+          titleId={`sell-${memberId}`}
+          className="billing-quick"
+          actions={<span className="ds-pill">{t("model.payPerSession")}</span>}
+        >
           <SellForm
             memberId={memberId}
             catalog={catalog.data}
@@ -46,17 +61,23 @@ export function MemberBillingTab({ memberId }: { memberId: string }) {
             defaultLocationId={home}
             onSold={billing.reload}
           />
-        </section>
+        </Panel>
       ) : null}
 
       {b ? (
         <>
-          <Section title={t("credits.title")} level={3}>
+          <section className="billing-block" aria-labelledby={`credits-${memberId}`}>
+            <h3 id={`credits-${memberId}`} className="section__title">
+              <Icon d={BILLING_ICON.ticket} size={22} />
+              {t("credits.title")}
+            </h3>
             <CreditsSummary credits={b.credits} passes={b.passes} />
-          </Section>
+          </section>
 
-          <Section title={t("subs.title")} level={3}>
-            {b.subscriptions.length === 0 ? <p className="muted">{t("subs.none")}</p> : null}
+          <Panel title={t("subs.title")} icon="star" level={3}>
+            {b.subscriptions.length === 0 ? (
+              <Empty icon="checkCircle" text={t("subs.none")} />
+            ) : null}
             {b.subscriptions.map((s) => (
               <SubscriptionCard
                 key={s.id}
@@ -74,9 +95,9 @@ export function MemberBillingTab({ memberId }: { memberId: string }) {
                 onCreated={billing.reload}
               />
             ) : null}
-          </Section>
+          </Panel>
 
-          <Section title={t("inv.title")} level={3}>
+          <Panel title={t("inv.title")} icon="receipt" level={3}>
             <InvoiceTable
               invoices={b.invoices}
               lines={b.lines}
@@ -84,10 +105,10 @@ export function MemberBillingTab({ memberId }: { memberId: string }) {
               onPaid={billing.reload}
               label={t("inv.title")}
             />
-          </Section>
+          </Panel>
         </>
       ) : null}
-    </Section>
+    </section>
   );
 }
 
@@ -367,7 +388,7 @@ function SubscribeForm({
   const fees = catalog.prices.filter(
     (p) => p.active && kind(p.product_id)?.kind === "enrollment_fee" && forLoc(p.location_id),
   );
-  if (recurring.length === 0) return <p className="muted">{t("subs.noRecurring")}</p>;
+  if (recurring.length === 0) return <p className="help billing-center">{t("subs.noRecurring")}</p>;
   const chosen = priceId || recurring[0]?.id || "";
 
   async function submit(e: FormEvent) {
