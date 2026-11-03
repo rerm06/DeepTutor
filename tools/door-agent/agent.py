@@ -25,6 +25,15 @@ Configuration (environment variables)
   DEVICE_KEY       "<device id>:<secret>" exactly as shown once in "Puerta y acceso → Cámaras de la puerta"
   CAMERA_URL       rtsp://user:pass@192.168.1.20:554/Streaming/Channels/101   (never commit this)
   DIRECTION        in | out   (only used when the device was registered as "Entrada y salida")
+  CAMERA_PROFILE   wyze | generic   (default generic). "wyze": RTSP over TCP, analyse 1 frame in 3, reconnect fast.
+  FRAME_STRIDE     analyse 1 of every N frames (default 1; wyze 3)
+
+Wyze cameras (Cam v3 / Pan v3 with RTSP in the Wyze app: Settings → Advanced Settings → RTSP)
+  * Copy the URL the Wyze app generates EXACTLY (the path differs between firmwares: /live or /stream0).
+  * Give the camera a fixed IP (DHCP reservation in the router). Never expose RTSP to the internet.
+  * Wyze has no liveness detection: register the camera with "Siempre confirmar en recepción" (default ON).
+  * Run `python3 agent.py --probe` first: it reports resolution, FPS, dropped frames and face sizes in pixels.
+    ArcFace-style models work on 112×112 face crops; faces under ~80 px wide are unreliable [INFERENCIA].
 
 Self-test (no camera, no model): python3 agent.py --selftest
   Uses a deterministic fake embedder and the real API: syncs enrolment, "recognises" the first enrolled member and
@@ -136,6 +145,7 @@ class Gallery:
     names: dict = field(default_factory=dict)
     enabled: bool = False
     refused: bool = False
+    requires_review: bool = False
     direction: str = "in"
 
     def sync(self, api: Api, embedder) -> None:
@@ -166,7 +176,11 @@ class Gallery:
         for gone in set(self.templates) - seen:  # consent withdrawn, photo removed or face access off
             self.templates.pop(gone, None)
             self.names.pop(gone, None)
-        print(f"[sync] face access {'ON' if self.enabled else 'OFF'} · {len(self.templates)} members enrolled")
+        self.requires_review = bool(r.get("requires_review"))
+        print(
+            f"[sync] face access {'ON' if self.enabled else 'OFF'} · {len(self.templates)} members enrolled"
+            f" · {'front desk confirms every match' if self.requires_review else 'automatic above 0.62'}"
+        )
 
     def best(self, emb) -> tuple[str | None, float]:
         best_id, best = None, -1.0
@@ -194,28 +208,94 @@ class Confirmer:
         return sorted(s for _, s in h)[len(h) // 2]  # median score of the confirming frames
 
 
-# ── Main loops ────────────────────────────────────────────────────────────────────────────────────────────
-def run_camera(api: Api, camera_url: str, direction: str | None) -> None:
+def open_capture(camera_url: str):
+    """OpenCV capture; RTSP over TCP (UDP drops packets on Wi-Fi cameras such as Wyze)."""
+    os.environ.setdefault("OPENCV_FFMPEG_CAPTURE_OPTIONS", "rtsp_transport;tcp|stimeout;5000000")
     import cv2
 
+    return cv2.VideoCapture(camera_url, cv2.CAP_FFMPEG)
+
+
+def profile_stride() -> int:
+    if os.environ.get("FRAME_STRIDE"):
+        return max(1, int(os.environ["FRAME_STRIDE"]))
+    return 3 if os.environ.get("CAMERA_PROFILE", "").lower() == "wyze" else 1
+
+
+def probe(camera_url: str, seconds: float = 10.0) -> int:
+    """Check the stream before going live: resolution, FPS, read failures and (if a model is installed) face sizes."""
+    cap = open_capture(camera_url)
+    if not cap.isOpened():
+        print("probe: cannot open the stream (URL, credentials, network, RTSP enabled in the camera app?)")
+        return 2
+    try:
+        embedder = Embedder()
+    except Exception as e:  # model not installed: still report the stream
+        embedder = None
+        print(f"probe: no face model ({type(e).__name__}); reporting the stream only")
+    start, frames, fails, widths, shape = time.time(), 0, 0, [], None
+    streak, stopped = 0, False
+    while time.time() - start < seconds:
+        ok, frame = cap.read()
+        if not ok:
+            fails += 1
+            streak += 1
+            if streak >= 50:  # ~2.5 s without a frame: the stream ended or dropped
+                stopped = True
+                break
+            time.sleep(0.05)
+            continue
+        streak = 0
+        frames += 1
+        shape = frame.shape
+        if embedder is not None and frames % 5 == 0:
+            for f in embedder.app.get(frame):
+                x1, _y1, x2, _y2 = f.bbox
+                widths.append(int(x2 - x1))
+        del frame
+    cap.release()
+    elapsed = max(0.001, time.time() - start - (2.5 if stopped else 0))
+    fps = frames / elapsed
+    print(f"probe: {shape[1] if shape else '?'}x{shape[0] if shape else '?'} · {fps:.1f} fps · {frames} frames"
+          f" · {fails} failed reads")
+    if stopped:
+        print("probe: the stream stopped sending frames (Wi-Fi drop, camera reboot or end of a test file)")
+    if widths:
+        widths.sort()
+        med = widths[len(widths) // 2]
+        print(f"probe: {len(widths)} faces · median width {med}px · min {widths[0]}px · max {widths[-1]}px")
+        if med < 80:
+            print("probe: faces are small — move the camera closer to the door or use a narrower view")
+    elif embedder is not None:
+        print("probe: no faces seen — stand in front of the door during the probe")
+    return 0
+
+
+# ── Main loops ────────────────────────────────────────────────────────────────────────────────────────────
+def run_camera(api: Api, camera_url: str, direction: str | None) -> None:
     embedder = Embedder()
     gallery = Gallery()
     confirmer = Confirmer()
     gallery.sync(api, embedder)
     next_sync = time.time() + SYNC_SECONDS
-    cap = cv2.VideoCapture(camera_url)
+    cap = open_capture(camera_url)
     if not cap.isOpened():
         raise SystemExit("cannot open CAMERA_URL")
+    stride = profile_stride()
+    n = 0
     while True:
         ok, frame = cap.read()
         now = time.time()
+        n += 1
         if now >= next_sync:
             gallery.sync(api, embedder)
             next_sync = now + SYNC_SECONDS
         if not ok:
             time.sleep(1)
             cap.release()
-            cap = cv2.VideoCapture(camera_url)
+            cap = open_capture(camera_url)  # Wi-Fi cameras drop the stream now and then
+            continue
+        if n % stride:
             continue
         if not gallery.enabled or not gallery.templates:
             time.sleep(0.5)
@@ -259,7 +339,14 @@ def selftest(api: Api) -> int:
 def main() -> int:
     p = argparse.ArgumentParser(description="Gym door camera agent (reference).")
     p.add_argument("--selftest", action="store_true", help="exercise the protocol without camera or model")
+    p.add_argument("--probe", action="store_true", help="check the camera stream (needs CAMERA_URL only)")
     a = p.parse_args()
+    if a.probe:
+        cam = os.environ.get("CAMERA_URL")
+        if not cam:
+            print("Set CAMERA_URL to the door camera stream.", file=sys.stderr)
+            return 64
+        return probe(cam)
     base = os.environ.get("GYM_API")
     key = os.environ.get("DEVICE_KEY")
     if not base or not key:

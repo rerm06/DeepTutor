@@ -382,3 +382,24 @@
     transition: none;
   }
 }
+
+.acc-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  cursor: pointer;
+}
+.acc-check > span {
+  display: grid;
+  gap: 2px;
+}
+.acc-device {
+  flex-wrap: wrap;
+}
+.acc-device__review {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 0.875rem;
+  cursor: pointer;
+}

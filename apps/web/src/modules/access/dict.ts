@@ -133,6 +133,11 @@ export const dict = {
     "dev.dir.out": "Salida",
     "dev.dir.both": "Entrada y salida",
     "dev.add": "Registrar cámara",
+    "dev.review": "Siempre confirmar en recepción",
+    "dev.reviewHelp":
+      "Recomendado para cámaras sin detección de persona viva (por ejemplo Wyze por RTSP): una foto impresa o una pantalla podría coincidir. La cámara sugiere; recepción confirma.",
+    "dev.reviewOn": "confirma recepción",
+    "dev.reviewOff": "automático",
     "dev.secret": "Copia esta clave en la pasarela de la cámara. No se volverá a mostrar.",
     "dev.secretLabel": "Clave de la pasarela",
     "dev.revoke": "Revocar",
@@ -293,6 +298,11 @@ export const dict = {
     "dev.dir.out": "Out",
     "dev.dir.both": "In and out",
     "dev.add": "Register camera",
+    "dev.review": "Always confirm at the front desk",
+    "dev.reviewHelp":
+      "Recommended for cameras without liveness detection (e.g. Wyze over RTSP): a printed photo or a screen could match. The camera suggests; the front desk confirms.",
+    "dev.reviewOn": "front desk confirms",
+    "dev.reviewOff": "automatic",
     "dev.secret": "Copy this key into the camera gateway. It won't be shown again.",
     "dev.secretLabel": "Gateway key",
     "dev.revoke": "Revoke",

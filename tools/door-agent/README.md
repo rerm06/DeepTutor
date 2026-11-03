@@ -19,6 +19,9 @@ pip install opencv-python-headless numpy insightface onnxruntime
 python3 agent.py
 ```
 
+**Wyze cameras:** see `docs/wyze.md` (`CAMERA_PROFILE=wyze`, `--probe`, register the camera with
+"Siempre confirmar en recepción").
+
 **Before production [VERIFICAR]:** a commercially licensed face model (InsightFace's pretrained models are
 non-commercial), liveness/anti-spoofing (a printed photo must not open the door — prefer cameras with IR/depth),
 threshold calibration on site, and legal review of the biometric consent and notice.

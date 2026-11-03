@@ -46,6 +46,7 @@ export interface Device {
   location_id: string;
   name: string;
   direction: "in" | "out" | "both";
+  requires_review: boolean;
   created_at: string;
   revoked_at: string | null;
   last_seen_at: string | null;
@@ -93,8 +94,20 @@ export function accessApi(api: ApiClient) {
     setFaceAccess: (location_id: string, on: boolean) =>
       r<{ face_access: boolean }>("PUT", "/door/face-access", { location_id, on }),
     devices: (loc: string) => r<List<Device>>("GET", `/door/devices?location_id=${loc}`),
-    createDevice: (location_id: string, name: string, direction: Device["direction"]) =>
-      r<{ id: string; secret: string }>("POST", "/door/devices", { location_id, name, direction }),
+    createDevice: (
+      location_id: string,
+      name: string,
+      direction: Device["direction"],
+      requires_review: boolean,
+    ) =>
+      r<{ id: string; secret: string }>("POST", "/door/devices", {
+        location_id,
+        name,
+        direction,
+        requires_review,
+      }),
+    setDeviceReview: (id: string, requires_review: boolean) =>
+      r<{ requires_review: boolean }>("PUT", `/door/devices/${id}/review`, { requires_review }),
     revokeDevice: (id: string) => r<{ revoked: boolean }>("DELETE", `/door/devices/${id}`),
     faceEvents: (loc: string) => r<List<FaceEvent>>("GET", `/door/face-events?location_id=${loc}`),
     review: (id: string, accept: boolean) =>

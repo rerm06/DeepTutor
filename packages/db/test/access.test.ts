@@ -316,3 +316,57 @@ describe("face access", () => {
     ).rejects.toMatchObject({ code: "42501" });
   });
 });
+
+describe("devices that always need front-desk confirmation (0025)", () => {
+  it("a review-only camera never records automatically, whatever the score", async () => {
+    await asCaller(t.api, as("owner"), (tx) =>
+      tx.query("SELECT app.set_face_access($1, true)", [t.fx.A.locations[1]]),
+    );
+    const d = await asCaller(
+      t.api,
+      as("owner"),
+      async (tx) =>
+        (
+          await tx.query<{ id: string; secret: string }>(
+            "SELECT * FROM app.create_door_device($1, 'Wyze puerta', 'in', true)",
+            [t.fx.A.locations[1]],
+          )
+        ).rows[0],
+    );
+    const enr = await t.api.pool.query<{ r: { requires_review: boolean } }>(
+      "SELECT app_public.device_enrolment($1, $2) AS r",
+      [d?.id, d?.secret],
+    );
+    expect(enr.rows[0]?.r.requires_review).toBe(true);
+    // members[1] may already be inside from earlier tests: close the visit first.
+    await asCaller(t.api, as("owner"), (tx) =>
+      tx.query("SELECT app.check_out_member($1, $2)", [t.fx.A.locations[1], t.fx.A.members[1]]),
+    );
+    const r = await t.api.pool.query<{ r: { outcome: string } }>(
+      "SELECT app_public.device_recognition($1, $2, $3, 0.99, 'in') AS r",
+      [d?.id, d?.secret, t.fx.A.members[1]],
+    );
+    expect(r.rows[0]?.r.outcome).toBe("review");
+    const open = await t.admin.query("SELECT app.access_open_visit($1, $2, $3) AS v", [
+      t.fx.A.orgId,
+      t.fx.A.locations[1],
+      t.fx.A.members[1],
+    ]);
+    expect(open.rows[0]?.v).toBeNull();
+  });
+
+  it("owner / manager switch the policy; front desk cannot", async () => {
+    const dev = deviceIdFor("A");
+    await asCaller(t.api, as("front_desk"), (tx) =>
+      refused(tx, "SELECT app.set_device_review($1, true)", [dev], "42501"),
+    );
+    await asCaller(t.api, as("owner"), (tx) =>
+      tx.query("SELECT app.set_device_review($1, true)", [dev]),
+    );
+    const row = await t.admin.query<{ requires_review: boolean }>(
+      "SELECT requires_review FROM app.door_device WHERE id = $1",
+      [dev],
+    );
+    expect(row.rows[0]?.requires_review).toBe(true);
+  });
+});

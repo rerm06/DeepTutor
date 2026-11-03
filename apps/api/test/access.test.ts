@@ -231,6 +231,19 @@ describe("face access", () => {
     });
     expect(r.status).toBe(201);
     expect(r.body.secret).toMatch(/^[0-9a-f]{48}$/);
+    const listed = await call(
+      prod,
+      as("owner"),
+      "GET",
+      `/v1/door/devices?location_id=${t.fx.A.locations[0]}`,
+    );
+    expect(listed.body.data.find((d: { id: string }) => d.id === r.body.id).requires_review).toBe(
+      true,
+    );
+    const off = await call(prod, as("owner"), "PUT", `/v1/door/devices/${r.body.id}/review`, {
+      requires_review: false,
+    });
+    expect(off.body.requires_review).toBe(false);
     const enr = await call(prod, null, "GET", "/v1/public/device/enrolment", undefined, {
       authorization: `Device ${r.body.id}:${r.body.secret}`,
     });

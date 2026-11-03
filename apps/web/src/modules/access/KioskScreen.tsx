@@ -406,6 +406,7 @@ function Devices({ location, faceOn }: { location: string; faceOn: boolean }) {
   const devices = useAsync(() => acc.devices(location), [acc, location]);
   const [name, setName] = useState("");
   const [dir, setDir] = useState<Device["direction"]>("in");
+  const [review, setReview] = useState(true);
   const [created, setCreated] = useState<{ id: string; secret: string } | null>(null);
   const [error, setError] = useState(false);
 
@@ -413,7 +414,7 @@ function Devices({ location, faceOn }: { location: string; faceOn: boolean }) {
     e.preventDefault();
     setError(false);
     try {
-      setCreated(await acc.createDevice(location, name.trim(), dir));
+      setCreated(await acc.createDevice(location, name.trim(), dir, review));
       setName("");
       devices.reload();
     } catch {
@@ -438,6 +439,7 @@ function Devices({ location, faceOn }: { location: string; faceOn: boolean }) {
               <strong>{d.name}</strong>
               <span className="muted">
                 {t(`dev.dir.${d.direction}` as AccessKey)} ·{" "}
+                {t(d.requires_review ? "dev.reviewOn" : "dev.reviewOff")} ·{" "}
                 {d.revoked_at
                   ? t("dev.revoked")
                   : d.last_seen_at
@@ -445,6 +447,19 @@ function Devices({ location, faceOn }: { location: string; faceOn: boolean }) {
                     : t("dev.never")}
               </span>
             </span>
+            {!d.revoked_at ? (
+              <label className="acc-device__review">
+                <input
+                  type="checkbox"
+                  checked={d.requires_review}
+                  onChange={async (e) => {
+                    await acc.setDeviceReview(d.id, e.target.checked).catch(() => {});
+                    devices.reload();
+                  }}
+                />
+                <span>{t("dev.review")}</span>
+              </label>
+            ) : null}
             {!d.revoked_at ? (
               <button
                 type="button"
@@ -485,6 +500,13 @@ function Devices({ location, faceOn }: { location: string; faceOn: boolean }) {
             </select>
           </div>
         </div>
+        <label className="acc-check">
+          <input type="checkbox" checked={review} onChange={(e) => setReview(e.target.checked)} />
+          <span>
+            <strong>{t("dev.review")}</strong>
+            <span className="help">{t("dev.reviewHelp")}</span>
+          </span>
+        </label>
         <div className="form__actions">
           <button type="submit" className="btn btn--primary" disabled={name.trim().length < 2}>
             {t("dev.add")}

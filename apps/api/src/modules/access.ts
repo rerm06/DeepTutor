@@ -17,7 +17,8 @@ import { IpLimiter, SESSION_TTL_SECONDS } from "./signup.js";
  *   POST /door/check-out               front desk closes a visit by hand
  *   GET|PUT /me/biometric-consent      the member's own opt-in for face access
  *   GET  /door/face-access             face access per location (owner switches it with PUT)
- *   GET|POST /door/devices, DELETE /door/devices/:id   camera gateways (owner / manager)
+ *   GET|POST /door/devices, PUT /door/devices/:id/review, DELETE /door/devices/:id   camera gateways
+ *                                      (owner / manager); review = always confirmed by the front desk
  *   GET  /door/face-events, POST /door/face-events/:id/review   recognitions and the review queue
  * Public (/v1/public, no token):
  *   POST /login/start, POST /login/verify   sign-in code by e-mail (DEMO MODE shows the code on screen)
@@ -161,7 +162,8 @@ export async function routes(app: FastifyInstance): Promise<void> {
     const q = LocQuery.parse(req.query);
     return app.asCaller(req, async (tx) => {
       const { rows } = await tx.query(
-        `SELECT id, location_id, name, direction, created_at, revoked_at, last_seen_at FROM app.door_device
+        `SELECT id, location_id, name, direction, requires_review, created_at, revoked_at, last_seen_at
+           FROM app.door_device
           WHERE ($1::uuid IS NULL OR location_id = $1) ORDER BY created_at DESC`,
         [q.location_id ?? null],
       );
@@ -174,18 +176,31 @@ export async function routes(app: FastifyInstance): Promise<void> {
         location_id: Uuid,
         name: z.string().trim().min(2).max(60),
         direction: z.enum(["in", "out", "both"]),
+        // Default ON: consumer cameras (e.g. Wyze RTSP) have no liveness detection.
+        requires_review: z.boolean().default(true),
       })
       .strict()
       .parse(req.body);
     const created = await app.asCaller(req, async (tx) => {
       const { rows } = await tx.query<{ id: string; secret: string }>(
-        "SELECT id, secret FROM app.create_door_device($1, $2, $3)",
-        [b.location_id, b.name, b.direction],
+        "SELECT id, secret FROM app.create_door_device($1, $2, $3, $4)",
+        [b.location_id, b.name, b.direction, b.requires_review],
       );
       return rows[0];
     });
     // The only time the secret leaves the database: the owner copies it into the gateway's configuration.
     return reply.code(201).send(created);
+  });
+  app.put("/door/devices/:id/review", async (req) => {
+    const { id } = IdParams.parse(req.params);
+    const b = z.object({ requires_review: z.boolean() }).strict().parse(req.body);
+    return app.asCaller(req, async (tx) => {
+      const { rows } = await tx.query<{ r: boolean }>("SELECT app.set_device_review($1, $2) AS r", [
+        id,
+        b.requires_review,
+      ]);
+      return { requires_review: rows[0]?.r ?? true };
+    });
   });
   app.delete("/door/devices/:id", async (req) => {
     const { id } = IdParams.parse(req.params);
