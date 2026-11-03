@@ -136,6 +136,17 @@ describe("Gemini Live ephemeral tokens", () => {
       }),
     ).toEqual({ apiKey: "k", model: "x-live", apiVersion: "v1alpha" });
     expect(resolveLive({ GEMINI_API_KEY: "k", GEMINI_LIVE_MODEL: "bad model/../" })).toBeNull();
+    // Netlify AI Gateway's injected key (paired with GOOGLE_GEMINI_BASE_URL) is not a Google key: ignored.
+    expect(
+      resolveLive({ GEMINI_API_KEY: "gw", GOOGLE_GEMINI_BASE_URL: "https://gw.example" }),
+    ).toBeNull();
+    expect(
+      resolveLive({
+        GEMINI_API_KEY: "gw",
+        GOOGLE_GEMINI_BASE_URL: "https://gw.example",
+        GEMINI_LIVE_API_KEY: "own",
+      }),
+    ).toMatchObject({ apiKey: "own" });
   });
 
   it("503 live_unavailable without a key (the web app falls back to its local assistant)", async () => {

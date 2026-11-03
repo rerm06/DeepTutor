@@ -4,7 +4,7 @@
 * **Asistente IA** (floating button on every screen, and "Registrarme con el asistente IA" / "Alta con IA" on the
   sign-up forms). "Preguntar todo" interviews the person field by field, writes each answer, reads back the
   validation and re-asks when a value is invalid. It can also navigate to any module and press buttons.
-* **Two engines.** With `GEMINI_API_KEY` set: Gemini Live (voice in/out, function calling). Without it, or if Gemini
+* **Two engines.** With `GEMINI_LIVE_API_KEY` set: Gemini Live (voice in/out, function calling). Without it, or if Gemini
   is unreachable: a local guided interviewer in the browser (Web Speech API for voice where supported, typed answers
   everywhere). The panel always says which one is running.
 * **Field assistant** on every form: live state per field and a chip that quotes what is being typed and whether it
@@ -26,7 +26,8 @@
 ## Configuration (Netlify → Site configuration → Environment variables; never in the repo or in chat)
 | Variable | Required | Default |
 | --- | --- | --- |
-| `GEMINI_API_KEY` | yes, to enable Gemini Live | — (local assistant) |
+| `GEMINI_LIVE_API_KEY` | yes, to enable Gemini Live: your own Google AI Studio key | — (local assistant) |
+| `GEMINI_API_KEY` | alternative, only if it is your own Google key. The key Netlify AI Gateway injects (with `GOOGLE_GEMINI_BASE_URL`) is ignored: the gateway does not serve Live sessions | — |
 | `GEMINI_LIVE_MODEL` | no | `gemini-3.8-live` [VERIFICAR · current Live model id at ai.google.dev] |
 | `GEMINI_LIVE_API_VERSION` | no | `v1beta` (`v1alpha` if Google's SDK note still applies) |
 

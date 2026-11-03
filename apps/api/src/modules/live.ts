@@ -14,8 +14,11 @@ import { IpLimiter } from "./signup.js";
  *   POST /v1/live/token           any signed-in caller (staff or member)
  *   POST /v1/public/live/token    the public join page, body { org_id } of an org with an open join page;
  *                                 limited per client address (it spends the gym's Gemini quota).
- * Unset GEMINI_API_KEY → 503 live_unavailable; the web app then runs its local (browser speech) assistant.
- * Env: GEMINI_API_KEY, GEMINI_LIVE_MODEL (default below [VERIFICAR · current model id at ai.google.dev]),
+ * No usable key → 503 live_unavailable; the web app then runs its local (browser speech) assistant.
+ * Env: GEMINI_LIVE_API_KEY (preferred: a Google AI Studio key). GEMINI_API_KEY is used only when it is the site's own
+ *      Google key: Netlify AI Gateway injects GEMINI_API_KEY together with GOOGLE_GEMINI_BASE_URL, and that gateway
+ *      key is not accepted by Google's auth_tokens / Live WebSocket endpoints, so it is ignored here.
+ *      GEMINI_LIVE_MODEL (default below [VERIFICAR · current model id at ai.google.dev]),
  *      GEMINI_LIVE_API_VERSION (default v1beta, per the ephemeral-token docs; the JS SDK still says v1alpha).
  */
 export const DEFAULT_LIVE_MODEL = "gemini-3.8-live";
@@ -30,7 +33,8 @@ export interface LiveConfig {
   apiVersion: "v1alpha" | "v1beta";
 }
 export function resolveLive(env: NodeJS.ProcessEnv = process.env): LiveConfig | null {
-  const apiKey = env.GEMINI_API_KEY?.trim();
+  const own = env.GOOGLE_GEMINI_BASE_URL ? undefined : env.GEMINI_API_KEY;
+  const apiKey = (env.GEMINI_LIVE_API_KEY ?? own)?.trim();
   if (!apiKey) return null;
   const model = (env.GEMINI_LIVE_MODEL?.trim() || DEFAULT_LIVE_MODEL).replace(/^models\//, "");
   if (!/^[a-z0-9][a-z0-9.\-]{2,80}$/.test(model)) return null;
