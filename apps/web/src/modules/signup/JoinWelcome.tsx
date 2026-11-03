@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { Icon } from "../../components/icons";
 import { useModuleT } from "../i18n";
 import { WELCOME_KEY, type Welcome, joinEnv } from "./api";
 import { dict } from "./dict";
@@ -31,35 +32,47 @@ export function JoinWelcome() {
     setW(null);
   };
   return (
-    <section className="join-welcome" aria-labelledby="join-welcome-title">
+    <section className="section join-welcome" aria-labelledby="join-welcome-title">
       <div className="join-welcome__head">
-        <h2 id="join-welcome-title" className="join-welcome__title">
+        <h2 id="join-welcome-title" className="section__title">
+          <Icon name="sparkle" size={26} />
           {t("welcome.title", { brand: w.brand, name: w.name })}
         </h2>
         <button
           type="button"
-          className="btn btn--ghost"
+          className="btn btn--ghost join-welcome__close"
           aria-label={t("welcome.dismiss")}
           onClick={dismiss}
         >
-          <span aria-hidden="true">×</span>
+          <Icon name="close" size={20} />
         </button>
       </div>
       <p>{t("welcome.lede", { location: w.location })}</p>
-      <ol className="join-welcome__steps">
+      <ol className="ds-tiles join-welcome__steps">
         <li>
-          <Link className="btn btn--primary" to="/me/membership" data-tour-id="welcome-buy">
-            {t("welcome.step1")}
+          <Link
+            className="ds-tile join-welcome__step join-welcome__step--primary"
+            to="/me/membership"
+            data-tour-id="welcome-buy"
+          >
+            <Icon name="card" size={32} />
+            <span>{t("welcome.step1")}</span>
           </Link>
         </li>
         <li>
-          <Link className="btn" to="/me/classes" data-tour-id="welcome-book">
-            {t("welcome.step2")}
+          <Link className="ds-tile join-welcome__step" to="/me/classes" data-tour-id="welcome-book">
+            <Icon name="calendarPlus" size={32} />
+            <span>{t("welcome.step2")}</span>
           </Link>
         </li>
         <li>
-          <Link className="btn" to="/me/credential" data-tour-id="welcome-credential">
-            {t("welcome.step3")}
+          <Link
+            className="ds-tile join-welcome__step"
+            to="/me/credential"
+            data-tour-id="welcome-credential"
+          >
+            <Icon name="qr" size={32} />
+            <span>{t("welcome.step3")}</span>
           </Link>
         </li>
       </ol>

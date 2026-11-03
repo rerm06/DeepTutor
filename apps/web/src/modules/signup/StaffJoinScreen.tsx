@@ -1,11 +1,16 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { type ErrorCode, toErrorCode } from "../../api/client";
-import { ErrorNote, LiveResult, Loading, Plate, Section, TableWrap } from "../../components/ui";
+import { Icon } from "../../components/icons";
+import { ErrorNote, LiveResult, Loading, Plate, TableWrap } from "../../components/ui";
 import { useAsync } from "../../lib/useAsync";
 import { useApi, useSession } from "../../session/SessionContext";
 import { useModuleT } from "../i18n";
 import { type JoinLocation, joinLocations, setJoinLocation } from "./api";
 import { dict } from "./dict";
+
+const LINK_ICON =
+  "M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1";
 
 /** Owner and location managers: which locations accept online sign-ups (audited in SQL). */
 export function StaffJoinScreen() {
@@ -18,6 +23,7 @@ export function StaffJoinScreen() {
   const [error, setError] = useState<ErrorCode | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
   const rows = list.data?.data ?? [];
+  const open = rows.filter((l) => l.enabled).length;
 
   async function toggle(l: JoinLocation) {
     setBusy(l.id);
@@ -41,21 +47,64 @@ export function StaffJoinScreen() {
 
   return (
     <div className="page">
-      <h1 className="page__title">{t("staff.title")}</h1>
-      <p className="lede">{t("staff.lede")}</p>
+      <div className="page__head">
+        <div className="join-staff__head">
+          <h1 className="page__title">{t("staff.title")}</h1>
+          <p className="lede">{t("staff.lede")}</p>
+        </div>
+        {me ? (
+          <Link className="ds-cta" to={`/join/${me.organization.id}`}>
+            {t("staff.preview")}
+            <Icon name="arrowRight" size={18} />
+          </Link>
+        ) : null}
+      </div>
+      {rows.length > 0 ? (
+        <div className="ds-stats">
+          <div className="ds-stat">
+            <Icon name="checkCircle" size={32} />
+            <span className="ds-stat__text">
+              <span className="ds-stat__label">{t("staff.stat.open")}</span>
+              <span className="ds-stat__value">{open}</span>
+              <span className="ds-stat__hint">{t("staff.stat.of", { n: rows.length })}</span>
+            </span>
+          </div>
+          <div className="ds-stat">
+            <Icon name="building" size={32} />
+            <span className="ds-stat__text">
+              <span className="ds-stat__label">{t("staff.stat.closed")}</span>
+              <span className="ds-stat__value">{rows.length - open}</span>
+              <span className="ds-stat__hint">{t("staff.stat.of", { n: rows.length })}</span>
+            </span>
+          </div>
+        </div>
+      ) : null}
       {publicLink ? (
-        <p>
-          {t("staff.link")}: <span className="mono">{publicLink}</span>
-        </p>
+        <section className="section" aria-labelledby="join-staff-link">
+          <h2 className="section__title" id="join-staff-link">
+            <Icon d={LINK_ICON} size={24} />
+            {t("staff.link")}
+          </h2>
+          <p className="mono join-staff__url">{publicLink}</p>
+        </section>
       ) : null}
       <LiveResult tone={saved ? "ok" : undefined}>
         {saved}
         {error ? <ErrorNote code={error} /> : null}
       </LiveResult>
-      <Section title={t("staff.col.status")}>
+      <section className="section" aria-labelledby="join-staff-list">
+        <h2 className="section__title" id="join-staff-list">
+          <Icon name="pin" size={24} />
+          {t("staff.col.status")}
+        </h2>
         {list.loading ? <Loading /> : null}
         {list.error ? <ErrorNote code={list.error} onRetry={list.reload} /> : null}
-        {list.data && rows.length === 0 ? <p className="muted">{t("staff.none")}</p> : null}
+        {list.data && rows.length === 0 ? (
+          <div className="ds-empty">
+            <Icon name="building" size={36} />
+            <strong>{t("staff.none")}</strong>
+          </div>
+        ) : null}
         {rows.length > 0 ? (
           <TableWrap label={t("staff.title")}>
             <table className="table">
@@ -96,7 +145,7 @@ export function StaffJoinScreen() {
             </table>
           </TableWrap>
         ) : null}
-      </Section>
+      </section>
     </div>
   );
 }
