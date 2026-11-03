@@ -59,6 +59,9 @@
   right layer → regression → mutation → sweep → record). Used by the next cycle once the loop restarts.
 
 ### Deployment — Netlify (demo), 2026-11-02
+- 2026-11-03 04:25 UTC, deploy 6ae960c1f6698da08a914da4 (commit 3589022): live agent (Gemini Live + local fallback)
+  that fills and drives every screen, live field validation, member photo (0023), design v3. 1 migration applied;
+  40 pinned. Gemini Live needs GEMINI_LIVE_API_KEY (the AI Gateway's injected GEMINI_API_KEY is ignored).
 - 2026-11-03 00:16 UTC, deploy 6ae927bb40f62b017da62210 (commit a22fdaf): member portal (Mi Panel, Progreso,
   Mis Programas, Nutrición, Documentos, PWA), every module restyled by the design swarm (9 branches), join hero
   from the theme (0022). 3 migrations applied; 39 pinned.
