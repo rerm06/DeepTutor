@@ -59,6 +59,11 @@
   right layer → regression → mutation → sweep → record). Used by the next cycle once the loop restarts.
 
 ### Deployment — Netlify (demo), 2026-11-02
+- 2026-11-05 06:45 UTC, deploy 6aec25ea9072447914594c43 (commit 06a2224): staff e-mail + password sign-in (0026),
+  forced first change, 12-hour rotating sessions, owner "Equipo y accesos". 1 migration applied; 43 pinned. Two owner
+  accounts of org A created from the app (initial password, change required at first sign-in). QA crawl: 500 + 236
+  page visits across 12 personas at 1280/390 px — no JS errors, overflow, error notes or blank pages; Netlify served
+  0 × 5xx (6 × 502 seen by the crawler came from the sandbox egress proxy).
 - 2026-11-03 05:55 UTC, deploy 6ae9751e360bfacd5156f024 (commit adff93c): Wyze/RTSP — review-only cameras (0025),
   agent CAMERA_PROFILE=wyze + --probe. 1 migration applied; 42 pinned. Verified in production: a 0.99 match from a
   review-only camera goes to the front-desk queue (demo tidied afterwards: event dismissed, device revoked, face off).
