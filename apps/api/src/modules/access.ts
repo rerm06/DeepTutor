@@ -1,9 +1,8 @@
 import type { Db } from "@gym/db";
-import { DEMO_IDS } from "@gym/shared";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
-import { SignJWT } from "jose";
 import { z } from "zod";
-import { IpLimiter, SESSION_TTL_SECONDS } from "./signup.js";
+import { buildSession } from "./auth.js";
+import { IpLimiter } from "./signup.js";
 
 /**
  * Access · every way in (and out). All rules live in the database (0024); these routes validate input, run the
@@ -284,6 +283,7 @@ interface Verified {
   full_name?: string;
   location_name?: string;
   brand_name?: string;
+  refresh?: string;
 }
 
 export async function publicRoutes(app: FastifyInstance, opts: AccessPublicOptions): Promise<void> {
@@ -328,29 +328,24 @@ export async function publicRoutes(app: FastifyInstance, opts: AccessPublicOptio
     const v = rows[0]?.r;
     if (!v?.ok || !v.person_id || !v.member_id || !v.org_id)
       return reply.code(400).send({ error: "invalid_code" });
-    const token = await new SignJWT({ org_id: v.org_id, app_role: "member", location_ids: [] })
-      .setProtectedHeader({ alg: "HS256" })
-      .setSubject(v.person_id)
-      .setIssuer(opts.jwtIssuer)
-      .setAudience(opts.jwtAudience)
-      .setIssuedAt()
-      .setExpirationTime(`${SESSION_TTL_SECONDS}s`)
-      .sign(key);
-    return {
-      session: {
-        token,
-        expires_in: SESSION_TTL_SECONDS,
-        persona: {
-          id: `login-${v.member_id.slice(0, 8)}`,
-          org: v.org_id === DEMO_IDS.orgB ? "B" : "A",
-          org_name: v.brand_name ?? "",
-          org_logo_url: null,
-          role: "member",
-          display_name: v.full_name ?? "",
-          home: v.location_name ?? "",
-        },
+    // A refresh token keeps the member signed in for 12 hours (rotated on every use; 0026).
+    const session = await buildSession(
+      key,
+      opts.jwtIssuer,
+      opts.jwtAudience,
+      {
+        person_id: v.person_id,
+        org_id: v.org_id,
+        role: "member",
+        location_ids: [],
+        display_name: v.full_name ?? "",
+        home: v.location_name ?? null,
+        org_name: v.brand_name ?? null,
       },
-    };
+      v.refresh ?? "",
+      "login",
+    );
+    return { session };
   });
 
   const device = (req: FastifyRequest, reply: FastifyReply): [string, string] | null => {

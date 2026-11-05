@@ -77,7 +77,8 @@ export function FieldAssist() {
   const [chip, setChip] = useState<Chip | null>(null);
   const focused = useRef<Ctl | null>(null);
   const typingTimer = useRef<number>(0);
-  const touched = useRef(new WeakSet<Element>());
+  // Touched controls, keyed by element AND its id: React may reuse an <input> for a different field.
+  const touched = useRef(new WeakMap<Element, string>());
 
   useEffect(() => {
     const container = (el: Ctl) =>
@@ -85,7 +86,7 @@ export function FieldAssist() {
 
     const evaluate = (el: Ctl, typing: boolean): { st: St; msg?: string } => {
       const s = stateOf(el);
-      const wasTouched = touched.current.has(el);
+      const wasTouched = touched.current.get(el) === el.id;
       const hint = typeHint(el);
       if (typing) {
         if (s.state === "invalid" || hint)
@@ -149,13 +150,17 @@ export function FieldAssist() {
     const onFocus = (e: FocusEvent) => {
       const el = e.target;
       if (!isCtl(el) || skip(el)) return;
+      // Repaint the other fields of the same form: a swapped form may have inherited stale states.
+      for (const other of Array.from(el.form?.querySelectorAll("input, select, textarea") ?? [])) {
+        if (other !== el && isCtl(other) && !skip(other)) paint(other, false, false);
+      }
       focused.current = el;
       paint(el, false, true);
     };
     const onBlur = (e: FocusEvent) => {
       const el = e.target;
       if (!isCtl(el) || skip(el)) return;
-      touched.current.add(el);
+      touched.current.set(el, el.id);
       if (focused.current === el) focused.current = null;
       // Let the form's own blur rules (normalisation, touched errors) run first.
       requestAnimationFrame(() => {

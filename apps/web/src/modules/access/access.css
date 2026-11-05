@@ -403,3 +403,10 @@
   font-size: 0.875rem;
   cursor: pointer;
 }
+
+.acc-entry-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr));
+  align-items: start;
+}

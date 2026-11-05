@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { routes as access } from "./access.js";
+import { routes as auth } from "./auth.js";
 import { routes as billing } from "./billing.js";
 import { routes as coach } from "./coach.js";
 import { routes as crm } from "./crm.js";
@@ -30,4 +31,5 @@ export async function moduleRoutes(app: FastifyInstance): Promise<void> {
   await app.register(photo, { prefix: "/v1" });
   await app.register(live, { prefix: "/v1" });
   await app.register(access, { prefix: "/v1" });
+  await app.register(auth, { prefix: "/v1" });
 }

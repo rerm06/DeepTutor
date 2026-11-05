@@ -55,6 +55,8 @@ export function toErrorCode(err: unknown): ErrorCode {
 interface StoredSession {
   token: string;
   persona: Persona;
+  /** Rotating refresh token of a password / code sign-in (absent for demo personas). */
+  refresh?: string;
 }
 
 export interface ApiClientOptions {
@@ -81,7 +83,11 @@ function readStored(storage: ApiClientOptions["storage"]): StoredSession | null 
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Partial<StoredSession>;
     if (typeof parsed.token === "string" && parsed.persona && typeof parsed.persona.id === "string")
-      return { token: parsed.token, persona: parsed.persona };
+      return {
+        token: parsed.token,
+        persona: parsed.persona,
+        ...(typeof parsed.refresh === "string" ? { refresh: parsed.refresh } : {}),
+      };
   } catch {
     // Private mode, blocked storage or corrupt value: start with no session.
   }
@@ -168,13 +174,22 @@ export function createApiClient(options: ApiClientOptions = {}) {
     return created;
   }
 
+  /** A signed-in person (password or code) renews with their refresh token; a demo persona re-logs in. */
+  async function refreshSession(refresh: string): Promise<string> {
+    const res = await send("POST", "/public/session/refresh", { refresh }, null);
+    const r = await parse<{ session: { token: string; refresh: string; persona: Persona } }>(res);
+    setSession({ token: r.session.token, persona: r.session.persona, refresh: r.session.refresh });
+    return r.session.token;
+  }
+
   function renew(personaId: string): Promise<string> {
     if (!renewing) {
-      renewing = startSession(personaId)
-        .then((s) => s.token)
-        .finally(() => {
-          renewing = null;
-        });
+      const refresh = session?.refresh;
+      renewing = (
+        refresh ? refreshSession(refresh) : startSession(personaId).then((s) => s.token)
+      ).finally(() => {
+        renewing = null;
+      });
     }
     return renewing;
   }

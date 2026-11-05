@@ -105,7 +105,11 @@ export function adoptSession(
 ): void {
   const store = joinEnv.storage();
   try {
-    store?.setItem(SESSION_KEY, JSON.stringify({ token: s.token, persona: s.persona }));
+    const refresh = (s as { refresh?: string }).refresh;
+    store?.setItem(
+      SESSION_KEY,
+      JSON.stringify({ token: s.token, persona: s.persona, ...(refresh ? { refresh } : {}) }),
+    );
     if (welcome) store?.setItem(WELCOME_KEY, JSON.stringify(welcome));
   } catch {
     // Storage blocked: the visitor lands on the start screen and can sign in at the location.

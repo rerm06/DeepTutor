@@ -5,7 +5,7 @@ import { Icon } from "../components/icons";
 import { ErrorNote, LiveResult, Loading } from "../components/ui";
 import { useI18n } from "../i18n/I18nContext";
 import { useAsync } from "../lib/useAsync";
-import { MemberEntry } from "../modules/access";
+import { MemberEntry, StaffSignIn } from "../modules/access";
 import { JoinLink } from "../modules/signup";
 import { DEMO_JOIN_ORGS } from "../modules/signup/demoOrgs";
 import { useSession } from "../session/SessionContext";
@@ -66,11 +66,14 @@ export function EntryScreen() {
         {error ? <ErrorNote code={error} /> : null}
       </LiveResult>
 
-      <MemberEntry
-        gyms={groups
-          .filter((g) => DEMO_JOIN_ORGS[g.org])
-          .map((g) => ({ id: DEMO_JOIN_ORGS[g.org] as string, name: g.name }))}
-      />
+      <div className="acc-entry-grid">
+        <StaffSignIn />
+        <MemberEntry
+          gyms={groups
+            .filter((g) => DEMO_JOIN_ORGS[g.org])
+            .map((g) => ({ id: DEMO_JOIN_ORGS[g.org] as string, name: g.name }))}
+        />
+      </div>
 
       {personas.loading ? <Loading /> : null}
       {personas.error ? <ErrorNote code={personas.error} onRetry={personas.reload} /> : null}

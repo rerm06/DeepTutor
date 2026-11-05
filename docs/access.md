@@ -35,3 +35,14 @@ desk can register an exit by hand.
 4. On-site threshold calibration (false accept / false reject) with the actual cameras and lighting.
 5. Code delivery outside the demo needs an e-mail/SMS provider (`POST /v1/public/login/start` answers 503 until then).
 6. Member sessions last 15 minutes (API token limit); a refresh-token flow is pending for a long-lived portal session.
+
+## Staff sign-in (e-mail + password) — 0026
+* Owners create accounts in **Configuración → Equipo y accesos** (any staff role; new e-mails only). The initial
+  password (≥ 8 characters) works once: the first sign-in asks for a new one (≥ 10 characters, not common, not
+  containing the e-mail name). Nobody can set or reset an existing account's password from the app.
+* Passwords are bcrypt hashes in `app_private` (unreadable by request traffic). 5 wrong passwords → 15-minute lock.
+  Unknown e-mail, wrong password and accounts without a password give the same answer.
+* Sessions: 15-minute access token + 12-hour refresh token, rotated on each use; reusing an old refresh token ends
+  every session of that person; changing the password ends them too. Member code sign-in also gets a refresh token.
+* Pending [VERIFICAR]: self-service password reset needs an e-mail provider; until then an owner creates a new
+  account or the operator resets it in the database.
