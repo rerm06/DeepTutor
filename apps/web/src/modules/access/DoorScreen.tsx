@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { MemberAvatar } from "../../components/MemberPhotoCard";
 import { Icon } from "../../components/icons";
+import { DEMO, PRODUCTION_GYMS } from "../../lib/mode";
 import { isMemberRole } from "../../lib/roles";
 import { useAsync } from "../../lib/useAsync";
 import { useSession } from "../../session/SessionContext";
@@ -217,7 +218,8 @@ export function MemberEntry({ gyms }: { gyms: GymChoice[] }) {
 /** The gyms a visitor can sign in to (demo organisations, named from the demo personas). */
 export function useGyms(): GymChoice[] {
   const { api } = useSession();
-  const personas = useAsync(() => api.personas(), [api]);
+  const personas = useAsync(() => (DEMO ? api.personas() : Promise.resolve({ data: [] })), [api]);
+  if (!DEMO) return [...PRODUCTION_GYMS];
   const names = new Map<string, string>(
     (personas.data?.data ?? []).map((p) => [p.org, p.org_name]),
   );

@@ -1,4 +1,5 @@
 import type { AppModule } from "../types";
+import { ChangePasswordScreen } from "./ChangePasswordScreen";
 import { KioskScreen } from "./KioskScreen";
 import { MyAccessScreen } from "./MyAccessScreen";
 import { TeamScreen } from "./TeamScreen";
@@ -15,6 +16,7 @@ export const module: AppModule = {
     { path: "/staff/door", audience: FOH, Component: KioskScreen },
     { path: "/me/access", audience: "member", Component: MyAccessScreen },
     { path: "/staff/team", audience: ["owner"], Component: TeamScreen },
+    { path: "/account/password", audience: "staff", Component: ChangePasswordScreen },
   ],
   nav: [
     { to: "/staff/door", label: label("nav.door"), audience: FOH },
@@ -25,3 +27,4 @@ export const module: AppModule = {
 
 export { DoorScreen, MemberEntry, useGyms } from "./DoorScreen";
 export { StaffSignIn } from "./StaffSignIn";
+export { AccountExtras } from "./AccountExtras";

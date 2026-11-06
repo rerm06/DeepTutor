@@ -4,6 +4,7 @@ import type { Persona } from "../api/types";
 import { Icon } from "../components/icons";
 import { ErrorNote, LiveResult, Loading } from "../components/ui";
 import { useI18n } from "../i18n/I18nContext";
+import { DEMO, PRODUCTION_GYMS } from "../lib/mode";
 import { useAsync } from "../lib/useAsync";
 import { MemberEntry, StaffSignIn } from "../modules/access";
 import { JoinLink } from "../modules/signup";
@@ -34,6 +35,30 @@ export function groupByOrg(personas: Persona[]): OrgGroup[] {
 }
 
 export function EntryScreen() {
+  return DEMO ? <DemoEntryScreen /> : <ProductionEntryScreen />;
+}
+
+/** Production: only real sign-in (staff e-mail + password; members code / door QR / sign up). */
+function ProductionEntryScreen() {
+  const { t } = useI18n();
+  const { lost } = useSession();
+  return (
+    <div className="page core-page">
+      <header className="core-head">
+        <h1 className="page__title">{t("entry.prodTitle")}</h1>
+        <p className="lede">{t("entry.prodIntro")}</p>
+        <span className="core-head__rule" aria-hidden="true" />
+      </header>
+      {lost ? <p className="note note--warn">{t("session.lost")}</p> : null}
+      <div className="acc-entry-grid">
+        <StaffSignIn />
+        <MemberEntry gyms={[...PRODUCTION_GYMS]} />
+      </div>
+    </div>
+  );
+}
+
+function DemoEntryScreen() {
   const { t, tv } = useI18n();
   const { api, login, lost } = useSession();
   const personas = useAsync(() => api.personas(), [api]);

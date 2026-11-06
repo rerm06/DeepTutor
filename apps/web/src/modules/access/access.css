@@ -410,3 +410,17 @@
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr));
   align-items: start;
 }
+.acc-protected {
+  margin-left: 6px;
+}
+.menu__group {
+  border: 0;
+  margin: 0;
+  padding: 4px 0;
+  display: grid;
+}
+.menu__legend {
+  padding: 4px 12px;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}

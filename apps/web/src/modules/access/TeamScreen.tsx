@@ -16,6 +16,7 @@ interface Account {
   active: boolean;
   has_password: boolean;
   must_change: boolean;
+  protected: boolean;
 }
 const ROLES = [
   "owner",
@@ -212,6 +213,26 @@ export function TeamScreen() {
                             : t("team.access.pw")
                           : t("team.access.none")}
                       </span>
+                      {a.protected ? (
+                        <span className="plate plate--ok acc-protected">{t("team.protected")}</span>
+                      ) : null}
+                      {a.has_password && !a.protected ? (
+                        <label className="acc-device__review">
+                          <input
+                            type="checkbox"
+                            checked={a.must_change}
+                            onChange={async (e) => {
+                              await api
+                                .request("PUT", `/staff/accounts/${a.staff_id}/change-required`, {
+                                  required: e.target.checked,
+                                })
+                                .catch(() => {});
+                              accounts.reload();
+                            }}
+                          />
+                          <span>{t("team.forceChange")}</span>
+                        </label>
+                      ) : null}
                     </td>
                   </tr>
                 ))}

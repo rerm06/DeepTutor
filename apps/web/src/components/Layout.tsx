@@ -4,11 +4,13 @@ import { useI18n } from "../i18n/I18nContext";
 import type { Lang, MessageKey } from "../i18n/dict";
 import { useBrandTheme } from "../lib/brandTheme";
 import { setLocation, setLocationScope, useLocationId } from "../lib/location";
+import { DEMO } from "../lib/mode";
 import { NavTargets } from "../lib/navTargets";
 import { promptInstall, useInstallState } from "../lib/pwa";
 import { isMemberRole, navFor } from "../lib/roles";
 import { setPref, useMode } from "../lib/themeMode";
 import { useAsync } from "../lib/useAsync";
+import { AccountExtras } from "../modules/access";
 import { MODULES } from "../modules/registry";
 import { allows } from "../modules/types";
 import { useApi, useSession } from "../session/SessionContext";
@@ -389,6 +391,7 @@ function AccountMenu({
             <span>{role}</span>
           </p>
           <ThemeToggle asMenuItem />
+          <AccountExtras />
           <button
             type="button"
             className="menu__item"
@@ -396,7 +399,7 @@ function AccountMenu({
             onClick={logout}
           >
             <Icon name="logout" />
-            <span>{t("session.switch")}</span>
+            <span>{DEMO ? t("session.switch") : t("session.logout")}</span>
           </button>
         </dialog>
       ) : null}
@@ -652,7 +655,7 @@ export function Layout({ children }: { children: ReactNode }) {
       <a className="skip-link" href="#main">
         {t("app.skip")}
       </a>
-      <DemoBanner />
+      {DEMO ? <DemoBanner /> : null}
       <header className="topbar" data-inert-when-nav="">
         <div className="topbar__brand">
           {hasNav ? (

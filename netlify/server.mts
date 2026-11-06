@@ -9,9 +9,9 @@ import { createDb } from "@gym/db";
 import { getConnectionString } from "@netlify/database";
 import pg from "pg";
 
-// DEMO deployment: the database holds only the synthetic seed (packages/db/seed/demo.sql). Turn this off before any
-// real tenant is onboarded; real sessions must come from the identity provider.
-const DEMO_MODE = true;
+// PRODUCTION by default: no demo personas, sign-in by e-mail + password (staff) or code (members). The synthetic demo
+// organisations stay in the database but are unreachable. GYM_DEMO_MODE=true turns the demo back on (local preview).
+const DEMO_MODE = process.env.GYM_DEMO_MODE === "true";
 const ISSUER = "gym-saas-netlify";
 const AUDIENCE = "gym-saas-api";
 

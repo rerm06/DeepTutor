@@ -403,6 +403,8 @@ describe("Netlify function + demo seed", () => {
     await owner.query(readFileSync(join(MIG, "20261102101850_signup_demo_seed.sql"), "utf8"));
     await owner.end();
     process.env.GYM_DB_URL = url(DB, "nf_owner", "nf_owner_dev");
+    // Demo deployment path (a demo sign-up opens a session); production mode is covered by netlify-prod.test.ts.
+    process.env.GYM_DEMO_MODE = "true";
     handler = (await import("../../../netlify/functions/api.mts")).default;
   }, 120_000);
   afterAll(async () => {
@@ -474,5 +476,29 @@ describe("Netlify function + demo seed", () => {
     });
     expect(ana.status).toBe(202);
     expect((await ana.json()).session).toBeNull();
+  });
+});
+
+describe("production join body (demo off)", () => {
+  it("accepts real e-mails and NANP phones; still rejects malformed ones", async () => {
+    const { joinBodyFor } = await import("../src/modules/signup.js");
+    const prod = joinBodyFor(false);
+    const base = {
+      org_id: "a0000000-0000-4000-8000-000000000001",
+      location_id: "a0000000-0000-4000-8000-000000000011",
+      full_name: "Ana Rivera",
+      email: "Ana.Rivera@Gmail.com",
+      phone: "+1-787-622-1234",
+      birth_date: "1990-03-15",
+      terms_version: "v2026-11",
+      waiver_version: "v2026-11",
+      accept_terms: true,
+      accept_waiver: true,
+      locale: "es",
+    };
+    expect(prod.safeParse(base).success).toBe(true);
+    expect(prod.safeParse({ ...base, email: "no-es-correo" }).success).toBe(false);
+    expect(prod.safeParse({ ...base, phone: "+1-787-555" }).success).toBe(false);
+    expect(joinBodyFor(true).safeParse(base).success).toBe(false); // demo keeps the PII guard
   });
 });

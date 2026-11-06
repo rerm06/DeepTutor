@@ -8,6 +8,10 @@ const es = {
   "app.title": "Consola del gimnasio · demo",
   "app.skip": "Saltar al contenido",
   "demo.banner": "Demo con datos sintéticos — no ingreses datos reales",
+  "entry.prodTitle": "Bienvenido a Fitness R Us",
+  "session.logout": "Cerrar sesión",
+  "entry.prodIntro":
+    "Entra con tu cuenta del gimnasio, o como socio con tu correo o el QR de la puerta.",
   "lang.label": "Idioma",
   "lang.es": "Español",
   "lang.en": "English",
@@ -324,6 +328,10 @@ const en: Dictionary = {
   "app.title": "Gym console · demo",
   "app.skip": "Skip to content",
   "demo.banner": "Demo with synthetic data — do not enter real data",
+  "entry.prodTitle": "Welcome to Fitness R Us",
+  "session.logout": "Sign out",
+  "entry.prodIntro":
+    "Sign in with your gym account, or as a member with your e-mail or the door QR.",
   "lang.label": "Language",
   "lang.es": "Español",
   "lang.en": "English",

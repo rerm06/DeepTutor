@@ -171,11 +171,29 @@ export async function routes(app: FastifyInstance): Promise<void> {
   app.get("/staff/accounts", async (req) =>
     app.asCaller(req, async (tx) => {
       const { rows } = await tx.query(
-        "SELECT staff_id, person_id, display_name, email, role, active, has_password, must_change FROM app.staff_accounts()",
+        "SELECT staff_id, person_id, display_name, email, role, active, has_password, must_change, protected FROM app.staff_accounts()",
       );
       return { data: rows };
     }),
   );
+  app.put("/staff/accounts/:id/change-required", async (req, reply) => {
+    const { id } = z.object({ id: z.string().uuid() }).strict().parse(req.params);
+    const b = z.object({ required: z.boolean() }).strict().parse(req.body);
+    try {
+      const r = await app.asCaller(req, async (tx) => {
+        const { rows } = await tx.query<{ r: boolean }>(
+          "SELECT app.set_password_change_required($1, $2) AS r",
+          [id, b.required],
+        );
+        return rows[0]?.r;
+      });
+      return { required: r };
+    } catch (err) {
+      if ((err as { message?: string }).message === "protected_account")
+        return reply.code(403).send({ error: "protected_account" });
+      throw err;
+    }
+  });
   app.post("/staff/accounts", async (req, reply) => {
     const b = z
       .object({
@@ -203,5 +221,36 @@ export async function routes(app: FastifyInstance): Promise<void> {
       if (e.code === "23505") return reply.code(409).send({ error: "account_exists" });
       throw err;
     }
+  });
+}
+
+/** Signed-in session operations that need to sign tokens (registered under /v1 with the JWT options). */
+export async function sessionRoutes(
+  app: FastifyInstance,
+  opts: { jwtSecret: string; jwtIssuer: string; jwtAudience: string },
+): Promise<void> {
+  const key = new TextEncoder().encode(opts.jwtSecret);
+  app.get("/auth/roles", async (req) =>
+    app.asCaller(req, async (tx) => {
+      const { rows } = await tx.query<{ role: string }>("SELECT role FROM app.my_roles()");
+      return { data: rows.map((r) => r.role), current: req.claims.app_role };
+    }),
+  );
+  app.post("/auth/switch", async (req) => {
+    const b = z
+      .object({ role: z.enum(STAFF_ROLES) })
+      .strict()
+      .parse(req.body);
+    const r = await app.asCaller(req, async (tx) => {
+      const { rows } = await tx.query<{ r: { claims: Claims; refresh: string } }>(
+        "SELECT app.switch_role($1) AS r",
+        [b.role],
+      );
+      return rows[0]?.r;
+    });
+    if (!r) throw Object.assign(new Error("forbidden"), { statusCode: 403 });
+    return {
+      session: await buildSession(key, opts.jwtIssuer, opts.jwtAudience, r.claims, r.refresh),
+    };
   });
 }

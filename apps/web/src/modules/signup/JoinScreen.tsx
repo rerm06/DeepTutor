@@ -14,6 +14,7 @@ import { PhotoCapture } from "../../components/PhotoCapture";
 import { Icon, type IconName } from "../../components/icons";
 import { useI18n } from "../../i18n/I18nContext";
 import { applyTheme, sanitizeTheme } from "../../lib/brandTheme";
+import { DEMO } from "../../lib/mode";
 import { PHOTO_CONSENT_VERSION, type Photo } from "../../lib/photo";
 import { setBrandMode, useMode } from "../../lib/themeMode";
 import { useModuleT } from "../i18n";
@@ -46,8 +47,13 @@ const EMPTY: JoinValues = {
 const ORDER: Field[] = ["location", "name", "email", "phone", "birth", "terms", "waiver"];
 
 // Same rules as the API and the database (demo PII guard [VERIFICAR · lift with a real identity provider]).
-const EMAIL = /^[a-z0-9][a-z0-9._+-]{0,63}@demo\.invalid$/;
-const PHONE = /^\+1-(787|939)-555-01[0-9]{2}$/;
+// Production accepts real data; demo keeps the PII guard. The API and the database (0028 pii_guard) apply the same rule.
+const EMAIL = DEMO
+  ? /^[a-z0-9][a-z0-9._+-]{0,63}@demo\.invalid$/
+  : /^[a-z0-9][a-z0-9._%+-]{0,63}@[a-z0-9]([a-z0-9-]{0,62}\.)+[a-z]{2,24}$/;
+const PHONE = DEMO
+  ? /^\+1-(787|939)-555-01[0-9]{2}$/
+  : /^\+1-[2-9][0-9]{2}-[2-9][0-9]{2}-[0-9]{4}$/;
 const NAME = /^[A-Za-zÁÉÍÓÚÑÜáéíóúñü][A-Za-zÁÉÍÓÚÑÜáéíóúñü '.-]*[A-Za-zÁÉÍÓÚÑÜáéíóúñü.]$/;
 
 /** Today's date (YYYY-MM-DD) in Puerto Rico, where the age of majority is 21 [VERIFICAR · legal]. */
@@ -525,7 +531,7 @@ function JoinForm({ info }: { info: JoinInfo }) {
                 onBlur={() => blur("email")}
               />
               <p className="help" id={id("email-help")}>
-                {t("form.emailHelp")}
+                {t(DEMO ? "form.emailHelp" : "form.emailHelpReal")}
               </p>
               {err("email")}
             </div>
@@ -549,7 +555,7 @@ function JoinForm({ info }: { info: JoinInfo }) {
                 }}
               />
               <p className="help" id={id("phone-help")}>
-                {t("form.phoneHelp")}
+                {t(DEMO ? "form.phoneHelp" : "form.phoneHelpReal")}
               </p>
               {err("phone")}
             </div>

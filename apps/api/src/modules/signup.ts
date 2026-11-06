@@ -18,6 +18,9 @@ import { z } from "zod";
 // mirrored in SQL (app.join_email_ok / app.join_phone_ok).
 export const DEMO_EMAIL = /^[a-z0-9][a-z0-9._+-]{0,63}@demo\.invalid$/;
 export const DEMO_PHONE = /^\+1-(787|939)-555-01[0-9]{2}$/;
+/** Production (demo mode off): real e-mails and NANP phones; the database applies the same rule (0028 pii_guard). */
+export const REAL_EMAIL = /^[a-z0-9][a-z0-9._%+-]{0,63}@[a-z0-9]([a-z0-9-]{0,62}\.)+[a-z]{2,24}$/;
+export const REAL_PHONE = /^\+1-[2-9][0-9]{2}-[2-9][0-9]{2}-[0-9]{4}$/;
 /** Same lifetime as the demo session route (routes/demo.ts). */
 export const SESSION_TTL_SECONDS = 900;
 /** The answer for every outcome without a session: never says whether the e-mail already had an account. */
@@ -27,6 +30,41 @@ export const GENERIC_MESSAGE = {
 } as const;
 
 const OrgParams = z.object({ orgId: z.string().uuid() }).strict();
+export const joinBodyFor = (demo: boolean) =>
+  z
+    .object({
+      org_id: z.string().uuid(),
+      location_id: z.string().uuid(),
+      full_name: z.string().trim().min(2).max(120),
+      email: z
+        .string()
+        .trim()
+        .max(254)
+        .transform((s) => s.toLowerCase())
+        .pipe(z.string().regex(demo ? DEMO_EMAIL : REAL_EMAIL)),
+      phone: z
+        .union([
+          z
+            .string()
+            .trim()
+            .max(20)
+            .regex(demo ? DEMO_PHONE : REAL_PHONE),
+          z.literal(""),
+          z.null(),
+        ])
+        .optional()
+        .transform((p) => (p ? p : null)),
+      birth_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      terms_version: z.string().max(20),
+      waiver_version: z.string().max(20),
+      accept_terms: z.boolean(),
+      accept_waiver: z.boolean(),
+      sms_reminders: z.boolean().default(false),
+      sms_marketing: z.boolean().default(false),
+      locale: z.enum(["es", "en"]),
+    })
+    .strict();
+/** Demo-mode body (kept for tests and the demo deployment). */
 export const JoinBody = z
   .object({
     org_id: z.string().uuid(),
@@ -137,6 +175,7 @@ interface Created {
 export async function publicRoutes(app: FastifyInstance, opts: PublicOptions): Promise<void> {
   const key = new TextEncoder().encode(opts.jwtSecret);
   const limiter = opts.limiter ?? new IpLimiter();
+  const joinBody = joinBodyFor(opts.demo);
 
   app.get("/join/:orgId", async (req, reply) => {
     const p = OrgParams.safeParse(req.params);
@@ -153,7 +192,7 @@ export async function publicRoutes(app: FastifyInstance, opts: PublicOptions): P
 
   app.post("/join", async (req, reply) => {
     if (!limiter.take(clientIp(req))) return reply.code(429).send({ error: "rate_limited" });
-    const parsed = JoinBody.safeParse(req.body);
+    const parsed = joinBody.safeParse(req.body);
     if (!parsed.success) {
       const field = String(parsed.error.issues[0]?.path[0] ?? "");
       return reply.code(400).send({ error: FIELD_ERROR[field] ?? "invalid_input" });

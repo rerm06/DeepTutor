@@ -45,6 +45,9 @@ beforeAll(async () => {
   }
   await owner.end();
   process.env.GYM_DB_URL = url(DB, "nf_owner", "nf_owner_dev");
+  // The deployed site runs in production mode; these cases exercise the demo deployment (personas, demo sign-up).
+  // netlify-prod.test.ts covers production mode with its own module instance.
+  process.env.GYM_DEMO_MODE = "true";
   handler = (await import("../../../netlify/functions/api.mts")).default;
 }, 120_000);
 

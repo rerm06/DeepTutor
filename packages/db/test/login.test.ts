@@ -194,3 +194,156 @@ describe("refresh tokens", () => {
     });
   });
 });
+
+describe("owner chooses whether the next sign-in must change the password (0027)", () => {
+  it("off → the initial password keeps working; a voluntary change still enforces the policy", async () => {
+    const id = await create("sin.cambio@ejemplo.com", "owner", null);
+    await asCaller(t.api, as("front_desk"), (tx) =>
+      refused(tx, "SELECT app.set_password_change_required($1, false)", [id], "42501"),
+    );
+    await asCaller(t.api, as("owner"), (tx) =>
+      tx.query("SELECT app.set_password_change_required($1, false)", [id]),
+    );
+    const a = await login("sin.cambio@ejemplo.com", "Password");
+    expect(a).toMatchObject({ ok: true, must_change: false, claims: { role: "owner" } });
+    expect((await login("sin.cambio@ejemplo.com", "Password")).ok).toBe(true); // still valid
+    expect(await change("sin.cambio@ejemplo.com", "Password", "corta")).toMatchObject({
+      ok: false,
+      weak: true,
+    });
+    expect((await change("sin.cambio@ejemplo.com", "Password", "Mi-Clave-Elegida-2026")).ok).toBe(
+      true,
+    );
+    expect((await login("sin.cambio@ejemplo.com", "Password")).ok).toBe(false);
+  });
+
+  it("another org's staff id is refused", async () => {
+    const id = await create("otra.org@ejemplo.com", "owner", null);
+    await asCaller(t.api, as("owner", t.fx.B), (tx) =>
+      refused(tx, "SELECT app.set_password_change_required($1, false)", [id], "42501"),
+    );
+  });
+});
+
+describe("protected accounts and role switching (0028)", () => {
+  let staffId = "";
+  let person = "";
+  beforeAll(async () => {
+    staffId = (await create("protegida@ejemplo.com", "owner", null)) as string;
+    const p = await t.admin.query<{ person_id: string }>(
+      "SELECT person_id FROM app.staff_member WHERE id = $1",
+      [staffId],
+    );
+    person = p.rows[0]?.person_id as string;
+    await t.admin.query("INSERT INTO app_private.protected_person (person_id) VALUES ($1)", [
+      person,
+    ]);
+    // Every staff role (location roles at the first location).
+    for (const role of ["location_manager", "front_desk", "trainer"]) {
+      const s = await t.admin.query<{ id: string }>(
+        "INSERT INTO app.staff_member (org_id, person_id, role, display_name) VALUES ($1, $2, $3, 'Protegida') RETURNING id",
+        [t.fx.A.orgId, person, role],
+      );
+      await t.admin.query(
+        "INSERT INTO app.staff_location (org_id, staff_member_id, location_id) VALUES ($1, $2, $3)",
+        [t.fx.A.orgId, s.rows[0]?.id, t.fx.A.locations[0]],
+      );
+    }
+  });
+
+  it("another owner cannot toggle its password requirement; the team list marks it protected", async () => {
+    await asCaller(t.api, as("owner"), async (tx) => {
+      await refused(
+        tx,
+        "SELECT app.set_password_change_required($1, false)",
+        [staffId],
+        "42501",
+        "protected_account",
+      );
+      const r = await tx.query<{ protected: boolean }>(
+        "SELECT protected FROM app.staff_accounts() WHERE staff_id = $1",
+        [staffId],
+      );
+      expect(r.rows[0]?.protected).toBe(true);
+    });
+  });
+
+  it("through the app nobody else can deactivate, re-role or delete it; the operator still can", async () => {
+    const run = async (sql: string) => {
+      await t.admin.query("BEGIN");
+      try {
+        await t.admin.query("SET LOCAL ROLE app_definer");
+        await t.admin.query(sql, [person]);
+        await t.admin.query("ROLLBACK");
+        return "ok";
+      } catch (e) {
+        await t.admin.query("ROLLBACK");
+        return (e as { message: string }).message;
+      }
+    };
+    expect(await run("UPDATE app.staff_member SET active = false WHERE person_id = $1")).toBe(
+      "protected_account",
+    );
+    expect(
+      await run(
+        "UPDATE app.staff_member SET role = 'chef' WHERE person_id = $1 AND role = 'trainer'",
+      ),
+    ).toBe("protected_account");
+    // Deleting staff rows is not even granted to the app; the trigger is the second wall.
+    expect(await run("DELETE FROM app.staff_member WHERE person_id = $1")).toMatch(
+      /protected_account|permission denied/,
+    );
+    // Operator SQL (schema owner) is not blocked.
+    await t.admin.query("BEGIN");
+    await t.admin.query(
+      "UPDATE app.staff_member SET display_name = 'Protegida' WHERE person_id = $1",
+      [person],
+    );
+    await t.admin.query("ROLLBACK");
+  });
+
+  it("the protected person keeps its own password change and switches between its roles", async () => {
+    const r = await change("protegida@ejemplo.com", "Password", "Clave-Propia-Segura-1");
+    expect(r).toMatchObject({ ok: true, claims: { role: "owner" } });
+    const claims = t.claims(t.fx.A, "owner", person);
+    const roles = await asCaller(t.api, claims, async (tx) =>
+      (await tx.query<{ role: string }>("SELECT role FROM app.my_roles()")).rows.map((x) => x.role),
+    );
+    expect(roles).toEqual(["owner", "location_manager", "front_desk", "trainer"]);
+    const sw = await asCaller(
+      t.api,
+      claims,
+      async (tx) =>
+        (
+          await tx.query<{
+            r: { claims: { role: string; location_ids: string[] }; refresh: string };
+          }>("SELECT app.switch_role('front_desk') AS r")
+        ).rows[0]?.r,
+    );
+    expect(sw?.claims).toMatchObject({ role: "front_desk", location_ids: [t.fx.A.locations[0]] });
+    expect(sw?.refresh).toMatch(/^[0-9a-f]{64}$/);
+    await asCaller(t.api, claims, (tx) =>
+      refused(tx, "SELECT app.switch_role('chef')", [], "42501"),
+    );
+  });
+});
+
+describe("PII guard switch (0028)", () => {
+  it("on by default (demo rules); off accepts real e-mails and phones", async () => {
+    const ok = async (sql: string, v: string) =>
+      (await t.admin.query<{ ok: boolean }>(`SELECT ${sql}($1) AS ok`, [v])).rows[0]?.ok;
+    expect(await ok("app.join_email_ok", "ana@gmail.com")).toBe(false);
+    expect(await ok("app.join_email_ok", "ana@demo.invalid")).toBe(true);
+    await t.admin.query(
+      "INSERT INTO app_private.setting (key, value) VALUES ('pii_guard', 'false')",
+    );
+    try {
+      expect(await ok("app.join_email_ok", "ana@gmail.com")).toBe(true);
+      expect(await ok("app.join_email_ok", "no es correo")).toBe(false);
+      expect(await ok("app.join_phone_ok", "+1-787-622-1234")).toBe(true);
+      expect(await ok("app.join_phone_ok", "+1-787-555")).toBe(false);
+    } finally {
+      await t.admin.query("DELETE FROM app_private.setting WHERE key = 'pii_guard'");
+    }
+  });
+});
