@@ -62,6 +62,33 @@ describe("authentication", () => {
   });
 });
 
+describe("token lifetime (security review MEDIUM-7)", () => {
+  it("rejects a token without exp", async () => {
+    const noExp = await new SignJWT({ ...t.claims(t.fx.A, "owner"), exp: undefined })
+      .setProtectedHeader({ alg: "HS256" })
+      .setIssuer(ISS)
+      .setAudience(AUD)
+      .setIssuedAt()
+      .sign(new TextEncoder().encode(SECRET));
+    expect(
+      (await app.inject({ url: "/v1/me", headers: { authorization: `Bearer ${noExp}` } }))
+        .statusCode,
+    ).toBe(401);
+  });
+  it("rejects a token issued more than 15 minutes ago even if exp is far away", async () => {
+    const old = await new SignJWT({ ...t.claims(t.fx.A, "owner") })
+      .setProtectedHeader({ alg: "HS256" })
+      .setIssuer(ISS)
+      .setAudience(AUD)
+      .setIssuedAt(Math.floor(Date.now() / 1000) - 16 * 60)
+      .setExpirationTime("1d")
+      .sign(new TextEncoder().encode(SECRET));
+    expect(
+      (await app.inject({ url: "/v1/me", headers: { authorization: `Bearer ${old}` } })).statusCode,
+    ).toBe(401);
+  });
+});
+
 describe("tenancy through the API", () => {
   it("/v1/me returns the caller's organisation only", async () => {
     const r = await app.inject({
@@ -144,7 +171,7 @@ describe("tenancy through the API", () => {
     });
     expect(r.statusCode).toBe(200);
     const log = await app.inject({ url: "/v1/audit-log", headers: h });
-    expect(log.json().data.some((e: { action: string }) => e.action === "member.status")).toBe(
+    expect(log.json().data.some((e: { action: string }) => e.action === "member.update")).toBe(
       true,
     );
   });

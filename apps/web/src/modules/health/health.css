@@ -1,0 +1,446 @@
+/* Module health — design system v2 (client designs). Only what styles.css does not provide; tokens only, so it
+   works in light and dark. Colours of states reuse the core state tokens (AA contrast). */
+
+/* Emergency: the loudest element on any screen — full border, state colours, big 911 call. */
+.health-emergency {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px 16px;
+  align-items: center;
+  margin: 0;
+  padding: 16px 18px;
+  border: 2px solid var(--blocked-line);
+  border-radius: 16px;
+  background: var(--blocked-bg);
+  color: var(--blocked-text);
+}
+.health-emergency p {
+  margin: 0;
+}
+.health-emergency__icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: 2px solid var(--blocked-line);
+}
+.health-emergency__text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1 1 240px;
+  min-width: 0;
+}
+.health-emergency__title {
+  font-weight: 700;
+  font-size: 1.375rem;
+  line-height: 1.2;
+}
+.health-emergency__call {
+  min-height: 52px;
+  min-width: 120px;
+  padding: 0 22px;
+  border-radius: 999px;
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+@media (max-width: 520px) {
+  .health-emergency__call {
+    width: 100%;
+  }
+}
+
+.health-notice {
+  margin: 0;
+}
+.health .note > .icon,
+.coach .note > .icon {
+  flex: none;
+}
+
+/* Member picker card (staff screens). */
+.health-picker {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  padding: 16px 20px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+}
+.health-picker > .icon {
+  flex: none;
+  margin-bottom: 9px;
+  color: var(--gold-text);
+}
+.health-picker .field {
+  flex: 1 1 auto;
+  max-width: 460px;
+}
+.health-picker select {
+  min-height: 46px;
+}
+
+.health .ds-stat .plate {
+  font-size: 1rem;
+  margin-top: 4px;
+}
+
+/* Triage panel: sunken surface inside a card. */
+.health-triage {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-2);
+}
+.health-triage__title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-size: 1.0625rem;
+}
+.health-triage__title > .icon {
+  flex: none;
+  color: var(--gold-text);
+}
+.health-triage__plates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+}
+.health-triage__label {
+  margin: 0;
+  font-weight: 600;
+}
+.health-triage__reasons {
+  margin: 0;
+  padding-left: 20px;
+}
+
+/* Assessment and plan forms: one card, fieldsets as sunken groups, 44 px choices. */
+.health-form {
+  gap: 16px;
+}
+.health-parq,
+.health-fieldset {
+  margin: 0;
+  padding: 12px 16px 14px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-2);
+  min-width: 0;
+}
+.health-parq legend,
+.health-fieldset legend {
+  padding: 0 6px;
+  font-weight: 700;
+}
+.health-parq__q {
+  margin: 0;
+  padding: 10px 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+  min-width: 0;
+}
+.health-parq__q:first-of-type {
+  border-top: 0;
+}
+.health-parq__q legend {
+  float: left;
+  width: 100%;
+  padding: 0;
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}
+.health-parq__q .health-choices {
+  clear: both;
+  padding-top: 6px;
+}
+.health-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.health-choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 14px 0 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.health-choice:has(input:checked) {
+  border-color: var(--gold);
+  background: color-mix(in srgb, var(--gold) 16%, var(--surface));
+  font-weight: 600;
+}
+.health-choice input {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--gold);
+}
+
+/* Plan body: each block is a sunken tile; items carry a gold dot. */
+.health-plan-body {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+  gap: 12px;
+}
+.health-plan-body__block {
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-2);
+  min-width: 0;
+}
+.health-plan-body__heading {
+  margin: 0 0 6px;
+  font-size: 1rem;
+  font-weight: 700;
+}
+.health-plan-body ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.health-plan-body li {
+  position: relative;
+  padding-left: 18px;
+  overflow-wrap: anywhere;
+}
+.health-plan-body li::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 0.6em;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--gold);
+}
+
+/* Staff plan cards. */
+.health-plans {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 440px), 1fr));
+  align-items: start;
+}
+.health-plan {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+}
+.health-plan__head {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+.health-plan__badge,
+.health-myplan__badge {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--gold) 14%, var(--surface));
+  color: var(--gold-text);
+}
+.health-plan__heading {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.health-plan__title {
+  margin: 0;
+  font-size: 1.1875rem;
+  overflow-wrap: anywhere;
+}
+.health-plan__plates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+}
+.health-plan__actions {
+  padding-top: 4px;
+  border-top: 1px solid var(--border);
+}
+.health-plan__actions:empty {
+  display: none;
+}
+
+.health-signoff {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-weight: 600;
+}
+.health-signoff > .icon {
+  flex: none;
+  color: var(--gold-text);
+}
+.health-signoff--muted {
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+/* Member "Mi plan": program header like the client's "Mis Programas" card. */
+.health-myplan {
+  gap: 16px;
+}
+.health-myplan__head {
+  display: flex;
+  gap: 18px;
+  align-items: center;
+}
+.health-myplan__img {
+  flex: none;
+  width: 120px;
+  height: 150px;
+}
+.health-myplan__badge {
+  width: 96px;
+  height: 96px;
+  border-radius: 14px;
+}
+.health-myplan__text {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+.health-myplan__text p {
+  margin: 0;
+}
+.health-myplan__title {
+  margin: 0;
+  font-size: 1.5rem;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+.health-myplan__weeks {
+  font-size: 1.0625rem;
+}
+.health-myplan__bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: 420px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.health-myplan__bar .ds-bar {
+  flex: 1;
+}
+@media (max-width: 520px) {
+  .health-myplan__head {
+    align-items: flex-start;
+  }
+  .health-myplan__img {
+    width: 88px;
+    height: 116px;
+  }
+  .health-myplan__badge {
+    width: 64px;
+    height: 64px;
+  }
+}
+
+.health-facts > div {
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+.health-facts dd {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+.health-for {
+  margin-top: 8px;
+}
+.health-for > .icon {
+  color: var(--gold-text);
+}
+.health-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Phones: stat tiles two per row, icon above the text. */
+@media (max-width: 600px) {
+  .health .ds-stats,
+  .coach .ds-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .health .ds-stat,
+  .coach .ds-stat {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    min-height: 0;
+    padding: 14px;
+  }
+  .health .ds-stat__value,
+  .coach .ds-stat__value {
+    font-size: 1.375rem;
+  }
+  .health-picker {
+    padding: 14px;
+  }
+}
+.health-date {
+  display: block;
+  font-size: 1.5rem;
+  line-height: 1.25;
+}
+.note.health-notice,
+.note.coach-notice {
+  flex-wrap: nowrap;
+  align-items: flex-start;
+}
+.health-notice > .icon,
+.coach-notice > .icon {
+  margin-top: 2px;
+}
+@media (max-width: 600px) {
+  .health .ds-stats:has(> :nth-child(3):last-child),
+  .coach .ds-stats:has(> :nth-child(3):last-child) {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .health-date {
+    font-size: 1.125rem;
+  }
+  .coach-ai-notice {
+    font-size: 0.9375rem;
+  }
+}

@@ -1,0 +1,426 @@
+/* Access module: door kiosk, door result page, member ways in. Design system v3 (DESIGN.md §v3). */
+
+/* ── Entry screen: "Soy socio" ── */
+.acc-entry {
+  gap: 14px;
+}
+.acc-ways {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+.acc-way {
+  display: grid;
+  gap: 4px;
+  align-content: start;
+  text-align: left;
+  padding: 18px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  text-decoration: none;
+  cursor: pointer;
+  min-height: 132px;
+  transition: border-color 160ms var(--ease-out), transform 160ms var(--ease-out);
+}
+.acc-way:hover {
+  border-color: var(--live-line);
+  transform: translateY(-2px);
+  color: var(--text);
+}
+.acc-way strong {
+  font-size: 1.0625rem;
+}
+.acc-way > span:last-child {
+  color: var(--text-muted);
+  font-size: 0.9375rem;
+}
+.acc-way__icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--live-soft);
+  color: var(--live);
+  margin-bottom: 6px;
+}
+.acc-signin {
+  display: grid;
+  gap: 8px;
+  max-width: 480px;
+}
+.acc-code {
+  font: 700 1.75rem var(--font-mono);
+  letter-spacing: 0.3em;
+  text-align: center;
+}
+.acc-msg {
+  font-size: 0.9375rem;
+  min-height: 1.3em;
+}
+.acc-msg--info {
+  color: var(--text);
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: var(--live-soft);
+}
+.acc-msg--error {
+  color: var(--blocked-text);
+  font-weight: 600;
+}
+
+/* ── Scanner ── */
+.acc-scan {
+  display: grid;
+  gap: 12px;
+  justify-items: start;
+}
+.acc-scan__help {
+  margin: 0;
+  color: var(--text-muted);
+}
+.acc-scan__frame {
+  position: relative;
+  width: min(100%, 360px);
+  aspect-ratio: 1;
+  border-radius: 28px;
+  overflow: hidden;
+  background: #000;
+  border: 3px solid var(--live);
+}
+.acc-scan__video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.acc-scan__target {
+  position: absolute;
+  inset: 18%;
+  border-radius: 20px;
+  border: 3px solid rgb(255 255 255 / 0.9);
+  box-shadow: 0 0 0 999px rgb(0 0 0 / 0.35);
+}
+
+/* ── Door result page (what the phone shows after scanning) ── */
+.acc-door {
+  min-height: calc(100dvh - 140px);
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+}
+.acc-door__card {
+  width: min(100%, 520px);
+  align-items: center;
+  text-align: center;
+  gap: 14px;
+  padding: 32px 24px;
+}
+.acc-door__card--wait {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  color: var(--text-muted);
+}
+.acc-door__icon {
+  color: var(--live);
+}
+.acc-door__title {
+  text-wrap: balance;
+}
+.acc-door__title:focus {
+  outline: none; /* focused by script to announce the verdict, not a control */
+}
+.acc-door__sub {
+  max-width: 40ch;
+}
+.acc-door__who {
+  position: relative;
+}
+.acc-door__who .avatar {
+  font-size: 1.75rem;
+}
+.acc-door__badge {
+  position: absolute;
+  right: -6px;
+  bottom: -6px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  border: 4px solid var(--surface);
+  background: var(--neutral-bg);
+  color: var(--neutral-text);
+}
+.acc-door__card--ok .acc-door__badge,
+.acc-door__card--bye .acc-door__badge {
+  background: var(--live);
+  color: var(--live-ink);
+}
+.acc-door__card--ok {
+  box-shadow: 0 0 0 2px var(--live-line), 0 30px 80px
+    color-mix(in srgb, var(--live) 18%, transparent);
+}
+.acc-door__card--bad .acc-door__badge {
+  background: var(--blocked-line);
+  color: #fff;
+}
+.acc-door__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+}
+.acc-spinner {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  border: 4px solid var(--border);
+  border-top-color: var(--live);
+  animation: acc-spin 900ms linear infinite;
+}
+@keyframes acc-spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+/* ── Kiosk ── */
+.acc-kiosk {
+  position: relative;
+  display: grid;
+  gap: 12px;
+}
+.acc-kiosk.is-full {
+  background: #050607;
+  padding: 4vh 4vw;
+  align-content: center;
+  color-scheme: dark;
+}
+.acc-kiosk__full {
+  justify-self: end;
+}
+.acc-codes {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+}
+.acc-code-card {
+  margin: 0;
+  display: grid;
+  gap: 14px;
+  justify-items: center;
+  padding: 22px;
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.acc-code-card--in {
+  border: 2px solid var(--live);
+  background: color-mix(in srgb, var(--live) 7%, var(--surface));
+}
+.acc-code-card__head {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+}
+.acc-code-card__dir {
+  font: 800 clamp(2rem, 4vw, 3rem) / 1 var(--font-display);
+  letter-spacing: 0.04em;
+}
+.acc-code-card--in .acc-code-card__dir {
+  color: var(--live);
+}
+.acc-code-card__help {
+  color: var(--text-muted);
+}
+.acc-code-card__qr {
+  width: min(100%, 300px);
+  aspect-ratio: 1;
+  padding: 14px;
+  border-radius: 24px;
+  background: #fff;
+  display: grid;
+  place-items: center;
+}
+.acc-code-card__qr img {
+  width: 100%;
+  height: auto;
+  image-rendering: pixelated;
+}
+.acc-code-card__wait {
+  width: 70%;
+  aspect-ratio: 1;
+  border-radius: 12px;
+  background: repeating-linear-gradient(45deg, #e6e8e8 0 10px, #f4f5f5 10px 20px);
+}
+.acc-code-card__foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+.acc-ring {
+  --size: 40px;
+  font-size: 0.875rem;
+}
+.acc-kiosk.is-full .acc-code-card__qr {
+  width: min(42vw, 62vh);
+}
+.acc-cols {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+  align-items: start;
+}
+.acc-people,
+.acc-feed,
+.acc-device-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.acc-person,
+.acc-feed__row,
+.acc-device {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 16px;
+  background: var(--surface-2);
+  min-width: 0;
+}
+.acc-person__text,
+.acc-feed__text {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+}
+.acc-person__text strong,
+.acc-feed__text strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.acc-person__text .muted,
+.acc-feed__text .muted {
+  font-size: 0.875rem;
+}
+.acc-person--review {
+  flex-wrap: wrap;
+  border: 1px solid color-mix(in srgb, var(--hint) 50%, transparent);
+}
+.acc-feed__time {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.875rem;
+}
+.acc-feed__row--in .avatar {
+  border-color: var(--live);
+}
+.acc-feed__row--denied {
+  background: color-mix(in srgb, var(--blocked-line) 10%, var(--surface-2));
+}
+.acc-h3 {
+  margin: 8px 0 0;
+  font-size: 1.0625rem;
+}
+.acc-device.is-revoked {
+  opacity: 0.6;
+}
+.acc-secret {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px dashed var(--live-line);
+}
+.acc-secret p {
+  margin: 0;
+  font-weight: 600;
+}
+.acc-secret__label {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
+.acc-secret__value {
+  font-size: 0.8125rem;
+}
+.acc-sim summary {
+  cursor: pointer;
+  font-weight: 700;
+  min-height: 32px;
+}
+
+/* ── Member: how I get in ── */
+.acc-me__ways {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+  align-items: start;
+}
+.acc-consent {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--surface-2);
+  max-width: 65ch;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .acc-spinner {
+    animation: none;
+  }
+  .acc-way {
+    transition: none;
+  }
+}
+
+.acc-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  cursor: pointer;
+}
+.acc-check > span {
+  display: grid;
+  gap: 2px;
+}
+.acc-device {
+  flex-wrap: wrap;
+}
+.acc-device__review {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.acc-entry-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr));
+  align-items: start;
+}
+.acc-protected {
+  margin-left: 6px;
+}
+.menu__group {
+  border: 0;
+  margin: 0;
+  padding: 4px 0;
+  display: grid;
+}
+.menu__legend {
+  padding: 4px 12px;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}

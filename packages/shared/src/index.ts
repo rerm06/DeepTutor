@@ -32,6 +32,8 @@ export const ClaimsSchema = z.object({
   org_id: z.string().uuid(),
   app_role: z.enum(ROLES),
   location_ids: z.array(z.string().uuid()).max(500).default([]),
+  /** Token expiry (epoch seconds). Re-checked inside Postgres by app.claims(). */
+  exp: z.number().int().positive(),
 });
 export type Claims = z.infer<typeof ClaimsSchema>;
 
@@ -45,3 +47,16 @@ export function applicationFeeAmount(amountCents: number, plan: SaasPlan): numbe
     throw new RangeError("amountCents must be a non-negative integer");
   return Math.round((amountCents * APPLICATION_FEE_BPS[plan]) / 10_000);
 }
+
+export * from "./messages.js";
+export * from "./demo.js";
+export * from "./modules/billing.js";
+export * from "./modules/schedule.js";
+export * from "./modules/crm.js";
+export * from "./modules/store.js";
+export * from "./modules/health.js";
+export * from "./modules/floor.js";
+export * from "./modules/engagement.js";
+export * from "./modules/finance.js";
+export * from "./modules/reports.js";
+export * from "./modules/coach.js";

@@ -14,10 +14,18 @@ Product: white-label multi-tenant SaaS for gyms (Puerto Rico / Hispanic US). Sou
    freezes via Subscription Schedule or `trial_end`, never `pause_collection`. No billing logic in the frontend.
 4. **Health and legal.** AI is never called "nutricionista"/"dietista" (Ley 82). No health claims, no plan published
    without a licensed signature. Consent (`Consent` entity) before any marketing message.
-5. **Data.** Synthetic data only, marked "Demo" and `@demo.invalid`. No secrets in the repo.
+5. **Data.** Demo organisations: synthetic data only, marked "Demo" and `@demo.invalid`. Since 2026-11-05 the owner
+   authorised PRODUCTION on gym-saas-f1.netlify.app: the real organisation "Fitness R Us" (Toa Baja) holds real
+   personal data (demo mode off, PII guard off; `docs/production.md`). Tests and fixtures stay synthetic. No secrets
+   in the repo.
 6. **Tests.** Never skip, disable or weaken a test to get green. Fix the code or report the blocker.
 7. **Done** = gate green + independent review + ES/EN strings + WCAG 2.2 AA on UI + audit rows + `data-tour-id` on
    critical UI flows + short doc in `docs/`.
+
+## Master prompt
+Every loop cycle is driven by `docs/prompts/loop-architect.md` (role, 11-step cycle protocol, defect taxonomy,
+bug-fix protocol, hard stops, report format). Reviewers are always separate agents that never see the maker's
+self-assessment.
 
 ## Commands
 - `pnpm install` · `bash scripts/pg-local.sh start` (Postgres 16 on :54329, no Docker) · `pnpm gate` (the loop gate).

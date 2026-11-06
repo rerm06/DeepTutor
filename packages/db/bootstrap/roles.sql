@@ -15,7 +15,7 @@ BEGIN
   -- Owns only the few SECURITY DEFINER functions that must look across RLS (e.g. "does this email
   -- already have a global Person?"). Each such function re-checks the caller's claims itself.
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_definer') THEN
-    CREATE ROLE app_definer NOLOGIN NOSUPERUSER BYPASSRLS;
+    CREATE ROLE app_definer NOLOGIN NOSUPERUSER NOBYPASSRLS;
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_api') THEN
     CREATE ROLE app_api LOGIN PASSWORD 'app_api_dev' NOINHERIT NOSUPERUSER NOBYPASSRLS;
@@ -23,3 +23,6 @@ BEGIN
 END $$;
 GRANT app_authenticated TO app_api;
 GRANT app_definer TO app_owner;  -- lets migrations hand function ownership to app_definer; BYPASSRLS is not inherited.
+-- app_definer reaches rows through role-targeted policies (migration 0005), not BYPASSRLS, so local tests prove
+-- the same model that runs on managed Postgres.
+ALTER ROLE app_definer NOBYPASSRLS;

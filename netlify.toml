@@ -1,0 +1,35 @@
+# Netlify build for the gym SaaS demo: SPA (apps/web) + API function (/api/*) + Netlify Database migrations.
+[build]
+  command = "pnpm run build"
+  publish = "apps/web/dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+  # PRODUCTION web build: no demo personas or banner (the API is production unless GYM_DEMO_MODE=true).
+  VITE_DEMO_MODE = "false"
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+  external_node_modules = ["pg-native"]
+
+# Single-page app: every non-API path serves index.html.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    X-Frame-Options = "DENY"
+    # Camera (member photo) and microphone (voice agent) only for this origin; never for embedded third parties.
+    Permissions-Policy = "camera=(self), microphone=(self), geolocation=()"
+
+# The service worker must be revalidated on every load so new releases reach installed apps.
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache"

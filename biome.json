@@ -1,6 +1,8 @@
 {
   "$schema": "https://biomejs.dev/schemas/1.9.4/schema.json",
-  "files": { "ignore": ["**/node_modules", "**/dist", ".pgdata", "coverage"] },
+  "files": {
+    "ignore": ["**/node_modules", "**/dist", ".pgdata", "coverage", "netlify/server-bundle.mjs"]
+  },
   "formatter": { "enabled": true, "indentStyle": "space", "indentWidth": 2, "lineWidth": 100 },
   "javascript": { "formatter": { "quoteStyle": "double", "semicolons": "always" } },
   "linter": {

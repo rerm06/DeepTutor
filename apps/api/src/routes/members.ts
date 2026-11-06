@@ -1,4 +1,3 @@
-import { audit } from "@gym/db";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 
@@ -19,10 +18,10 @@ export async function memberRoutes(app: FastifyInstance): Promise<void> {
     const q = ListQuery.parse(req.query);
     return app.asCaller(req, async (tx) => {
       const { rows } = await tx.query(
-        `SELECT m.id, m.status, m.member_no, m.home_location_id, p.full_name, p.email
+        `SELECT m.id, m.status, m.member_no, m.home_location_id, m.full_name, p.email
            FROM app.member m JOIN app.person p ON p.id = m.person_id
           WHERE ($1::uuid IS NULL OR m.home_location_id = $1)
-          ORDER BY p.full_name LIMIT 500`,
+          ORDER BY m.full_name LIMIT 500`,
         [q.location_id ?? null],
       );
       return { data: rows };
@@ -49,17 +48,8 @@ export async function memberRoutes(app: FastifyInstance): Promise<void> {
         "UPDATE app.member SET status = $2 WHERE id = $1 RETURNING id, home_location_id",
         [id, b.status],
       );
-      const row = rows[0];
-      if (row) {
-        await audit(tx, {
-          action: "member.status",
-          entity: "member",
-          entityId: row.id,
-          locationId: row.home_location_id,
-          meta: b,
-        });
-      }
-      return row;
+      // The member_audit trigger records the change; nothing to do here.
+      return rows[0];
     });
     // RLS makes another org's (or another location's) member indistinguishable from a missing one.
     if (!updated) return reply.code(404).send({ error: "not_found" });
