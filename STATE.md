@@ -58,6 +58,12 @@
   defect taxonomy learned in cycles 1–2 and a 7-step bug-fix protocol (reproduce → root cause → minimal fix in the
   right layer → regression → mutation → sweep → record). Used by the next cycle once the loop restarts.
 
+### Deployment — Netlify (PRODUCTION since 2026-11-06)
+- 2026-11-06, deploy 6aed2eed7bbf4bef277b36a5 (commit b577f97): PRODUCTION mode — demo off (no personas/banner),
+  real organisation Fitness R Us with location Toa Baja, PII guard off, rerm06@gmail.com protected with all 8 staff
+  roles (verified: another owner gets 403 protected_account), nmaysonet1811@gmail.com owner, passwords kept without a
+  forced change, role switcher, "Cambiar mi contraseña". 3 migrations applied; 46 pinned. See docs/production.md.
+
 ### Deployment — Netlify (demo), 2026-11-02
 - 2026-11-05 06:45 UTC, deploy 6aec25ea9072447914594c43 (commit 06a2224): staff e-mail + password sign-in (0026),
   forced first change, 12-hour rotating sessions, owner "Equipo y accesos". 1 migration applied; 43 pinned. Two owner
