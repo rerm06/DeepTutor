@@ -120,6 +120,194 @@ export const NUEVO: ActionDef[] = [
       "NUEVO: solo existen crear y cancelar sesión; class_session no tiene ruta de edición. El aviso a socios reservados usaría la mensajería existente (consentimiento y horario).",
   }),
 
+  // ── Hallazgos del inventario (Fase 0): operaciones que el dueño pedirá y no existen
+  nuevo({
+    id: "socios.buscar",
+    description: "Busca socios por nombre, número, correo o estado, con paginación.",
+    examples: ["Busca a la socia Ana Rivera", "¿Qué socios están morosos?"],
+    risk: "R0",
+    ui: "/staff/members",
+    knowledge: [],
+    notes:
+      "NUEVO: GET /v1/members no filtra por nombre ni estado y corta en 500 filas; el copiloto necesita desambiguar homónimos con un dato distintivo.",
+  }),
+  nuevo({
+    id: "usuarios.cambiar_rol",
+    description: "Cambia el rol o la sede de una cuenta de personal.",
+    examples: ["Pasa a Luis de recepción a entrenador", "Asigna a Nilda a la sede de Toa Baja"],
+    risk: "R2",
+    ui: "/staff/team",
+    knowledge: [],
+    roles: ["owner"],
+    notes:
+      "NUEVO: la RLS staff_update lo permitiría pero no hay ruta. Respeta las cuentas protegidas (0028).",
+  }),
+  nuevo({
+    id: "usuarios.desactivar",
+    description: "Desactiva (o reactiva) una cuenta de personal sin borrar su historial.",
+    examples: ["Desactiva la cuenta de Pedro", "Vuelve a activar a Carmen"],
+    risk: "R2",
+    ui: "/staff/team",
+    knowledge: [],
+    roles: ["owner"],
+    notes: "NUEVO: no hay ruta; las cuentas protegidas no se pueden desactivar (trigger de 0028).",
+  }),
+  nuevo({
+    id: "suscripciones.cambiar_plan",
+    description:
+      "Cambia el plan de una suscripción activa, con prorrateo según la política de cobro.",
+    examples: ["Pásale a Ana el plan premium", "Baja a Juan al plan básico desde el mes que viene"],
+    risk: "R2",
+    ui: "/staff/members",
+    knowledge: ["socio"],
+    notes:
+      "NUEVO: hoy solo existen crear, congelar y cancelar. Regla de cobro nueva → decisión humana.",
+  }),
+  nuevo({
+    id: "suscripciones.descongelar",
+    description: "Termina antes de tiempo la congelación de una suscripción.",
+    examples: ["Descongela la membresía de Ana", "Ana volvió, reactívale la suscripción"],
+    risk: "R2",
+    ui: "/staff/members",
+    knowledge: ["socio"],
+    notes: "NUEVO: no hay ruta para deshacer una congelación.",
+  }),
+  nuevo({
+    id: "suscripciones.deshacer_cancelacion",
+    description: "Revierte una cancelación programada antes de su fecha efectiva.",
+    examples: ["Cancela la baja de Juan, se queda", "Revierte la cancelación de Ana"],
+    risk: "R2",
+    ui: "/staff/members",
+    knowledge: ["socio"],
+    notes: "NUEVO: no hay ruta.",
+  }),
+  nuevo({
+    id: "suscripciones.editar_politica_cobro",
+    description:
+      "Edita la política de cobro de la organización (días de gracia, reintentos, recargos).",
+    examples: ["Dale cinco días de gracia a los pagos", "Cambia los reintentos de cobro a tres"],
+    risk: "R2",
+    ui: null,
+    knowledge: ["sistema"],
+    roles: ["owner"],
+    notes:
+      "NUEVO: la base permite al dueño cambiar billing_policy pero no hay ruta ni pantalla. Regla de cobro → decisión humana.",
+  }),
+  nuevo({
+    id: "facturas.reembolsar_pago",
+    description: "Reembolsa total o parcialmente un pago de factura.",
+    examples: ["Devuélvele a Ana los 40 dólares del pago de ayer", "Reembolsa la factura 1023"],
+    risk: "R3",
+    ui: null,
+    knowledge: ["socio"],
+    roles: ["owner"],
+    notes:
+      "NUEVO: hoy solo se puede anular una factura sin pagos. Con tarjeta toca la pasarela (hoy simulada, Stripe sin conectar) → R3 e integración de pagos reales: decisión humana.",
+  }),
+  nuevo({
+    id: "inventario.recibir_de_proveedor",
+    description: "Registra una entrada de mercancía con su proveedor y costo unitario.",
+    examples: [
+      "Llegaron 24 botellas de agua de Distribuidora Caribe a 50 centavos",
+      "Recibe 10 proteínas del proveedor",
+    ],
+    risk: "R1",
+    ui: null,
+    knowledge: ["producto", "proveedor"],
+    notes:
+      "NUEVO: la recepción de stock no guarda proveedor ni costo; sin eso el P&L no tiene costo de ventas.",
+  }),
+  nuevo({
+    id: "mensajes.enviar_segmento",
+    description:
+      "Envía un mensaje a un segmento de socios (por estado, plan, clase o sede), respetando consentimiento y horario.",
+    examples: [
+      "Avísale a todos los de spinning que mañana no hay clase",
+      "Mándale un recordatorio a los morosos",
+    ],
+    risk: "R2",
+    ui: "/staff/inbox",
+    knowledge: [],
+    notes:
+      "NUEVO: POST /v1/messages envía a un solo socio; no existe envío masivo ni por segmento.",
+  }),
+  nuevo({
+    id: "mensajes.cancelar_en_cola",
+    description: "Cancela un mensaje programado que todavía no ha salido.",
+    examples: ["Cancela el recordatorio que programé para mañana", "No envíes el mensaje a Juan"],
+    risk: "R1",
+    ui: "/staff/inbox",
+    knowledge: [],
+    notes: "NUEVO: no hay ruta para cancelar mensajes en cola.",
+  }),
+  nuevo({
+    id: "mensajes.configurar_horario",
+    description: "Configura la ventana horaria permitida para recordatorios y mercadeo.",
+    examples: [
+      "No mandes mensajes antes de las nueve",
+      "Cambia el horario de mensajes hasta las ocho de la noche",
+    ],
+    risk: "R2",
+    ui: null,
+    knowledge: ["sistema"],
+    roles: ["owner"],
+    notes: "NUEVO: message_policy solo se cambia por SQL.",
+  }),
+  nuevo({
+    id: "mensajes.crear_plantilla",
+    description: "Crea una plantilla de mensaje propia del gimnasio.",
+    examples: [
+      "Crea una plantilla de bienvenida",
+      "Guarda este mensaje como plantilla de cumpleaños",
+    ],
+    risk: "R1",
+    ui: null,
+    knowledge: ["sistema"],
+    notes: "NUEVO: hoy hay 5 plantillas fijas de la plataforma.",
+  }),
+  nuevo({
+    id: "mensajes.marcar_atendido",
+    description: "Marca como atendido un mensaje entrante de la bandeja.",
+    examples: ["Marca como atendido el mensaje de Ana", "Ya contesté lo de Juan, ciérralo"],
+    risk: "R1",
+    ui: "/staff/inbox",
+    knowledge: [],
+    notes: "NUEVO: el permiso existe en la base pero no hay ruta.",
+  }),
+  nuevo({
+    id: "retos.editar",
+    description: "Edita o cierra un reto (nombre, fechas, sede).",
+    examples: ["Extiende el reto de pasos una semana", "Cierra el reto de octubre"],
+    risk: "R1",
+    ui: null,
+    knowledge: [],
+    notes: "NUEVO: la política de base existe pero no hay ruta.",
+  }),
+  nuevo({
+    id: "retos.retirar_participante",
+    description: "Saca a un socio de un reto.",
+    examples: ["Saca a Juan del reto de pasos", "Retira a Ana del reto"],
+    risk: "R1",
+    ui: null,
+    knowledge: [],
+    notes: "NUEVO: no hay ruta.",
+  }),
+  nuevo({
+    id: "coach.ver_escalaciones_resumen",
+    description:
+      "Muestra al dueño un resumen sin contenido clínico de las escalaciones abiertas por sede.",
+    examples: [
+      "¿Cuántos casos de seguimiento hay abiertos?",
+      "¿Hay socios esperando que un entrenador los llame?",
+    ],
+    risk: "R0",
+    ui: null,
+    knowledge: [],
+    roles: ["owner"],
+    notes:
+      "NUEVO: hoy el dueño no tiene acceso a datos del coach por diseño (0016:138). Exponer siquiera un agregado es una decisión sobre datos de salud → humana.",
+  }),
+
   // ── Bitácora y copiloto
   nuevo({
     id: "bitacora.filtrar",

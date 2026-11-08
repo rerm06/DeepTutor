@@ -11,6 +11,8 @@ import { ACTIONS, AUDIENCES, KNOWLEDGE_DOCS, RISKS, ROLES } from "../src/copilot
 const ROOT = join(import.meta.dirname, "..", "..", "..");
 const read = (rel: string) => readFileSync(join(ROOT, rel), "utf8");
 let routes: Array<{ method: string; url: string }> = [];
+const cache = new Map<string, string>();
+const src0 = (rel: string) => cache.get(rel) ?? (cache.set(rel, read(rel)), read(rel));
 
 beforeAll(async () => {
   const seen: Array<{ method: string; url: string }> = [];
@@ -59,8 +61,8 @@ describe("copilot action registry: coverage", () => {
       if (hits.length === 0) missing.push(`${r.method} ${r.url}`);
       if (hits.length > 1) dup.push(`${r.method} ${r.url}`);
     }
-    expect(missing, "routes without an action").toEqual([]);
-    expect(dup, "routes with more than one action").toEqual([]);
+    expect(missing.join("\n"), "routes without an action").toBe("");
+    expect(dup.join("\n"), "routes with more than one action").toBe("");
   });
 
   it("every routed action points at a route that exists", () => {
@@ -68,7 +70,7 @@ describe("copilot action registry: coverage", () => {
     const stale = ACTIONS.filter(
       (a) => a.route && !real.has(`${a.route.method} ${a.route.url}`),
     ).map((a) => a.id);
-    expect(stale).toEqual([]);
+    expect(stale.join("\n")).toBe("");
   });
 });
 
@@ -87,21 +89,33 @@ describe("copilot action registry: every action is complete", () => {
       const why: string[] = [];
       if (a.description.trim().length < 10) why.push("description");
       if (a.module !== a.id.split(".")[0]) why.push("module≠id prefix");
-      if (a.roles.length === 0 || a.roles.some((r) => !ROLES.includes(r))) why.push("roles");
+      // Public, device and system routes run without a staff or member role (their evidence says what guards them).
+      const needsRole = a.audience === "staff" || a.audience === "member";
+      if ((needsRole && a.roles.length === 0) || a.roles.some((r) => !ROLES.includes(r)))
+        why.push("roles");
       if (!a.rolesEvidence.trim() || a.rolesEvidence.includes("[VERIFICAR]"))
         why.push("rolesEvidence");
       if (!RISKS.includes(a.risk)) why.push("risk");
       if (!AUDIENCES.includes(a.audience)) why.push("audience");
       if (a.auditEvent !== a.id) why.push("auditEvent");
       if (a.knowledge.some((k) => !KNOWLEDGE_DOCS.includes(k))) why.push("knowledge");
-      if (a.route?.method === "GET" && a.risk !== "R0") why.push("GET must be R0");
-      if (a.route && a.route.method !== "GET" && a.risk === "R0") why.push("write cannot be R0");
+      // A GET is R0 unless it exports personal data (R3). A POST is R0 only when it writes nothing (stated in notes).
+      const exportsPersonal = a.risk === "R3" && /\.exportar_/.test(a.id);
+      if (a.route?.method === "GET" && a.risk !== "R0" && !exportsPersonal)
+        why.push("GET must be R0");
+      if (
+        a.route &&
+        a.route.method !== "GET" &&
+        a.risk === "R0" &&
+        !a.notes.startsWith("Sin escritura")
+      )
+        why.push("write cannot be R0");
       if (a.copilot && a.audience === "staff" && a.examples.length < 2) why.push("examples");
       if (a.copilot && !a.roles.includes("owner"))
         why.push("copilot action not available to owner");
       if (why.length) bad.push(`${a.id}: ${why.join(", ")}`);
     }
-    expect(bad).toEqual([]);
+    expect(bad.join("\n")).toBe("");
   });
 
   it("input schemas named by an action are declared in its service file", () => {
@@ -113,16 +127,20 @@ describe("copilot action registry: every action is complete", () => {
         continue;
       }
       const src = read(file);
-      for (const name of [a.input.params, a.input.query, a.input.body]) {
+      for (const raw of [a.input.params, a.input.query, a.input.body]) {
+        // "inline {…}" = a zod object written in the handler; "csvOf(X)" / "joinBodyFor(…)" wrap a named schema.
+        if (!raw || raw.startsWith("inline")) continue;
+        const name = raw.match(/^\w+\((\w+)/)?.[1] ?? raw.match(/^(\w+)\(/)?.[1] ?? raw;
         if (
           name &&
           !new RegExp(`\\b(const|function|import[^;]*)\\s*\\{?[^;]*\\b${name}\\b`).test(src)
         )
           bad.push(`${a.id}: schema ${name} not in ${file}`);
       }
-      if (a.input.body && a.fields.length === 0) bad.push(`${a.id}: body without fields`);
+      if (a.input.body && !/^Empty/.test(a.input.body) && a.fields.length === 0)
+        bad.push(`${a.id}: body without fields`);
     }
-    expect(bad).toEqual([]);
+    expect(bad.join("\n")).toBe("");
   });
 
   it("every existing action has a test that exercises its route", () => {
@@ -133,22 +151,24 @@ describe("copilot action registry: every action is complete", () => {
         continue;
       }
       const url = a.route?.url.replace(/^\/v1/, "") ?? "";
-      const head = url.split("/:")[0] ?? url;
+      // Module test files often call through a helper that adds the module prefix (e.g. "/engagement").
+      const full = url.split("/:")[0] ?? url;
+      const head = src0(a.test).includes(full) ? full : `/${full.split("/").slice(2).join("/")}`;
       const tail =
         url
           .split("/")
           .filter((s) => s && !s.startsWith(":"))
           .pop() ?? "";
-      const src = read(a.test);
+      const src = src0(a.test);
       if (!src.includes(head) || !src.includes(tail))
         bad.push(`${a.id}: ${a.test} never calls ${url}`);
     }
-    expect(bad).toEqual([]);
+    expect(bad.join("\n")).toBe("");
   });
 
   it("every screen named by an action exists in the web app", () => {
     const bad = ACTIONS.filter((a) => a.ui && !matchesWeb(a.ui, ui)).map((a) => `${a.id}: ${a.ui}`);
-    expect(bad).toEqual([]);
+    expect(bad.join("\n")).toBe("");
   });
 
   it("NUEVO actions have no route yet and say what is missing", () => {
