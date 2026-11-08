@@ -59,6 +59,10 @@
   right layer → regression → mutation → sweep → record). Used by the next cycle once the loop restarts.
 
 ### Deployment — Netlify (PRODUCTION since 2026-11-06)
+- 2026-11-08, deploy 6af0b5cbb3a9a973099c8683 (commit a0b6ec4): equipment use (0029) — generated station codes,
+  QR labels that open /s/<CODE> and log the member's use, live board, routine progress on member and staff profiles;
+  starter exercise library for Fitness R Us. Verified in production: /s/<code> 200, /v1/floor/live 200 (no equipment
+  yet), 20 exercises present. 2 migrations applied; 48 pinned. See docs/modules/floor.md.
 - 2026-11-06, deploy 6aed2eed7bbf4bef277b36a5 (commit b577f97): PRODUCTION mode — demo off (no personas/banner),
   real organisation Fitness R Us with location Toa Baja, PII guard off, rerm06@gmail.com protected with all 8 staff
   roles (verified: another owner gets 403 protected_account), nmaysonet1811@gmail.com owner, passwords kept without a
