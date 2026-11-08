@@ -9,6 +9,7 @@ import { seed as equipment } from "./equipment.js";
 import { seed as finance } from "./finance.js";
 import { seed as floor } from "./floor.js";
 import { seed as health } from "./health.js";
+import { seed as nutrition } from "./nutrition.js";
 import { seed as photo } from "./photo.js";
 import { seed as portal } from "./portal.js";
 import { seed as reports } from "./reports.js";
@@ -33,4 +34,5 @@ export async function seedModules(c: pg.Client, org: OrgFixture, label: "A" | "B
   await photo(c, org);
   await access(c, org, label);
   await equipment(c, org, label);
+  await nutrition(c, org);
 }
