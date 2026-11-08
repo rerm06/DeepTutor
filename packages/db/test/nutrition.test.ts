@@ -138,7 +138,7 @@ const resetProfile = (m: string) =>
   t.admin.query(
     `UPDATE app.nutrition_profile SET birth_date = DATE '1990-05-10', rate_pct_week = 0.5, sex_for_equations = 'femenino',
        goal = 'perder_grasa', daily_activity = 'ligero', allergens = ARRAY['mani'], diet_exclusions = ARRAY['cerdo'],
-       health_answers = $2::jsonb, disclaimer_accepted_at = now() WHERE member_id = $1`,
+       health_answers = $2::jsonb, disclaimer_accepted_at = now(), held_blocks = '{}' WHERE member_id = $1`,
     [m, JSON.stringify(QUESTIONS_NO)],
   );
 
@@ -930,6 +930,207 @@ describe("who sees and who writes", () => {
         person[m],
       ),
     ).rejects.toThrow(/unknown_food/);
+  });
+});
+
+describe("fourth review (iteration 5): held safety blocks, withdrawals and the expenditure floor", () => {
+  const PARQ_NO = { q1: false, q2: false, q3: false, q4: false, q5: false, q6: false, q7: false };
+  const m = () => t.fx.A.members[0] as string;
+  /** Pin the body to 72 kg / 165 cm with a staff measurement taken now (latest of any provenance). */
+  const pinBody = () =>
+    run(A(), "nutritionist", (tx) =>
+      tx.query("SELECT app.nutrition_measure($1, 72, 165, NULL, NULL)", [m()]),
+    );
+  const sign = (role: Role, a: { conditions?: string[]; weight?: number }) =>
+    run(A(), role, async (tx) => {
+      const id = (
+        await tx.query<{ id: string }>(
+          `INSERT INTO app.assessment (member_id, parq, declared_conditions, height_cm, weight_kg)
+           VALUES ($1, $2, $3, 165, $4) RETURNING id`,
+          [m(), JSON.stringify(PARQ_NO), a.conditions ?? [], a.weight ?? 72],
+        )
+      ).rows[0]?.id;
+      await tx.query("SELECT app.sign_assessment($1)", [id]);
+    });
+  const blocks = async () =>
+    (
+      await run(A(), "owner", (tx) =>
+        tx.query<{ b: string[] }>("SELECT app.nutrition_blocks($1) AS b", [m()]),
+      )
+    ).rows[0]?.b ?? [];
+  const lastLift = async () =>
+    (
+      await t.admin.query(
+        "SELECT meta FROM app.audit_log WHERE action = 'nutrition.block_lifted' AND entity_id = $1 ORDER BY at DESC, id DESC LIMIT 1",
+        [m()],
+      )
+    ).rows[0]?.meta;
+
+  it("N1: a clean assessment signed by a trainer, owner or manager never clears a triage block; a nutritionist's does, audited", async () => {
+    await resetProfile(m());
+    await pinBody();
+    await sign("clinician", { conditions: ["active_ed"] });
+    expect(await blocks()).toEqual(
+      expect.arrayContaining(["condicion_en_evaluacion", "triaje_requiere_profesional"]),
+    );
+    for (const role of ["trainer", "owner", "location_manager"] as Role[]) {
+      await sign(role, {});
+      expect(await blocks(), role).toEqual(
+        expect.arrayContaining(["condicion_en_evaluacion", "triaje_requiere_profesional"]),
+      );
+      await expect(create(A(), "owner", m()), role).rejects.toThrow(
+        /requiere_evaluacion_profesional/,
+      );
+    }
+    await sign("nutritionist", {});
+    expect(await blocks()).toEqual([]);
+    expect(await lastLift()).toMatchObject({
+      by: "nutritionist",
+      blocks: ["condicion_en_evaluacion", "triaje_requiere_profesional"],
+    });
+  });
+
+  it("N1: a heavier weight in an assessment signed by a trainer keeps a low-BMI block; only a professional releases it, with a reason", async () => {
+    await resetProfile(m());
+    await run(A(), "owner", (tx) =>
+      tx.query("SELECT app.nutrition_measure($1, 45, 165, NULL, NULL)", [m()]),
+    );
+    expect(await blocks()).toContain("imc_bajo");
+    await sign("trainer", { weight: 72 });
+    expect(await blocks()).toContain("imc_bajo");
+    await expect(create(A(), "owner", m())).rejects.toThrow(/requiere_evaluacion_profesional/);
+    const release = (role: Role, reason: string | null) =>
+      run(A(), role, (tx) =>
+        tx.query("SELECT app.nutrition_release_blocks($1, $2)", [m(), reason]),
+      );
+    for (const role of ["owner", "location_manager", "trainer", "front_desk"] as Role[])
+      await expect(release(role, "Pesado en consulta"), role).rejects.toThrow(/forbidden/);
+    await expect(release("nutritionist", null)).rejects.toThrow(/reason_required/);
+    await release("nutritionist", "Pesado en consulta: 72 kg");
+    expect(await blocks()).toEqual([]);
+    expect(await lastLift()).toMatchObject({ by: "nutritionist", blocks: ["imc_bajo"] });
+    await pinBody();
+  });
+
+  it("held blocks: the member may retract their own answer, not a minor block", async () => {
+    await resetProfile(m());
+    await pinBody();
+    const asMember = (patch: object) =>
+      run(
+        A(),
+        "member",
+        (tx) =>
+          tx.query("SELECT app.nutrition_profile_save($1, $2::jsonb)", [
+            m(),
+            JSON.stringify(patch),
+          ]),
+        person[m()],
+      );
+    await asMember({ health_answers: { embarazo: true } });
+    expect(await blocks()).toContain("embarazo");
+    await asMember({ health_answers: { embarazo: false } });
+    expect(await blocks()).toEqual([]);
+    await asMember({ birth_date: "2012-01-01" });
+    expect(await blocks()).toContain("menor_de_edad");
+    await asMember({ birth_date: "1990-05-10" });
+    expect(await blocks()).toContain("menor_de_edad");
+    await run(A(), "nutritionist", (tx) =>
+      tx.query("SELECT app.nutrition_release_blocks($1, 'Fecha corregida con identificación')", [
+        m(),
+      ]),
+    );
+    expect(await blocks()).toEqual([]);
+  });
+
+  it("B1: a plan withdrawn because the member declared a block stays hidden from the member", async () => {
+    await resetProfile(m());
+    await pinBody();
+    const plan = await create(A(), "owner", m());
+    expect(await publish(A(), plan)).toBe("enviado");
+    await run(
+      A(),
+      "member",
+      (tx) =>
+        tx.query(`SELECT app.nutrition_profile_save($1, '{"health_answers":{"embarazo":true}}')`, [
+          m(),
+        ]),
+      person[m()],
+    );
+    const row = (
+      await t.admin.query("SELECT status, outdated_reason FROM app.nutrition_plan WHERE id = $1", [
+        plan,
+      ])
+    ).rows[0];
+    expect(row).toEqual({ status: "archivado", outdated_reason: "requiere_profesional" });
+    const seen = await run(
+      A(),
+      "member",
+      async (tx) =>
+        (await tx.query("SELECT id FROM app.nutrition_plan WHERE id = $1", [plan])).rows,
+      person[m()],
+    );
+    expect(seen).toHaveLength(0);
+  });
+
+  it("R1: lowering the loss limit withdraws a sent plan whose implied weekly rate no longer fits", async () => {
+    await resetProfile(m());
+    await pinBody();
+    const w = week();
+    // 700 kcal/day under the expenditure ≈ 0.88 %/week for 72 kg: fits 1.0, not 0.6 (the profile rate 0.5 fits both).
+    const plan = await create(A(), "owner", m(), {
+      calc: { days: w.calc.days.map((d) => ({ ...d, tdee: d.target_kcal + 700 })) },
+    });
+    expect(await publish(A(), plan)).toBe("enviado");
+    await run(A(), "owner", (tx) =>
+      tx.query(`SELECT app.nutrition_settings_save('{"max_loss_pct_week":0.6}')`),
+    );
+    try {
+      const row = (
+        await t.admin.query(
+          "SELECT status, outdated_reason FROM app.nutrition_plan WHERE id = $1",
+          [plan],
+        )
+      ).rows[0];
+      expect(row).toEqual({ status: "archivado", outdated_reason: "limites_cambio" });
+      const seen = await run(
+        A(),
+        "member",
+        async (tx) =>
+          (await tx.query("SELECT id FROM app.nutrition_plan WHERE id = $1", [plan])).rows,
+        person[m()],
+      );
+      expect(seen).toHaveLength(0);
+    } finally {
+      await run(A(), "owner", (tx) =>
+        tx.query(`SELECT app.nutrition_settings_save('{"max_loss_pct_week":1}')`),
+      );
+    }
+  });
+
+  it("R2: an expenditure declared below resting × activity factor cannot hide a deficit", async () => {
+    await resetProfile(m());
+    await pinBody();
+    // Maintenance goal (no profile rate). The caller says expenditure = target (no deficit); with an active day
+    // (×1.4) the real floor is far above the targets of this week, so the implied loss exceeds a 0.3 % limit.
+    await t.admin.query(
+      "UPDATE app.nutrition_profile SET goal = 'mantener', daily_activity = 'activo' WHERE member_id = $1",
+      [m()],
+    );
+    const plan = await create(A(), "owner", m());
+    await run(A(), "owner", (tx) =>
+      tx.query(`SELECT app.nutrition_settings_save('{"max_loss_pct_week":0.3}')`),
+    );
+    try {
+      const r = await run(A(), "owner", (tx) =>
+        tx.query<{ r: string[] }>("SELECT app.nutrition_plan_check($1) AS r", [plan]),
+      );
+      expect(r.rows[0]?.r).toContain("ritmo_inseguro");
+    } finally {
+      await run(A(), "owner", (tx) =>
+        tx.query(`SELECT app.nutrition_settings_save('{"max_loss_pct_week":1}')`),
+      );
+      await resetProfile(m());
+    }
   });
 });
 

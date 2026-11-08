@@ -111,7 +111,24 @@ el 2026-11-08: «No me preguntes nada ni pidas aprobación de nada»).
     límite retiran el plan enviado (M1, B2); el ritmo implícito por las metas (tdee − meta) se valida en SQL (M3); el
     socio no ve planes retirados por seguridad (B1); quien aprueba por el gimnasio y quien firma con licencia deben ser
     personas distintas.
-  - Resultado it.4 (enfoque B): compuerta 1–7 verde (db 828, api 362, web 179). Revisión: en curso.
+  - Resultado it.4 (enfoque B): compuerta 1–7 verde (db 828, api 362, web 179).
+- F1–F2 revisión it.4 (auditor de seguridad, 4.ª revisión): **NO FIRMA** — 1 alto (N1: firmar una evaluación en el
+  módulo de salud — entrenador, dueño o gerente — cambiaba el triaje y el peso que leen los bloqueos sin pasar por el
+  trinquete); H1, M1, M2, M3, B2 y B3 cerrados; B1 abierto (bajo); residuales R1 (bajo) y R2 (medio).
+- **Iteración 5 (última permitida; mismo enfoque B, llevado de comprobación a estado).** La causa raíz de N1 es la
+  misma que la del enfoque A a otra escala: el trinquete solo existía en las escrituras de este módulo. Ahora los
+  bloqueos de seguridad se **retienen** (`nutrition_profile.held_blocks`): entran en cuanto cualquier entrada los
+  levanta (perfil, medición, triaje, vínculo de tutor, ajustes, y los datos previos al migrar) y solo salen por
+  `app.nutrition_sync` cuando las entradas ya no los levantan **y** quien actúa puede liberarlos: nutricionista o
+  clínico de la sede (cualquiera; también al firmar una evaluación, o con `nutrition_release_blocks` y un motivo), el
+  propio socio (solo las respuestas de su cuestionario). Toda liberación queda auditada. `ritmo_inseguro` no se
+  retiene: compara dos valores vivos y se comprueba en cada plan.
+  - B1: un plan retirado por seguridad queda siempre con `outdated_reason = 'requiere_profesional'` y oculto al socio.
+  - R1: bajar un límite retira (y oculta, `limites_cambio`) todo plan enviado que ya no pasa la comprobación completa.
+  - R2: para la pérdida, el gasto que declara quien llama no se cree por debajo de reposo × factor de actividad
+    diaria (1.2/1.3/1.4).
+  - Pruebas nuevas (6) verificadas por mutación: cada una falla al quitar su corrección.
+  - Resultado it.5: compuerta 1–7 verde (db 834, api 362, web 179). Revisión: en curso. Si no firma: parada dura.
 
 ## Decisiones técnicas de las fases 1–2
 - Ejercicio **neto** de reposo: (MET − 1) × kg × h, porque el reposo ya está en basal × factor; con METs brutos se
