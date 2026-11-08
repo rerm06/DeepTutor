@@ -244,39 +244,39 @@ DECLARE
 BEGIN
   SELECT * INTO p FROM app.nutrition_profile WHERE member_id = p_member;
   IF NOT FOUND THEN RETURN ARRAY['sin_perfil']; END IF;
-  IF p.health_answers IS NULL THEN r := r || 'cuestionario_pendiente'; END IF;
-  IF p.disclaimer_accepted_at IS NULL THEN r := r || 'aviso_pendiente'; END IF;
-  IF p.birth_date IS NULL OR p.sex_for_equations IS NULL OR p.goal IS NULL THEN r := r || 'datos_insuficientes'; END IF;
-  IF p.birth_date IS NOT NULL AND age(current_date, p.birth_date) < interval '18 years' THEN r := r || 'menor_de_edad'; END IF;
-  IF EXISTS (SELECT 1 FROM app.guardian_link g WHERE g.member_id = p_member) THEN r := r || 'menor_de_edad'; END IF;
-  IF coalesce((p.health_answers ->> 'embarazo')::boolean, false) THEN r := r || 'embarazo'; END IF;
-  IF coalesce((p.health_answers ->> 'lactancia')::boolean, false) THEN r := r || 'lactancia'; END IF;
-  IF coalesce((p.health_answers ->> 'diabetes')::boolean, false) THEN r := r || 'diabetes'; END IF;
-  IF coalesce((p.health_answers ->> 'enfermedad_renal')::boolean, false) THEN r := r || 'enfermedad_renal'; END IF;
-  IF coalesce((p.health_answers ->> 'enfermedad_cardiovascular')::boolean, false) THEN r := r || 'enfermedad_cardiovascular'; END IF;
+  IF p.health_answers IS NULL THEN r := array_append(r, 'cuestionario_pendiente'); END IF;
+  IF p.disclaimer_accepted_at IS NULL THEN r := array_append(r, 'aviso_pendiente'); END IF;
+  IF p.birth_date IS NULL OR p.sex_for_equations IS NULL OR p.goal IS NULL THEN r := array_append(r, 'datos_insuficientes'); END IF;
+  IF p.birth_date IS NOT NULL AND age(current_date, p.birth_date) < interval '18 years' THEN r := array_append(r, 'menor_de_edad'); END IF;
+  IF EXISTS (SELECT 1 FROM app.guardian_link g WHERE g.member_id = p_member) THEN r := array_append(r, 'menor_de_edad'); END IF;
+  IF coalesce((p.health_answers ->> 'embarazo')::boolean, false) THEN r := array_append(r, 'embarazo'); END IF;
+  IF coalesce((p.health_answers ->> 'lactancia')::boolean, false) THEN r := array_append(r, 'lactancia'); END IF;
+  IF coalesce((p.health_answers ->> 'diabetes')::boolean, false) THEN r := array_append(r, 'diabetes'); END IF;
+  IF coalesce((p.health_answers ->> 'enfermedad_renal')::boolean, false) THEN r := array_append(r, 'enfermedad_renal'); END IF;
+  IF coalesce((p.health_answers ->> 'enfermedad_cardiovascular')::boolean, false) THEN r := array_append(r, 'enfermedad_cardiovascular'); END IF;
   IF coalesce((p.health_answers ->> 'tca_actual')::boolean, false)
-     OR coalesce((p.health_answers ->> 'tca_pasado')::boolean, false) THEN r := r || 'tca'; END IF;
-  IF coalesce((p.health_answers ->> 'medicamento_apetito_peso')::boolean, false) THEN r := r || 'medicamento_apetito_peso'; END IF;
+     OR coalesce((p.health_answers ->> 'tca_pasado')::boolean, false) THEN r := array_append(r, 'tca'); END IF;
+  IF coalesce((p.health_answers ->> 'medicamento_apetito_peso')::boolean, false) THEN r := array_append(r, 'medicamento_apetito_peso'); END IF;
   tr := app.health_latest_triage(p_member);
   IF tr.id IS NOT NULL THEN
     IF tr.nutrition_level = 'red' OR tr.requires_medical_referral OR tr.no_calorie_counting THEN
-      r := r || 'triaje_requiere_profesional';
+      r := array_append(r, 'triaje_requiere_profesional');
     END IF;
     SELECT a.declared_conditions INTO v_conditions FROM app.assessment a WHERE a.id = tr.assessment_id;
     IF coalesce(v_conditions, '{}') && ARRAY['diabetes', 'ckd', 'advanced_ckd', 'cvd', 'pregnancy', 'lactation',
          'high_risk_pregnancy', 'glp1', 'eating_disorder_screen_positive', 'active_ed'] THEN
-      r := r || 'condicion_en_evaluacion';
+      r := array_append(r, 'condicion_en_evaluacion');
     END IF;
   END IF;
   IF p_weight IS NULL OR p_height IS NULL THEN
-    r := r || 'falta_peso_o_estatura';
+    r := array_append(r, 'falta_peso_o_estatura');
   ELSE
     v_bmi := p_weight / ((p_height / 100) ^ 2);
-    IF v_bmi < 18.5 THEN r := r || 'imc_bajo'; END IF;
+    IF v_bmi < 18.5 THEN r := array_append(r, 'imc_bajo'); END IF;
   END IF;
   IF p.goal = 'perder_grasa' AND p.rate_pct_week IS NOT NULL AND p.rate_pct_week >
        (SELECT coalesce(max(s.max_loss_pct_week), 1.00) FROM app.nutrition_settings s WHERE s.org_id = p.org_id) THEN
-    r := r || 'ritmo_inseguro';
+    r := array_append(r, 'ritmo_inseguro');
   END IF;
   RETURN ARRAY(SELECT DISTINCT unnest(r) ORDER BY 1);
 END $$;

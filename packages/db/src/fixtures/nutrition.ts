@@ -35,7 +35,7 @@ export async function seed(c: pg.Client, org: OrgFixture): Promise<void> {
       [org.orgId, m, person],
     )
   ).rows[0].id;
-  await c.query(`UPDATE app.nutrition_plan SET series_id = id WHERE id = $1`, [plan]);
+  await c.query("UPDATE app.nutrition_plan SET series_id = id WHERE id = $1", [plan]);
   for (const [pos, fdc, grams] of [
     [1, 173904, 40],
     [2, 173944, 118],
