@@ -95,6 +95,23 @@ el 2026-11-08: «No me preguntes nada ni pidas aprobación de nada»).
     N9 aviso `protein_below_min`; N10 misma base (edad hoy y cuerpo más reciente) documentada en calc y SQL;
     M3 completo: un triaje nuevo marca los planes desactualizados.
   - Resultado it.2: compuerta 1–7 verde (db 822, api 362, web 179).
+- F1–F2 revisión it.3 (auditor de seguridad): **NO FIRMA** — 1 alto (H1: el dueño reescribía la fecha de nacimiento
+  y levantaba `menor_de_edad`), 3 medios, 3 bajos.
+- **Cambio de enfoque obligatorio tras la 3.ª iteración.**
+  - Hipótesis descartadas (enfoque A, «proteger campo por campo»): N1 alergias, N2 estatura, H1 fecha de nacimiento,
+    M2 peso del personal. Cada revisión encontró otro campo editable que levantaba un bloqueo: el problema no es un
+    campo, es que cualquier entrada de seguridad era editable y los bloqueos se recalculaban sin memoria.
+  - Enfoque B1 (elegido) — **trinquete de seguridad**: cada escritura al perfil o a las mediciones compara los
+    bloqueos de seguridad antes y después; si alguno desaparece y quien escribe no es el propio socio ni un
+    nutricionista o clínico de su sede, la escritura se rechaza (`forbidden_block_removal`), y todo levantamiento
+    queda auditado (`nutrition.block_lifted`). Una sola regla cubre los campos actuales y los futuros.
+  - Enfoque B2 (descartado) — bitácora de eventos de seguridad que el licenciado debe reconocer antes de firmar:
+    depende de que una persona lo note, añade interfaz y no detiene el cambio en origen.
+  - Además: estatura máxima registrada para todo cálculo de IMC (B3); vínculo de tutor, triaje nuevo y bajada de un
+    límite retiran el plan enviado (M1, B2); el ritmo implícito por las metas (tdee − meta) se valida en SQL (M3); el
+    socio no ve planes retirados por seguridad (B1); quien aprueba por el gimnasio y quien firma con licencia deben ser
+    personas distintas.
+  - Resultado it.4 (enfoque B): compuerta 1–7 verde (db 828, api 362, web 179). Revisión: en curso.
 
 ## Decisiones técnicas de las fases 1–2
 - Ejercicio **neto** de reposo: (MET − 1) × kg × h, porque el reposo ya está en basal × factor; con METs brutos se

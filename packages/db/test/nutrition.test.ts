@@ -70,7 +70,7 @@ function week(extra: Array<{ fdc_id: number; grams: number }> = []) {
       });
       kcal += Math.round((((food[b.fdc_id]?.kcal ?? 0) * b.grams) / 100) * 10) / 10;
     });
-    days.push({ day, target_kcal: Math.round(kcal) });
+    days.push({ day, target_kcal: Math.round(kcal), tdee: Math.round(kcal) });
   }
   return { items, calc: { days } };
 }
@@ -687,6 +687,182 @@ describe("second review (N1–N8)", () => {
     ).rejects.toThrow(/forbidden/);
     const bread = await t.admin.query("SELECT diet_tags FROM app.food WHERE fdc_id = 174924");
     expect(bread.rows[0].diet_tags).toContain("lacteo");
+  });
+});
+
+describe("third review: approach B (one-way ratchet) and remaining findings", () => {
+  it("H1: the owner cannot lift the minor block by rewriting the birth date; the audit records lifted blocks", async () => {
+    const m = t.fx.B.members[0] as string;
+    await resetProfile(m);
+    await t.admin.query(
+      "UPDATE app.nutrition_profile SET birth_date = (current_date - interval '15 years')::date WHERE member_id = $1",
+      [m],
+    );
+    for (const role of ["owner", "location_manager"] as Role[]) {
+      await expect(
+        run(t.fx.B, role, (tx) =>
+          tx.query(`SELECT app.nutrition_profile_save($1, '{"birth_date":"1990-01-01"}')`, [m]),
+        ),
+        role,
+      ).rejects.toThrow(/forbidden_block_removal:menor_de_edad/);
+    }
+    // A nutritionist of the member's location may correct it, and that is audited.
+    await run(t.fx.B, "nutritionist", (tx) =>
+      tx.query(`SELECT app.nutrition_profile_save($1, '{"birth_date":"1990-01-01"}')`, [m]),
+    );
+    const a = await t.admin.query(
+      "SELECT meta FROM app.audit_log WHERE action = 'nutrition.block_lifted' AND entity_id = $1 ORDER BY at DESC, id DESC LIMIT 1",
+      [m],
+    );
+    expect(a.rows[0].meta).toMatchObject({ by: "nutritionist", blocks: ["menor_de_edad"] });
+    await resetProfile(m);
+  });
+
+  it("M2: staff other than a nutritionist or clinician cannot lift a low BMI with a new weight", async () => {
+    const m = t.fx.B.members[0] as string;
+    await resetProfile(m);
+    await run(t.fx.B, "owner", (tx) =>
+      tx.query("SELECT app.nutrition_measure($1, 45, 165, NULL, NULL)", [m]),
+    );
+    for (const role of ["owner", "trainer"] as Role[]) {
+      await expect(
+        run(t.fx.B, role, (tx) =>
+          tx.query("SELECT app.nutrition_measure($1, 60, NULL, NULL, NULL)", [m]),
+        ),
+        role,
+      ).rejects.toThrow(/forbidden_block_removal:imc_bajo/);
+    }
+    await run(t.fx.B, "nutritionist", (tx) =>
+      tx.query("SELECT app.nutrition_measure($1, 72, NULL, NULL, NULL)", [m]),
+    );
+    const b = await run(
+      t.fx.B,
+      "owner",
+      async (tx) => (await tx.query("SELECT app.nutrition_blocks($1) AS b", [m])).rows[0].b,
+    );
+    expect(b).not.toContain("imc_bajo");
+  });
+
+  it("B3: declaring a shorter height never lifts a low BMI", async () => {
+    const m = t.fx.B.members[1] as string;
+    await run(
+      t.fx.B,
+      "member",
+      (tx) => tx.query("SELECT app.nutrition_measure($1, 45, 170, NULL, NULL)", [m]),
+      person[m],
+    );
+    await run(
+      t.fx.B,
+      "member",
+      (tx) => tx.query("SELECT app.nutrition_measure($1, NULL, 150, NULL, NULL)", [m]),
+      person[m],
+    );
+    const b = await run(
+      t.fx.B,
+      "owner",
+      async (tx) => (await tx.query("SELECT app.nutrition_blocks($1) AS b", [m])).rows[0].b,
+    );
+    expect(b).toContain("imc_bajo");
+  });
+
+  it("M1: a guardian link or a lower safety limit withdraws the sent plan at once; B1: the member never sees it", async () => {
+    const m = t.fx.A.members[0] as string;
+    await resetProfile(m);
+    const plan = await create(t.fx.A, "owner", m);
+    await publish(t.fx.A, plan);
+    const gp = (
+      await t.admin.query(
+        "INSERT INTO app.person (email) VALUES ('tutor.nutri@demo.invalid') RETURNING id",
+      )
+    ).rows[0].id;
+    await t.admin.query(
+      "INSERT INTO app.guardian_link (org_id, member_id, guardian_person_id) VALUES ($1, $2, $3)",
+      [t.fx.A.orgId, m, gp],
+    );
+    expect(
+      (await t.admin.query("SELECT status FROM app.nutrition_plan WHERE id = $1", [plan])).rows[0]
+        .status,
+    ).toBe("archivado");
+    const seen = await run(
+      A(),
+      "member",
+      async (tx) =>
+        (await tx.query("SELECT id FROM app.nutrition_plan WHERE id = $1", [plan])).rows,
+      person[m],
+    );
+    expect(seen).toHaveLength(0);
+    await t.admin.query("DELETE FROM app.guardian_link WHERE guardian_person_id = $1", [gp]);
+    // Lowering the loss limit under the member's rate withdraws a newly sent plan too.
+    await resetProfile(m);
+    const p2 = await create(t.fx.A, "owner", m);
+    await publish(t.fx.A, p2);
+    await run(A(), "owner", (tx) =>
+      tx.query(`SELECT app.nutrition_settings_save('{"max_loss_pct_week":0.25}')`),
+    );
+    expect(
+      (await t.admin.query("SELECT status FROM app.nutrition_plan WHERE id = $1", [p2])).rows[0]
+        .status,
+    ).toBe("archivado");
+    await run(A(), "owner", (tx) =>
+      tx.query(`SELECT app.nutrition_settings_save('{"max_loss_pct_week":1}')`),
+    );
+  });
+
+  it("M3: the weekly change the targets imply must respect the limits, whatever the profile declares", async () => {
+    const m = t.fx.A.members[0] as string;
+    await resetProfile(m);
+    const w = week();
+    // A target 1500 kcal under the day's expenditure is ≈ 2 %/week for 72 kg (> 1 %).
+    const plan = await create(t.fx.A, "owner", m, {
+      calc: { days: w.calc.days.map((d) => ({ ...d, tdee: d.target_kcal + 1500 })) },
+    });
+    const r = await run(
+      t.fx.A,
+      "owner",
+      async (tx) => (await tx.query("SELECT app.nutrition_plan_check($1) AS r", [plan])).rows[0].r,
+    );
+    expect(r).toContain("ritmo_inseguro");
+  });
+
+  it("B2: a new triage refreshes the profile status; Info: approver and licensed reviewer are different people", async () => {
+    const m = t.fx.A.members[0] as string;
+    await resetProfile(m);
+    const st = async () =>
+      (await t.admin.query("SELECT status FROM app.nutrition_profile WHERE member_id = $1", [m]))
+        .rows[0].status;
+    await run(A(), "nutritionist", (tx) =>
+      tx.query(`SELECT app.nutrition_profile_save($1, '{"goal":"mantener"}')`, [m]),
+    );
+    expect(await st()).toBe("apto");
+    // Same person approving for the gym and signing as the licensed professional is refused.
+    const nutriPerson = (
+      await t.admin.query(
+        "SELECT person_id FROM app.staff_member WHERE org_id = $1 AND role = 'nutritionist'",
+        [A().orgId],
+      )
+    ).rows[0].person_id;
+    await t.admin.query(
+      "INSERT INTO app.staff_member (org_id, person_id, role, display_name) VALUES ($1, $2, 'owner', 'Dueña y nutri')",
+      [A().orgId, nutriPerson],
+    );
+    try {
+      const plan = await create(t.fx.A, "owner", m);
+      await asCaller(t.api, t.claims(A(), "owner", nutriPerson), (tx) =>
+        tx.query("SELECT app.nutrition_plan_transition($1, 'approve', NULL)", [plan]),
+      );
+      expect(
+        (await t.admin.query("SELECT approved_by FROM app.nutrition_plan WHERE id = $1", [plan]))
+          .rows[0].approved_by,
+      ).toBe(nutriPerson);
+      await expect(transition(t.fx.A, "nutritionist", plan, "license")).rejects.toThrow(
+        /same_person_cannot_license/,
+      );
+    } finally {
+      await t.admin.query(
+        "DELETE FROM app.staff_member WHERE org_id = $1 AND person_id = $2 AND role = 'owner'",
+        [A().orgId, nutriPerson],
+      );
+    }
   });
 });
 

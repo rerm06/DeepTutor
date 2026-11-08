@@ -270,16 +270,15 @@ END $$;
 -- Hard blocks (the API shows the same list with its explanation). BMI is checked against BOTH the latest value of
 -- any provenance and the latest value measured by staff or a signed assessment in the last 365 days, and the more
 -- conservative one wins: a newer declared weight never lifts a low-BMI block that a measurement raised.
-CREATE FUNCTION app.nutrition_blocks(p_member uuid) RETURNS text[]
+CREATE FUNCTION app.nutrition_blocks_internal(p_member uuid) RETURNS text[]
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = app, pg_temp AS $$
 DECLARE
   p app.nutrition_profile;
   tr app.triage_result;
   v_conditions text[];
   r text[] := '{}';
-  w numeric; h numeric; mw numeric; mh numeric;
+  w numeric; h numeric; mw numeric; mh numeric; hmax numeric;
 BEGIN
-  PERFORM app.nutrition_assert_reader(p_member);
   SELECT * INTO p FROM app.nutrition_profile WHERE member_id = p_member;
   IF NOT FOUND THEN RETURN ARRAY['sin_perfil']; END IF;
   IF p.health_answers IS NULL THEN r := array_append(r, 'cuestionario_pendiente'); END IF;
@@ -308,7 +307,17 @@ BEGIN
       r := array_append(r, 'condicion_en_evaluacion');
     END IF;
   END IF;
-  SELECT x.weight_kg, x.height_cm INTO w, h FROM app.nutrition_latest_body(p_member) x;
+  -- Latest weight of any provenance, divided by the TALLEST height ever recorded (any provenance): the lowest,
+  -- most cautious BMI, so declaring a shorter height never lifts the block (third review, B3).
+  SELECT x.weight_kg FROM (
+    SELECT a.weight_kg, a.signed_at AS at FROM app.assessment a
+     WHERE a.member_id = p_member AND a.status = 'signed' AND a.weight_kg IS NOT NULL
+    UNION ALL SELECT m.weight_kg, m.taken_at FROM app.nutrition_measurement m
+     WHERE m.member_id = p_member AND m.weight_kg IS NOT NULL) x ORDER BY x.at DESC LIMIT 1 INTO w;
+  SELECT max(x.height_cm) INTO hmax FROM (
+    SELECT a.height_cm FROM app.assessment a WHERE a.member_id = p_member AND a.status = 'signed'
+    UNION ALL SELECT m.height_cm FROM app.nutrition_measurement m WHERE m.member_id = p_member) x;
+  h := hmax;
   IF w IS NULL OR h IS NULL THEN
     r := array_append(r, 'falta_peso_o_estatura');
   ELSIF w / ((h / 100) ^ 2) < 18.5 THEN
@@ -321,11 +330,8 @@ BEGIN
     SELECT m.weight_kg, m.height_cm, m.taken_at FROM app.nutrition_measurement m
      WHERE m.member_id = p_member AND m.source = 'personal' AND m.taken_at > now() - interval '365 days')
   SELECT (SELECT weight_kg FROM measured WHERE weight_kg IS NOT NULL ORDER BY at DESC LIMIT 1) INTO mw;
-  -- The measured weight is divided by the TALLEST height ever recorded for the member (any provenance): that gives
-  -- the lowest, most cautious BMI, so declaring a shorter height can never lift this block.
-  SELECT max(x.height_cm) INTO mh FROM (
-    SELECT a.height_cm FROM app.assessment a WHERE a.member_id = p_member AND a.status = 'signed'
-    UNION ALL SELECT m.height_cm FROM app.nutrition_measurement m WHERE m.member_id = p_member) x;
+  -- The measured weight, also over the tallest height on record.
+  mh := hmax;
   IF mw IS NOT NULL AND mh IS NOT NULL AND mw / ((mh / 100) ^ 2) < 18.5 THEN
     r := array_append(r, 'imc_bajo');
   END IF;
@@ -336,25 +342,54 @@ BEGIN
   RETURN ARRAY(SELECT DISTINCT unnest(r) ORDER BY 1);
 END $$;
 
+-- Public reader: same list, only for the member, their guardian and health staff of their location.
+CREATE FUNCTION app.nutrition_blocks(p_member uuid) RETURNS text[]
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = app, pg_temp AS $$
+BEGIN
+  PERFORM app.nutrition_assert_reader(p_member);
+  RETURN app.nutrition_blocks_internal(p_member);
+END $$;
+
+-- Safety blocks (not the completeness ones) that a change may not lift unless it comes from the member themself or
+-- a nutritionist / clinician of their location — the "ratchet" chosen after the third review (approach B): one rule
+-- for every input, present and future, instead of guarding fields one by one.
+CREATE FUNCTION app.nutrition_safety_reasons() RETURNS text[] LANGUAGE sql IMMUTABLE AS $$
+  SELECT ARRAY['menor_de_edad', 'embarazo', 'lactancia', 'diabetes', 'enfermedad_renal', 'enfermedad_cardiovascular',
+               'tca', 'medicamento_apetito_peso', 'triaje_requiere_profesional', 'condicion_en_evaluacion', 'imc_bajo',
+               'ritmo_inseguro']
+$$;
+CREATE FUNCTION app.nutrition_ratchet(p_member uuid, p_before text[], p_self boolean) RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = app, pg_temp AS $$
+DECLARE v_lifted text[];
+BEGIN
+  v_lifted := ARRAY(SELECT unnest(p_before) INTERSECT SELECT unnest(app.nutrition_safety_reasons())
+                    EXCEPT SELECT unnest(app.nutrition_blocks_internal(p_member)));
+  IF cardinality(v_lifted) > 0 AND NOT (p_self OR (app.role() IN ('nutritionist', 'clinician')
+                                                    AND app.health_staff_can_see(p_member))) THEN
+    RAISE EXCEPTION 'forbidden_block_removal:%', array_to_string(v_lifted, ',') USING ERRCODE = '42501';
+  END IF;
+  IF cardinality(v_lifted) > 0 THEN
+    PERFORM app.audit('nutrition.block_lifted', 'nutrition_profile', p_member::text,
+      (SELECT home_location_id FROM app.member WHERE id = p_member),
+      jsonb_build_object('by', CASE WHEN p_self THEN 'socio' ELSE app.role()::text END, 'blocks', to_jsonb(v_lifted)));
+  END IF;
+END $$;
+
 -- Recompute the profile status from the blocks (after a profile change or a measurement). When the member now
 -- needs a professional, the plan they were following is withdrawn (archived) at once: a plan sent before a new
 -- block never stays in front of them.
 CREATE FUNCTION app.nutrition_refresh_status(p_member uuid) RETURNS text
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = app, pg_temp AS $$
-DECLARE v_reasons text[] := app.nutrition_blocks(p_member);
+DECLARE v_reasons text[] := app.nutrition_blocks_internal(p_member);
 BEGIN
-  IF v_reasons && ARRAY['menor_de_edad', 'embarazo', 'lactancia', 'diabetes', 'enfermedad_renal',
-       'enfermedad_cardiovascular', 'tca', 'medicamento_apetito_peso', 'triaje_requiere_profesional',
-       'condicion_en_evaluacion', 'imc_bajo', 'ritmo_inseguro'] THEN
+  IF v_reasons && app.nutrition_safety_reasons() THEN
     UPDATE app.nutrition_plan SET status = 'archivado', archived_at = now(),
       outdated_reason = coalesce(outdated_reason, 'requiere_profesional')
      WHERE member_id = p_member AND status = 'enviado';
   END IF;
   UPDATE app.nutrition_profile SET
     status = CASE
-      WHEN v_reasons && ARRAY['menor_de_edad', 'embarazo', 'lactancia', 'diabetes', 'enfermedad_renal',
-           'enfermedad_cardiovascular', 'tca', 'medicamento_apetito_peso', 'triaje_requiere_profesional',
-           'condicion_en_evaluacion', 'imc_bajo', 'ritmo_inseguro'] THEN 'requiere_profesional'
+      WHEN v_reasons && app.nutrition_safety_reasons() THEN 'requiere_profesional'
       WHEN cardinality(v_reasons) = 0 THEN 'apto'
       ELSE 'incompleto' END,
     status_reasons = v_reasons
@@ -374,12 +409,14 @@ DECLARE
   v_loc uuid;
   v_old app.nutrition_profile;
   v_new app.nutrition_profile;
+  v_before text[];
 BEGIN
   IF app.org_id() IS NULL OR NOT (v_self OR app.nutrition_can_write(p_member)) THEN
     RAISE EXCEPTION 'forbidden' USING ERRCODE = '42501';
   END IF;
   INSERT INTO app.nutrition_profile (org_id, member_id) VALUES (app.org_id(), p_member) ON CONFLICT DO NOTHING;
   SELECT * INTO v_old FROM app.nutrition_profile WHERE member_id = p_member FOR UPDATE;
+  v_before := app.nutrition_blocks_internal(p_member);
   IF p ? 'health_answers' AND NOT (v_self OR (app.role() IN ('nutritionist', 'clinician')
                                                AND app.health_staff_can_see(p_member))) THEN
     RAISE EXCEPTION 'forbidden_health_answers' USING ERRCODE = '42501';
@@ -427,6 +464,7 @@ BEGIN
      WHERE member_id = p_member AND status IN ('borrador', 'en_revision', 'aprobado', 'enviado')
        AND outdated_reason IS NULL;
   END IF;
+  PERFORM app.nutrition_ratchet(p_member, v_before, v_self);
   SELECT home_location_id INTO v_loc FROM app.member WHERE id = p_member;
   SELECT * INTO v_new FROM app.nutrition_profile WHERE member_id = p_member;
   -- The audit names the fields that changed and who changed them; for the hard exclusions it also keeps which codes
@@ -448,11 +486,13 @@ DECLARE
   v_self boolean := EXISTS (SELECT 1 FROM app.member m WHERE m.id = p_member AND m.org_id = app.org_id()
                              AND m.person_id = app.person_id() AND app.role() = 'member');
   v_id uuid;
+  v_before text[];
 BEGIN
   IF app.org_id() IS NULL OR NOT (v_self OR app.nutrition_can_write(p_member)
        OR (app.role() = 'trainer' AND app.health_staff_can_see(p_member))) THEN
     RAISE EXCEPTION 'forbidden' USING ERRCODE = '42501';
   END IF;
+  v_before := app.nutrition_blocks_internal(p_member);
   INSERT INTO app.nutrition_measurement (org_id, member_id, source, weight_kg, height_cm, body_fat_pct,
                                          body_fat_method, recorded_by)
   VALUES (app.org_id(), p_member, CASE WHEN v_self THEN 'declarado' ELSE 'personal' END, p_weight, p_height, p_fat,
@@ -462,6 +502,7 @@ BEGIN
   UPDATE app.nutrition_plan SET outdated_reason = 'nueva_medicion'
    WHERE member_id = p_member AND status IN ('borrador', 'en_revision', 'aprobado', 'enviado')
      AND outdated_reason IS NULL;
+  PERFORM app.nutrition_ratchet(p_member, v_before, v_self);
   PERFORM app.nutrition_refresh_status(p_member);
   PERFORM app.audit('nutrition.measure', 'nutrition_measurement', v_id::text,
     (SELECT home_location_id FROM app.member WHERE id = p_member),
@@ -484,12 +525,15 @@ DECLARE
   v_tol numeric;
   d record;
   v_target numeric;
+  v_tdee numeric;
+  v_maxloss numeric;
+  v_maxgain numeric;
 BEGIN
   SELECT * INTO pl FROM app.nutrition_plan WHERE id = p_plan AND org_id = app.org_id();
   -- Staff only: a member never probes drafts that row security hides from them.
   IF NOT FOUND OR NOT app.health_staff_can_see(pl.member_id) THEN RAISE EXCEPTION 'forbidden' USING ERRCODE = '42501'; END IF;
   SELECT * INTO p FROM app.nutrition_profile WHERE member_id = pl.member_id;
-  r := r || app.nutrition_blocks(pl.member_id);
+  r := r || app.nutrition_blocks_internal(pl.member_id);
   IF pl.outdated_reason IS NOT NULL THEN r := array_append(r, 'plan_desactualizado'); END IF;
   IF EXISTS (SELECT 1 FROM app.nutrition_plan_item i JOIN app.food f ON f.fdc_id = i.fdc_id
               WHERE i.plan_id = p_plan AND (f.allergens && p.allergens OR f.diet_tags && p.diet_exclusions)) THEN
@@ -502,14 +546,21 @@ BEGIN
   IF w IS NOT NULL AND h IS NOT NULL AND p.birth_date IS NOT NULL AND p.sex_for_equations IS NOT NULL THEN
     v_bmr := round(10 * w + 6.25 * h - 5 * extract(year FROM age(current_date, p.birth_date))
                    + CASE p.sex_for_equations WHEN 'masculino' THEN 5 ELSE -161 END);
-    SELECT coalesce(max(s.day_tolerance_pct), 5) INTO v_tol FROM app.nutrition_settings s WHERE s.org_id = pl.org_id;
+    SELECT coalesce(max(s.day_tolerance_pct), 5), coalesce(max(s.max_loss_pct_week), 1), coalesce(max(s.max_gain_pct_week), 0.5)
+      INTO v_tol, v_maxloss, v_maxgain FROM app.nutrition_settings s WHERE s.org_id = pl.org_id;
     FOR d IN SELECT day, sum(kcal) AS kcal FROM app.nutrition_plan_item WHERE plan_id = p_plan GROUP BY day LOOP
       IF d.kcal < v_bmr THEN r := array_append(r, 'debajo_del_piso'); END IF;
       SELECT (e ->> 'target_kcal')::numeric INTO v_target
         FROM jsonb_array_elements(coalesce(pl.calc -> 'days', '[]'::jsonb)) e WHERE (e ->> 'day')::int = d.day LIMIT 1;
-      IF v_target IS NULL OR v_target <= 0 THEN
+      SELECT (e ->> 'tdee')::numeric INTO v_tdee
+        FROM jsonb_array_elements(coalesce(pl.calc -> 'days', '[]'::jsonb)) e WHERE (e ->> 'day')::int = d.day LIMIT 1;
+      IF v_target IS NULL OR v_target <= 0 OR v_tdee IS NULL OR v_tdee <= 0 THEN
         r := array_append(r, 'meta_ausente');
       ELSE
+        -- The weekly change the targets imply (deficit or surplus × 7 / 7700 kcal per kg, as % of body weight) must
+        -- respect the organisation's limits — whatever rate the profile declares.
+        IF (v_tdee - v_target) * 7 / 7700 / w * 100 > v_maxloss + 0.01 THEN r := array_append(r, 'ritmo_inseguro'); END IF;
+        IF (v_target - v_tdee) * 7 / 7700 / w * 100 > v_maxgain + 0.01 THEN r := array_append(r, 'ritmo_inseguro'); END IF;
         IF v_target < v_bmr THEN r := array_append(r, 'meta_debajo_del_piso'); END IF;
         IF abs(d.kcal - v_target) / v_target * 100 > v_tol THEN r := array_append(r, 'fuera_de_tolerancia'); END IF;
       END IF;
@@ -635,6 +686,7 @@ BEGIN
     IF coalesce((pl.verifier ->> 'ok')::boolean, false) IS NOT TRUE THEN
       RAISE EXCEPTION 'verifier_not_passed' USING ERRCODE = '55000';
     END IF;
+    IF pl.licensed_by = app.person_id() THEN RAISE EXCEPTION 'same_person_cannot_license' USING ERRCODE = '42501'; END IF;
     UPDATE app.nutrition_plan SET status = 'aprobado', approved_by = app.person_id(), approved_at = now(),
       submitted_at = coalesce(submitted_at, now()) WHERE id = p_plan;
   ELSIF p_action = 'license' THEN
@@ -644,6 +696,8 @@ BEGIN
       RAISE EXCEPTION 'license_not_verified' USING ERRCODE = '42501';
     END IF;
     IF pl.status NOT IN ('en_revision', 'aprobado') THEN RAISE EXCEPTION 'invalid_transition' USING ERRCODE = '55000'; END IF;
+    -- Two different people: the one who approves for the gym and the licensed professional.
+    IF pl.approved_by = app.person_id() THEN RAISE EXCEPTION 'same_person_cannot_license' USING ERRCODE = '42501'; END IF;
     UPDATE app.nutrition_plan SET licensed_by = app.person_id(), licensed_at = now(), license_no = s.license_no
      WHERE id = p_plan;
   ELSIF p_action = 'send' THEN
@@ -726,10 +780,34 @@ BEGIN
   UPDATE app.nutrition_plan SET outdated_reason = 'nueva_evaluacion'
    WHERE member_id = NEW.member_id AND status IN ('borrador', 'en_revision', 'aprobado', 'enviado')
      AND outdated_reason IS NULL;
+  PERFORM app.nutrition_refresh_status(NEW.member_id);
   RETURN NEW;
 END $$;
 CREATE TRIGGER triage_nutrition_outdated AFTER INSERT ON app.triage_result
   FOR EACH ROW EXECUTE FUNCTION app.nutrition_on_triage();
+
+-- A guardian link means a minor: refresh (and withdraw any sent plan) at once, whoever created the link.
+CREATE FUNCTION app.nutrition_on_guardian() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = app, pg_temp AS $$
+BEGIN
+  PERFORM app.nutrition_refresh_status(NEW.member_id);
+  RETURN NEW;
+END $$;
+CREATE TRIGGER guardian_nutrition_refresh AFTER INSERT ON app.guardian_link
+  FOR EACH ROW EXECUTE FUNCTION app.nutrition_on_guardian();
+
+-- Lowering a safety limit re-evaluates every member of the organisation that has a plan in front of them.
+CREATE FUNCTION app.nutrition_on_settings() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = app, pg_temp AS $$
+DECLARE m uuid;
+BEGIN
+  FOR m IN SELECT DISTINCT member_id FROM app.nutrition_plan WHERE org_id = NEW.org_id AND status = 'enviado' LOOP
+    PERFORM app.nutrition_refresh_status(m);
+  END LOOP;
+  RETURN NEW;
+END $$;
+CREATE TRIGGER nutrition_settings_refresh AFTER UPDATE ON app.nutrition_settings
+  FOR EACH ROW EXECUTE FUNCTION app.nutrition_on_settings();
 
 -- Owner-only settings change (limits stay inside the source ranges enforced by the table CHECKs).
 CREATE FUNCTION app.nutrition_settings_save(p jsonb) RETURNS void
@@ -803,7 +881,8 @@ CREATE POLICY nutrition_measurement_select ON app.nutrition_measurement FOR SELE
 CREATE POLICY nutrition_plan_select ON app.nutrition_plan FOR SELECT TO app_authenticated USING (
   org_id = (SELECT app.org_id()) AND (app.health_staff_can_see(member_id)
     OR (sent_at IS NOT NULL AND app.health_self_or_guardian(member_id)
-        AND (status = 'archivado' OR (status = 'enviado' AND outdated_reason IS NULL)))));
+        AND ((status = 'archivado' AND outdated_reason IS DISTINCT FROM 'requiere_profesional')
+             OR (status = 'enviado' AND outdated_reason IS NULL)))));
 CREATE POLICY nutrition_plan_item_select ON app.nutrition_plan_item FOR SELECT TO app_authenticated USING (
   org_id = (SELECT app.org_id()) AND EXISTS (SELECT 1 FROM app.nutrition_plan p WHERE p.id = nutrition_plan_item.plan_id));
 
@@ -830,6 +909,8 @@ BEGIN
   FOREACH f IN ARRAY ARRAY[
     'app.nutrition_item_compute()', 'app.nutrition_can_write(uuid)', 'app.nutrition_assert_reader(uuid)',
     'app.nutrition_latest_body(uuid)', 'app.nutrition_blocks(uuid)', 'app.nutrition_refresh_status(uuid)',
+    'app.nutrition_blocks_internal(uuid)', 'app.nutrition_ratchet(uuid, text[], boolean)',
+    'app.nutrition_on_guardian()', 'app.nutrition_on_settings()',
     'app.nutrition_profile_save(uuid, jsonb)', 'app.nutrition_measure(uuid, numeric, numeric, numeric, text)',
     'app.nutrition_plan_check(uuid)',
     'app.nutrition_plan_create(uuid, date, text, jsonb, jsonb, jsonb, jsonb, text, text, jsonb, uuid)',
