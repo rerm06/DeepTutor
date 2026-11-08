@@ -134,11 +134,11 @@ Riesgo: R0 sin confirmación · R1 confirmación verbal tras repetir los datos �
   Nota: Apagar la revisión en cámaras sin detección de vida baja la seguridad (0025_device_review.sql:1-4).
 - **`acceso.revocar_camara`** — servicio `apps/api/src/modules/access.ts:204 → app.revoke_door_device (0024_access.sql:413) → UPDATE revoked_at`; R2 sensible; roles por `0024_access.sql:418 revoke_door_device (role IN owner, location_manager)`.
   Entrada: params IdParams.
-  Auditoría: bus `acceso.revocar_camara`; hoy `door_device.revoke`. Conocimiento: sistema. Prueba: `null`.
+  Auditoría: bus `acceso.revocar_camara`; hoy `door_device.revoke`. Conocimiento: sistema. Prueba: `apps/api/test/route-gaps.test.ts`.
   Nota: No borra la fila (marca revoked_at) pero no hay forma de reactivarla. Sin prueba HTTP.
 - **`acceso.ver_acceso_facial`** — servicio `apps/api/src/modules/access.ts:139 → SELECT app.location LEFT JOIN app.location_policy WHERE app.can_see_location`; R0 lectura; roles por `apps/api/src/modules/access.ts:144 (app.can_see_location) + 0002_rls.sql:41 policy loc_select`.
   Entrada: ninguna.
-  Auditoría: bus `acceso.ver_acceso_facial`; hoy **sin auditoría**. Conocimiento: —. Prueba: `null`.
+  Auditoría: bus `acceso.ver_acceso_facial`; hoy **sin auditoría**. Conocimiento: —. Prueba: `apps/api/test/route-gaps.test.ts`.
   Nota: Solo se prueba el PUT en access.test.ts. Un socio recibe lista vacía (can_see_location falso).
 
 </details>
@@ -163,7 +163,7 @@ Riesgo: R0 sin confirmación · R1 confirmación verbal tras repetir los datos �
 
 - **`agenda.cancelar_cita`** — servicio `apps/api/src/modules/schedule.ts:311 → app.cancel_appointment (0007_schedule.sql:657)`; R1 reversible; roles por `0007_schedule.sql:663 cancel_appointment (socio/tutor, profesional asignado, FOH solo personal_training)`.
   Entrada: params IdParams.
-  Auditoría: bus `agenda.cancelar_cita`; hoy `appointment.cancel`. Conocimiento: socio. Prueba: `null`.
+  Auditoría: bus `agenda.cancelar_cita`; hoy `appointment.cancel`. Conocimiento: socio. Prueba: `apps/api/test/route-gaps.test.ts`.
   Nota: Sin prueba HTTP de esta URL.
 - **`agenda.cancelar_reserva`** — servicio `apps/api/src/modules/schedule.ts:231 → app.cancel_booking (0007_schedule.sql:490)`; R1 reversible; roles por `0007_schedule.sql:505 cancel_booking (socio/tutor o FOH de la sede)`.
   Entrada: params IdParams.
@@ -171,7 +171,7 @@ Riesgo: R0 sin confirmación · R1 confirmación verbal tras repetir los datos �
   Nota: Si libera un cupo también escribe 'booking.promote'. La cancelación tardía puede tener consecuencias (late_cancel).
 - **`agenda.cancelar_sesion`** — servicio `apps/api/src/modules/schedule.ts:171 → app.cancel_class_session (0007_schedule.sql:368)`; R2 sensible; roles por `0007_schedule.sql:375 cancel_class_session (role IN owner, location_manager)`.
   Entrada: params IdParams.
-  Auditoría: bus `agenda.cancelar_sesion`; hoy `class_session.cancel`. Conocimiento: clase, socio. Prueba: `null`.
+  Auditoría: bus `agenda.cancelar_sesion`; hoy `class_session.cancel`. Conocimiento: clase, socio. Prueba: `apps/api/test/route-gaps.test.ts`.
   Nota: R2: afecta reservas de varios socios y no hay forma de reactivar la sesión ni las reservas. No avisa a los inscritos (sin mensaje). Ninguna prueba HTTP llama esta URL (las '/cancel' de schedule.test.ts son de reservas).
 - **`agenda.crear_cita`** — servicio `apps/api/src/modules/schedule.ts:299 → app.create_appointment (0007_schedule.sql:607)`; R1 reversible; roles por `0007_schedule.sql:633 create_appointment (FOH solo personal_training; el resto solo para sí mismo)`.
   Entrada: body AppointmentBody.
@@ -252,15 +252,15 @@ Riesgo: R0 sin confirmación · R1 confirmación verbal tras repetir los datos �
   Nota: NUEVO: la web no expone esta escritura (apps/web/src/modules/schedule/api.ts:176 solo policies GET). PUT completo: hay que enviar los tres campos, el copiloto debe leer los valores actuales antes. R2 porque negar acceso a morosos es decisión del dueño.
 - **`ajustes.listar_sedes`** — servicio `apps/api/src/routes/org.ts:29 → SELECT app.location`; R0 lectura; roles por `0002_rls.sql:41 policy loc_select (staff: sus sedes; owner/accountant: toda la org; socios: todas)`.
   Entrada: ninguna.
-  Auditoría: bus `ajustes.listar_sedes`; hoy **sin auditoría**. Conocimiento: —. Prueba: `null`.
+  Auditoría: bus `ajustes.listar_sedes`; hoy **sin auditoría**. Conocimiento: —. Prueba: `apps/api/test/route-gaps.test.ts`.
   Nota: Necesaria para resolver nombres de sede ('Caguas') a location_id en casi todas las acciones.
 - **`ajustes.ver_marca`** — servicio `apps/api/src/routes/org.ts:20 → SELECT app.brand (máx. 20)`; R0 lectura; roles por `0002_rls.sql:34 policy brand_select (toda la org)`.
   Entrada: ninguna.
-  Auditoría: bus `ajustes.ver_marca`; hoy **sin auditoría**. Conocimiento: —. Prueba: `null`.
+  Auditoría: bus `ajustes.ver_marca`; hoy **sin auditoría**. Conocimiento: —. Prueba: `apps/api/test/route-gaps.test.ts`.
   Nota: Sin pantalla propia: la consume apps/web/src/lib/brandTheme.ts para aplicar el tema. No hay ruta API para editar la marca aunque RLS brand_update (0002_rls.sql:37) lo permitiría al owner.
 - **`ajustes.ver_politicas_sede`** — servicio `apps/api/src/modules/schedule.ts:255 → SELECT app.location_policy`; R0 lectura; roles por `0007_schedule.sql:711 policy location_policy_select`.
   Entrada: ninguna.
-  Auditoría: bus `ajustes.ver_politicas_sede`; hoy **sin auditoría**. Conocimiento: —. Prueba: `null`.
+  Auditoría: bus `ajustes.ver_politicas_sede`; hoy **sin auditoría**. Conocimiento: —. Prueba: `apps/api/test/route-gaps.test.ts`.
   Nota: Solo la consume la pantalla del socio (/me/classes); no hay pantalla de staff que muestre las políticas. Sin prueba HTTP del GET.
 
 </details>
@@ -300,7 +300,7 @@ Riesgo: R0 sin confirmación · R1 confirmación verbal tras repetir los datos �
   Nota: NUEVO: la web no expone crear tipo de clase (apps/web/src/modules/schedule/api.ts:149 solo tiene classTypes GET); por eso el dueño no puede crear clases. NUEVO: sin auditoría — INSERT directo sin app.audit ni trigger (otros catálogos como product sí tienen trigger, 0009_store.sql:728); falta 'class_type.create'. La prueba solo cubre rechazos de validación (schedule.test.ts:93-94), no una creación exitosa. NUEVO: clases.editar_tipo (PATCH /v1/schedule/class-types/:id) — la BD ya lo permite (0007_schedule.sql:696 policy class_type_update + GRANT UPDATE(name, description, duration_min, default_capacity, active) 0007_schedule.sql:739) pero no hay ruta API ni UI. NUEVO: clases.desactivar_tipo (active=false) — mismo caso: columna y política existen, falta ruta/UI; create_class_session ya rechaza tipos inactivos (0007_schedule.sql:339).
 - **`clases.listar_tipos`** — servicio `apps/api/src/modules/schedule.ts:107 → SELECT app.class_type ORDER BY active DESC, name`; R0 lectura; roles por `0007_schedule.sql:693 policy class_type_select (toda la org)`.
   Entrada: ninguna.
-  Auditoría: bus `clases.listar_tipos`; hoy **sin auditoría**. Conocimiento: —. Prueba: `null`.
+  Auditoría: bus `clases.listar_tipos`; hoy **sin auditoría**. Conocimiento: —. Prueba: `apps/api/test/route-gaps.test.ts`.
   Nota: Incluye tipos inactivos (active=false) al final. Ninguna prueba HTTP hace GET de esta ruta.
 
 </details>
@@ -337,7 +337,7 @@ Riesgo: R0 sin confirmación · R1 confirmación verbal tras repetir los datos �
   Nota: Borrado definitivo del contenido (no recuperable) → R3. RLS coach: memoria, check-ins y escalaciones solo para el propio socio/tutor y para trainer/location_manager de la sede (coach_staff_can_see, 0016_coach.sql:140); coach_action solo socio/tutor (0016_coach.sql:506). El OWNER NO tiene acceso (explícito en el comentario 0016_coach.sql:138-139); el copiloto del dueño no puede consultar esto. Lo único que el owner ve de coach: eventos coach.* en audit_log sin contenido (audit_select 0002_rls.sql:114) y la tarea CRM neutra 'Seguimiento con socio <n.º>' que crea coach_escalate (0016_coach.sql:186).
 - **`coach.cerrar_escalacion`** — servicio `apps/api/src/modules/coach.ts:822 bucle acknowledge/close (registrada en apps/api/src/modules/coach.ts:826) → app.coach_escalation_set_status(id,'closed') (0016_coach.sql:307)`; R1 reversible; roles por `0016_coach.sql:314 coach_staff_can_see(e.member_id) (0016_coach.sql:140: trainer\|location_manager de la sede)`.
   Entrada: params IdParams, body EmptyBody.
-  Auditoría: bus `coach.cerrar_escalacion`; hoy `coach.escalation.closed`. Conocimiento: —. Prueba: `null`.
+  Auditoría: bus `coach.cerrar_escalacion`; hoy `coach.escalation.closed`. Conocimiento: —. Prueba: `apps/api/test/route-gaps.test.ts`.
   Nota: Transiciones: open→acknowledged\|closed, acknowledged→closed; no se reabre. Sin prueba HTTP (grep '/close'); SQL cubierto en packages/db/test/coach.test.ts:534. OWNER → 403 forbidden (coach_staff_can_see lo excluye). La tarea CRM vinculada (crm_task_id) NO se toca: coach_escalation_set_status (0016_coach.sql:307-326) no actualiza crm_task, queda abierta aparte. RLS coach: memoria, check-ins y escalaciones solo para el propio socio/tutor y para trainer/location_manager de la sede (coach_staff_can_see, 0016_coach.sql:140); coach_action solo socio/tutor (0016_coach.sql:506). El OWNER NO tiene acceso (explícito en el comentario 0016_coach.sql:138-139); el copiloto del dueño no puede consultar esto. Lo único que el owner ve de coach: eventos coach.* en audit_log sin contenido (audit_select 0002_rls.sql:114) y la tarea CRM neutra 'Seguimiento con socio <n.º>' que crea coach_escalate (0016_coach.sql:186).
 - **`coach.chatear`** — servicio `apps/api/src/modules/coach.ts:686 → guardianPre + runCoachTurn (proveedor IA) + app.coach_chat_event (0016_coach.sql:399) + app.coach_action_propose (0016_coach.sql:330)`; R1 reversible; roles por `apps/api/src/modules/coach.ts:688 role !== 'member' → 403 (tutor también 403, apps/api/test/coach.test.ts:711)`.
   Entrada: body ChatBody.
@@ -366,12 +366,12 @@ Riesgo: R0 sin confirmación · R1 confirmación verbal tras repetir los datos �
 - **`coach.listar_acciones`** — servicio `apps/api/src/modules/coach.ts:627 → actingMember → SELECT app.coach_action LIMIT 50`; R0 lectura; roles por `0016_coach.sql:506 policy coach_action_select (solo health_self_or_guardian; staff nunca)`.
   Entrada: query MemberQuery.
   - `member_id` uuid — tutor: id del menor
-  Auditoría: bus `coach.listar_acciones`; hoy **sin auditoría**. Conocimiento: —. Prueba: `null`.
+  Auditoría: bus `coach.listar_acciones`; hoy **sin auditoría**. Conocimiento: —. Prueba: `apps/api/test/route-gaps.test.ts`.
   Nota: Ninguna pantalla web ni prueba HTTP llama GET /coach/actions (las propuestas llegan en la respuesta de /coach/chat). RLS coach: memoria, check-ins y escalaciones solo para el propio socio/tutor y para trainer/location_manager de la sede (coach_staff_can_see, 0016_coach.sql:140); coach_action solo socio/tutor (0016_coach.sql:506). El OWNER NO tiene acceso (explícito en el comentario 0016_coach.sql:138-139); el copiloto del dueño no puede consultar esto. Lo único que el owner ve de coach: eventos coach.* en audit_log sin contenido (audit_select 0002_rls.sql:114) y la tarea CRM neutra 'Seguimiento con socio <n.º>' que crea coach_escalate (0016_coach.sql:186).
 - **`coach.listar_checkins`** — servicio `apps/api/src/modules/coach.ts:558 → actingMember → SELECT app.daily_checkin LIMIT 28`; R0 lectura; roles por `apps/api/src/modules/coach.ts:321 actingMember; 0016_coach.sql:499 policy daily_checkin_select`.
   Entrada: query MemberQuery.
   - `member_id` uuid — tutor: id del menor
-  Auditoría: bus `coach.listar_checkins`; hoy **sin auditoría**. Conocimiento: —. Prueba: `null`.
+  Auditoría: bus `coach.listar_checkins`; hoy **sin auditoría**. Conocimiento: —. Prueba: `apps/api/test/route-gaps.test.ts`.
   Nota: Ninguna pantalla web llama esta ruta y ninguna prueba HTTP la ejercita (grep). Staff ve la tendencia vía /coach/members/:id/summary. RLS coach: memoria, check-ins y escalaciones solo para el propio socio/tutor y para trainer/location_manager de la sede (coach_staff_can_see, 0016_coach.sql:140); coach_action solo socio/tutor (0016_coach.sql:506). El OWNER NO tiene acceso (explícito en el comentario 0016_coach.sql:138-139); el copiloto del dueño no puede consultar esto. Lo único que el owner ve de coach: eventos coach.* en audit_log sin contenido (audit_select 0002_rls.sql:114) y la tarea CRM neutra 'Seguimiento con socio <n.º>' que crea coach_escalate (0016_coach.sql:186).
 - **`coach.listar_memoria`** — servicio `apps/api/src/modules/coach.ts:490 → actingMember (rol member\|guardian, si no 403) → SELECT app.member_memory`; R0 lectura; roles por `apps/api/src/modules/coach.ts:321 actingMember lanza 403 si rol ≠ member/guardian; 0016_coach.sql:496 policy member_memory_select`.
   Entrada: query MemberQuery.
@@ -681,7 +681,7 @@ Riesgo: R0 sin confirmación · R1 confirmación verbal tras repetir los datos �
 - **`facturas.anular`** — servicio `apps/api/src/modules/billing.ts:468 → app.void_invoice (0006_billing.sql:701)`; R2 sensible; roles por `0006_billing.sql:706 y :710 void_invoice (role IN owner, location_manager + billing_staff_at)`.
   Entrada: params IdParams, body VoidBody.
   - `reason` string (requerido) — trim, 1–300
-  Auditoría: bus `facturas.anular`; hoy `invoice.update (solo trigger invoice_status_audit con void_reason; la función no llama app.audit)`. Conocimiento: socio, reporte. Prueba: `null`.
+  Auditoría: bus `facturas.anular`; hoy `invoice.update (solo trigger invoice_status_audit con void_reason; la función no llama app.audit)`. Conocimiento: socio, reporte. Prueba: `apps/api/test/route-gaps.test.ts`.
   Nota: Irreversible (void es final). Sin pantalla web ni prueba HTTP; solo prueba SQL en packages/db/test/billing.test.ts. Hallazgo: único movimiento de dinero de billing sin evento app.audit propio.
 - **`facturas.correr_ciclo`** — servicio `apps/api/src/modules/billing.ts:475 → app.run_billing_cycle (0006_billing.sql:724)`; R2 sensible; roles por `0006_billing.sql:740 run_billing_cycle (role IN owner, location_manager; sede con can_see_location)`.
   Entrada: body CycleBody.
@@ -817,7 +817,7 @@ Riesgo: R0 sin confirmación · R1 confirmación verbal tras repetir los datos �
   Auditoría: bus `finanzas.listar_gastos`; hoy **sin auditoría**. Conocimiento: —. Prueba: `apps/api/test/finance.test.ts`.
 - **`finanzas.listar_gastos_recurrentes`** — servicio `apps/api/src/modules/finance.ts:411 → SELECT app.recurring_expense LIMIT 500`; R0 lectura; roles por `0013_finance.sql:837 policy recurring_expense_select`.
   Entrada: ninguna.
-  Auditoría: bus `finanzas.listar_gastos_recurrentes`; hoy **sin auditoría**. Conocimiento: —. Prueba: `null`.
+  Auditoría: bus `finanzas.listar_gastos_recurrentes`; hoy **sin auditoría**. Conocimiento: —. Prueba: `apps/api/test/route-gaps.test.ts`.
   Nota: Sin prueba HTTP de GET /finance/recurring.
 - **`finanzas.listar_personal`** — servicio `apps/api/src/modules/finance.ts:477 → SELECT app.staff_member JOIN staff_location`; R0 lectura; roles por `apps/api/src/modules/finance.ts:479 chequeo FINANCE_READER_ROLES; 0002_rls.sql:80 staff_select / :94 staffloc_select`.
   Entrada: query StaffQuery.
@@ -900,7 +900,7 @@ Riesgo: R0 sin confirmación · R1 confirmación verbal tras repetir los datos �
   Auditoría: bus `fotos.borrar_mia`; hoy `member_photo.clear`. Conocimiento: socio. Prueba: `apps/api/test/photo-live.test.ts`.
 - **`fotos.borrar_socio`** — servicio `apps/api/src/modules/photo.ts:112 → app.clear_member_photo (0023_member_photo.sql:106) → DELETE app.member_photo`; R3 irreversible / dinero externo; roles por `0023_member_photo.sql:62 photo_write_target`.
   Entrada: params IdParams.
-  Auditoría: bus `fotos.borrar_socio`; hoy `member_photo.clear`. Conocimiento: socio. Prueba: `null`.
+  Auditoría: bus `fotos.borrar_socio`; hoy `member_photo.clear`. Conocimiento: socio. Prueba: `apps/api/test/route-gaps.test.ts`.
   Nota: Borrado definitivo sin papelera. Solo se prueba DELETE /v1/me/photo, no esta URL.
 - **`fotos.subir_mia`** — servicio `apps/api/src/modules/photo.ts:122 → app.set_member_photo (0023_member_photo.sql:70)`; R2 sensible; roles por `0023_member_photo.sql:54 photo_write_target (rama member: su propia fila)`.
   Entrada: body PhotoBody.
@@ -955,7 +955,7 @@ Riesgo: R0 sin confirmación · R1 confirmación verbal tras repetir los datos �
   Auditoría: bus `inventario.fijar_punto_reorden`; hoy `store.stock.reorder_point`. Conocimiento: producto. Prueba: `apps/api/test/store.test.ts`.
 - **`inventario.listar_transferencias`** — servicio `apps/api/src/modules/store.ts:325 → SELECT app.stock_transfer + stock_transfer_line LIMIT 100`; R0 lectura; roles por `0009_store.sql:775 policy transfer_select`.
   Entrada: ninguna.
-  Auditoría: bus `inventario.listar_transferencias`; hoy **sin auditoría**. Conocimiento: —. Prueba: `null`.
+  Auditoría: bus `inventario.listar_transferencias`; hoy **sin auditoría**. Conocimiento: —. Prueba: `apps/api/test/route-gaps.test.ts`.
   Nota: Sin pantalla web ni prueba HTTP (store.test.ts solo hace POST /store/transfers). No tiene filtros.
 - **`inventario.recibir`** — servicio `apps/api/src/modules/store.ts:267 → app.receive_stock (0009_store.sql:530)`; R1 reversible; roles por `0009_store.sql:535 receive_stock (store_can_manage 0009_store.sql:227)`.
   Entrada: body ReceiveBody.
@@ -1019,7 +1019,7 @@ Riesgo: R0 sin confirmación · R1 confirmación verbal tras repetir los datos �
   Nota: CONSENTIMIENTO: el código SÍ lo aplica — sin consent 'granted' exacto (socio, marca, canal, propósito) se guarda 'blocked' con block_reason no_consent (no da error; devuelve 201 con status). HORARIO: SÍ lo aplica para reminder/marketing — scheduled_for = app.next_allowed_send() dentro de la ventana de message_policy (por defecto 08:00–21:00 hora local de la sede); transactional sale inmediato. Una llamada = un socio, por eso R1; si el copiloto lo repite para >1 socio (campaña) debe tratarse como R2 con confirmación. NUEVO: no hay endpoint de envío masivo/segmento, ni ruta para cancelar un mensaje en cola, ni para configurar la ventana horaria (message_policy solo por SQL), ni worker de entrega en apps/api.
 - **`mensajes.listar_plantillas`** — servicio `apps/api/src/routes/messaging.ts:119 → SELECT app.message_template`; R0 lectura; roles por `packages/db/migrations/0004_messaging_consent.sql:462 policy template_select (cualquier usuario con org)`.
   Entrada: ninguna.
-  Auditoría: bus `mensajes.listar_plantillas`; hoy **sin auditoría**. Conocimiento: —. Prueba: `null`.
+  Auditoría: bus `mensajes.listar_plantillas`; hoy **sin auditoría**. Conocimiento: —. Prueba: `apps/api/test/route-gaps.test.ts`.
   Nota: Catálogo global de plataforma (5 plantillas fijas, es/en); el dueño no puede crear plantillas propias (NUEVO si el pedido lo exige). Sin prueba HTTP.
 - **`mensajes.registrar_consentimiento`** — servicio `apps/api/src/routes/messaging.ts:72 → app.set_consent()`; R2 sensible; roles por `packages/db/migrations/0004_messaging_consent.sql:279 set_consent (can_act_for_member; otorgar solo owner/location_manager/front_desk :293; fuente :256-262)`.
   Entrada: params IdParams, body ConsentBody.
@@ -1082,7 +1082,7 @@ Riesgo: R0 sin confirmación · R1 confirmación verbal tras repetir los datos �
 - **`planes.activar_precio`** — servicio `apps/api/src/modules/billing.ts:263 → UPDATE app.price SET active`; R2 sensible; roles por `0006_billing.sql:923 policy price_update (location_manager solo precios de sus sedes)`.
   Entrada: params IdParams, body PricePatch.
   - `active` boolean (requerido) — único campo editable de un precio
-  Auditoría: bus `planes.activar_precio`; hoy `price.update (trigger billing_audit_trigger, 0006:864)`. Conocimiento: producto. Prueba: `null`.
+  Auditoría: bus `planes.activar_precio`; hoy `price.update (trigger billing_audit_trigger, 0006:864)`. Conocimiento: producto. Prueba: `apps/api/test/route-gaps.test.ts`.
   Nota: Sin prueba HTTP que llame PATCH /v1/billing/prices/:id (la web sí: setPriceActive).
 - **`planes.crear_precio`** — servicio `apps/api/src/modules/billing.ts:242 → INSERT app.price (+ trigger app.price_kind_check)`; R2 sensible; roles por `0006_billing.sql:919 policy price_insert (owner cualquiera; location_manager solo location_id de sus sedes)`.
   Entrada: body PriceBody.
@@ -1109,7 +1109,7 @@ Riesgo: R0 sin confirmación · R1 confirmación verbal tras repetir los datos �
   - `description` string|null — ≤500, regex ^[^{}<>]*$; null la borra
   - `tax_category` enum
   - `active` boolean — false = desactivar (deja de venderse)
-  Auditoría: bus `planes.editar_producto`; hoy `plan_product.update (trigger billing_audit_trigger, 0006:864)`. Conocimiento: producto. Prueba: `null`.
+  Auditoría: bus `planes.editar_producto`; hoy `plan_product.update (trigger billing_audit_trigger, 0006:864)`. Conocimiento: producto. Prueba: `apps/api/test/route-gaps.test.ts`.
   Nota: Body requiere al menos un campo (refine 'empty'). Desactivar o cambiar IVU = R2. Sin prueba HTTP que llame PATCH /v1/billing/products/:id (la web sí lo usa: setProductActive).
 - **`planes.ver_catalogo`** — servicio `apps/api/src/modules/billing.ts:185 → SELECT app.plan_product, app.price (RLS)`; R0 lectura; roles por `0006_billing.sql:902 policy plan_product_select; 0006_billing.sql:913 policy price_select (location_manager/front_desk solo precios de su sede u org-wide)`.
   Entrada: ninguna.
@@ -1232,12 +1232,12 @@ Riesgo: R0 sin confirmación · R1 confirmación verbal tras repetir los datos �
   - `name` string — trim, 1–120, sin caracteres de control (Text(1,120))
   - `contact_email` string|null — email ≤254; null lo borra
   - `active` boolean — false = desactivar
-  Auditoría: bus `proveedores.editar`; hoy `vendor.update (trigger fin_audit_trigger)`. Conocimiento: proveedor. Prueba: `null`.
+  Auditoría: bus `proveedores.editar`; hoy `vendor.update (trigger fin_audit_trigger)`. Conocimiento: proveedor. Prueba: `apps/api/test/route-gaps.test.ts`.
   Nota: R2 por poder desactivar; renombrar o cambiar correo solo sería R1. Sin pantalla web ni prueba HTTP. Inconsistencia: location_manager puede crear proveedores pero no editarlos.
 - **`proveedores.listar`** — servicio `apps/api/src/modules/finance.ts:239 → SELECT app.vendor LIMIT 500`; R0 lectura; roles por `0013_finance.sql:819 policy vendor_select`.
   Entrada: query VendorsQuery.
   - `include_inactive` string — "true"\|"false" → boolean
-  Auditoría: bus `proveedores.listar`; hoy **sin auditoría**. Conocimiento: —. Prueba: `null`.
+  Auditoría: bus `proveedores.listar`; hoy **sin auditoría**. Conocimiento: —. Prueba: `apps/api/test/route-gaps.test.ts`.
   Nota: Sin prueba HTTP de GET /finance/vendors (finance.test.ts solo hace POST).
 
 </details>
@@ -1307,8 +1307,8 @@ Riesgo: R0 sin confirmación · R1 confirmación verbal tras repetir los datos �
   - `event` enum (requerido) — evento; único por organización (UNIQUE org_id,event)
   - `points` integer (requerido) — 1–10000 puntos
   - `active` boolean — activa
-  Auditoría: bus `puntos.crear_regla`; hoy `points_rule.insert`. Conocimiento: sistema. Prueba: `null`.
-  Nota: R2: cambia el valor del programa de puntos (pasivo financiero; revisión 'money modules' H1 lo deja solo al owner). Sin prueba HTTP (packages/db/test/engagement.test.ts cubre la tabla). La web no tiene botón para crear reglas (engagementApi no expone POST /rules); repetir un evento choca con UNIQUE → error genérico.
+  Auditoría: bus `puntos.crear_regla`; hoy `points_rule.insert`. Conocimiento: sistema. Prueba: `apps/api/test/route-gaps.test.ts`.
+  Nota: R2: cambia el valor del programa de puntos (pasivo financiero; revisión 'money modules' H1 lo deja solo al owner). Sin prueba HTTP (packages/db/test/engagement.test.ts cubre la tabla). La web no tiene botón para crear reglas (engagementApi no expone POST /rules); repetir un evento choca con UNIQUE → 409 conflict.
 - **`puntos.editar_recompensa`** — servicio `apps/api/src/modules/engagement.ts:234 → UPDATE app.reward (trigger eng_config_audit)`; R2 sensible; roles por `packages/db/migrations/0012_engagement.sql:854 policy reward_update (role = owner)`.
   Entrada: params IdParams, body RewardPatch.
   - `name` string — trim, 2–80, regex ^[A-Za-zÁÉÍÓÚÑÜáéíóúñü0-9 &'.,()%+-]+$
@@ -1316,7 +1316,7 @@ Riesgo: R0 sin confirmación · R1 confirmación verbal tras repetir los datos �
   - `points_cost` integer — 1–1.000.000
   - `restricted_for_minors` boolean
   - `active` boolean
-  Auditoría: bus `puntos.editar_recompensa`; hoy `reward.update`. Conocimiento: sistema. Prueba: `null`.
+  Auditoría: bus `puntos.editar_recompensa`; hoy `reward.update`. Conocimiento: sistema. Prueba: `apps/api/test/route-gaps.test.ts`.
   Nota: R2 (cambia precio en puntos / desactiva). Sin prueba HTTP. La descripción no puede vaciarse (null = conservar).
 - **`puntos.editar_regla`** — servicio `apps/api/src/modules/engagement.ts:192 → UPDATE app.points_rule (trigger eng_config_audit)`; R2 sensible; roles por `packages/db/migrations/0012_engagement.sql:842 policy points_rule_update (role = owner)`.
   Entrada: params IdParams, body RulePatch.
@@ -1328,11 +1328,11 @@ Riesgo: R0 sin confirmación · R1 confirmación verbal tras repetir los datos �
   Entrada: query RedemptionsQuery.
   - `member_id` uuid — uuid
   - `status` enum — estado
-  Auditoría: bus `puntos.listar_canjes`; hoy **sin auditoría**. Conocimiento: —. Prueba: `null`.
+  Auditoría: bus `puntos.listar_canjes`; hoy **sin auditoría**. Conocimiento: —. Prueba: `apps/api/test/route-gaps.test.ts`.
   Nota: Sin prueba HTTP de GET /engagement/redemptions.
 - **`puntos.listar_recompensas`** — servicio `apps/api/src/modules/engagement.ts:207 → SELECT app.reward`; R0 lectura; roles por `packages/db/migrations/0012_engagement.sql:846 policy reward_select (member/guardian solo activas)`.
   Entrada: ninguna.
-  Auditoría: bus `puntos.listar_recompensas`; hoy **sin auditoría**. Conocimiento: —. Prueba: `null`.
+  Auditoría: bus `puntos.listar_recompensas`; hoy **sin auditoría**. Conocimiento: —. Prueba: `apps/api/test/route-gaps.test.ts`.
   Nota: Sin prueba HTTP que llame GET /engagement/rewards.
 - **`puntos.listar_referidos`** — servicio `apps/api/src/modules/engagement.ts:488 → SELECT app.referral`; R0 lectura; roles por `packages/db/migrations/0012_engagement.sql:865 policy referral_select (eng_can_view)`.
   Entrada: query MemberQuery.
@@ -1348,7 +1348,7 @@ Riesgo: R0 sin confirmación · R1 confirmación verbal tras repetir los datos �
   - `event` enum (requerido) — evento
   - `ref` string — ≤80, regex ^[A-Za-z0-9_.:-]+$; OBLIGATORIO en SQL para class/purchase (ref_required)
   Auditoría: bus `puntos.otorgar_puntos`; hoy `points.award`. Conocimiento: socio. Prueba: `apps/api/test/engagement.test.ts`.
-  Nota: Una visita por día local (already_awarded); ref idempotente. Sin regla activa → 409 no_active_rule. 'ref_required'/'event_not_awardable' no están en REASONS → error genérico. HALLAZGO: la web (MemberPointsTab) envía award('class') sin ref, lo que el SQL rechaza.
+  Nota: Una visita por día local (already_awarded); ref idempotente. Sin regla activa → 409 no_active_rule. 'ref_required'/'event_not_awardable' no están en REASONS → 409 conflict. HALLAZGO: la web (MemberPointsTab) envía award('class') sin ref, lo que el SQL rechaza.
 - **`puntos.ver_movimientos`** — servicio `apps/api/src/modules/engagement.ts:310 → SELECT app.points_ledger`; R0 lectura; roles por `packages/db/migrations/0012_engagement.sql:859 policy points_ledger_select (eng_can_view)`.
   Entrada: query LedgerQuery.
   - `member_id` uuid — uuid de socio
@@ -1572,7 +1572,7 @@ Riesgo: R0 sin confirmación · R1 confirmación verbal tras repetir los datos �
 - **`retos.crear_equipo`** — servicio `apps/api/src/modules/engagement.ts:415 → INSERT app.challenge_team (trigger eng_config_audit)`; R1 reversible; roles por `packages/db/migrations/0012_engagement.sql:892 policy challenge_team_insert (reto kind=team; location_manager solo su sede)`.
   Entrada: params IdParams, body TeamBody.
   - `name` string (requerido) — trim, 2–40, regex ^[A-Za-zÁÉÍÓÚÑÜáéíóúñü0-9 &'.-]+$; único por reto sin distinguir mayúsculas
-  Auditoría: bus `retos.crear_equipo`; hoy `challenge_team.insert`. Conocimiento: sistema. Prueba: `null`.
+  Auditoría: bus `retos.crear_equipo`; hoy `challenge_team.insert`. Conocimiento: sistema. Prueba: `apps/api/test/route-gaps.test.ts`.
   Nota: Sin prueba HTTP. No hay ruta para renombrar/borrar equipos.
 - **`retos.crear_reto`** — servicio `apps/api/src/modules/engagement.ts:383 → INSERT app.challenge (trigger eng_config_audit)`; R1 reversible; roles por `packages/db/migrations/0012_engagement.sql:877 policy challenge_insert (owner; location_manager solo su sede)`.
   Entrada: body ChallengeBody.
@@ -1595,7 +1595,7 @@ Riesgo: R0 sin confirmación · R1 confirmación verbal tras repetir los datos �
   Nota: 409 challenge_closed. No hay ruta para salir/quitar a alguien de un reto. La web solo lo ofrece al socio (/me/challenges).
 - **`retos.listar_equipos`** — servicio `apps/api/src/modules/engagement.ts:404 → SELECT app.challenge_team`; R0 lectura; roles por `packages/db/migrations/0012_engagement.sql:890 policy challenge_team_select (visibilidad del reto)`.
   Entrada: params IdParams.
-  Auditoría: bus `retos.listar_equipos`; hoy **sin auditoría**. Conocimiento: —. Prueba: `null`.
+  Auditoría: bus `retos.listar_equipos`; hoy **sin auditoría**. Conocimiento: —. Prueba: `apps/api/test/route-gaps.test.ts`.
   Nota: Sin prueba HTTP (la BD se prueba en packages/db/test/engagement.test.ts).
 - **`retos.listar_participantes`** — servicio `apps/api/src/modules/engagement.ts:427 → SELECT app.challenge_participant`; R0 lectura; roles por `packages/db/migrations/0012_engagement.sql:863 policy participant_select (eng_can_view)`.
   Entrada: params IdParams.
@@ -1603,7 +1603,7 @@ Riesgo: R0 sin confirmación · R1 confirmación verbal tras repetir los datos �
   Nota: Muestra nombres completos (incluye socios que NO optaron por la tabla). El trainer ve la pantalla pero RLS le devuelve vacío.
 - **`retos.listar_retos`** — servicio `apps/api/src/modules/engagement.ts:376 → SELECT app.challenge`; R0 lectura; roles por `packages/db/migrations/0012_engagement.sql:872 policy challenge_select`.
   Entrada: ninguna.
-  Auditoría: bus `retos.listar_retos`; hoy **sin auditoría**. Conocimiento: —. Prueba: `null`.
+  Auditoría: bus `retos.listar_retos`; hoy **sin auditoría**. Conocimiento: —. Prueba: `apps/api/test/route-gaps.test.ts`.
   Nota: Sin filtro por estado (activos/terminados) y sin prueba HTTP (solo mock en apps/web/test/modules/engagement.test.tsx).
 - **`retos.reemplazar_beneficios`** — servicio `apps/api/src/modules/portal.ts:604 → DELETE + INSERT app.challenge_perk`; R1 reversible; roles por `packages/db/migrations/0021_portal.sql:128 policy challenge_perk_insert / :136 challenge_perk_delete (owner; location_manager solo retos de su sede, nunca org-wide)`.
   Entrada: params IdParams, body PerksBody.
@@ -1668,7 +1668,7 @@ Riesgo: R0 sin confirmación · R1 confirmación verbal tras repetir los datos �
   Entrada: params IdParams, body CircuitPatch.
   - `name` string — FLOOR_SAFE_NAME 2–80
   - `active` boolean — false = desactivar (los socios dejan de verlo)
-  Auditoría: bus `sala.editar_circuito`; hoy **sin auditoría**. Conocimiento: sistema. Prueba: `null`.
+  Auditoría: bus `sala.editar_circuito`; hoy **sin auditoría**. Conocimiento: sistema. Prueba: `apps/api/test/route-gaps.test.ts`.
   Nota: R2 por la regla 'desactivar' (setCircuitActive es el uso de la web); renombrar sería R1. No audita. Sin prueba HTTP de esta URL.
 - **`sala.editar_ejercicio`** — servicio `apps/api/src/modules/floor.ts:325 → UPDATE app.exercise`; R2 sensible; roles por `0011_floor.sql:194 policy exercise_update`.
   Entrada: params IdParams, body ExercisePatch.
@@ -1677,7 +1677,7 @@ Riesgo: R0 sin confirmación · R1 confirmación verbal tras repetir los datos �
   - `equipment_type` enum — barbell\|dumbbell\|kettlebell\|cable\|leg_press\|chest_press\|lat_pulldown\|row_machine\|treadmill\|bike\|rower\|bench\|rack\|smith\|bodyweight_station\|other\|none
   - `cues` string — ≤1000, sin <>{}
   - `active` boolean — false = desactivar
-  Auditoría: bus `sala.editar_ejercicio`; hoy **sin auditoría**. Conocimiento: sistema. Prueba: `null`.
+  Auditoría: bus `sala.editar_ejercicio`; hoy **sin auditoría**. Conocimiento: sistema. Prueba: `apps/api/test/route-gaps.test.ts`.
   Nota: R2 por la regla 'desactivar' (active=false es el uso principal en la web, setExerciseActive); renombrar o editar claves sería R1. Al menos un campo. No audita. Sin prueba HTTP de esta URL.
 - **`sala.iniciar_rutina`** — servicio `apps/api/src/modules/floor.ts:459 → app.start_circuit_run (0011_floor.sql:412)`; R1 reversible; roles por `0011_floor.sql:420 start_circuit_run (app.floor_my_member_id :290 exige role member)`.
   Entrada: params IdParams.
@@ -1694,7 +1694,7 @@ Riesgo: R0 sin confirmación · R1 confirmación verbal tras repetir los datos �
   Nota: Sin filtros en la API (límite 500); el filtrado por patrón/equipo lo tendría que hacer el copiloto.
 - **`sala.listar_rutinas_hechas`** — servicio `apps/api/src/modules/floor.ts:481 → SELECT app.circuit_run JOIN app.circuit`; R0 lectura; roles por `0011_floor.sql:229 policy circuit_run_select`.
   Entrada: ninguna.
-  Auditoría: bus `sala.listar_rutinas_hechas`; hoy **sin auditoría**. Conocimiento: —. Prueba: `null`.
+  Auditoría: bus `sala.listar_rutinas_hechas`; hoy **sin auditoría**. Conocimiento: —. Prueba: `apps/api/test/route-gaps.test.ts`.
   Nota: [VERIFICAR] ui: ningún cliente web llama esta URL y no hay prueba HTTP. Sin filtros (ni sede, ni socio, ni fecha), fijo LIMIT 50; para el copiloto sirve mejor equipos.ver_uso_en_vivo o sala.ver_entrenamiento_socio.
 - **`sala.listar_series`** — servicio `apps/api/src/modules/floor.ts:511 → SELECT app.set_log JOIN app.exercise`; R0 lectura; roles por `0011_floor.sql:237 policy set_log_select`.
   Entrada: query SetQuery.
@@ -1766,7 +1766,7 @@ Riesgo: R0 sin confirmación · R1 confirmación verbal tras repetir los datos �
   Nota: Body ApproveBody (referral_acknowledged boolean, default false; obligatorio true si triaje nutricional ámbar o con derivación). Bloquea con triaje rojo. Guarda nombre y n.º de licencia del aprobador. El OWNER NUNCA aprueba (probado packages/db/test/health.test.ts:613). Aprobación clínica: el copiloto del dueño no debe ofrecerla. La entrada de extracción no listaba parses: la ruta parsea IdParams + ApproveBody (health.ts:352-354).
 - **`salud.archivar_plan`** — servicio `apps/api/src/modules/health.ts:350 transition('archive') (registrada en apps/api/src/modules/health.ts:374) → app.archive_care_plan (0010_health.sql:580)`; R2 sensible; roles por `0010_health.sql:585 health_can_approve(kind) OR app.role() IN ('owner','location_manager')`.
   Entrada: params IdParams, body EmptyBody.
-  Auditoría: bus `salud.archivar_plan`; hoy `care_plan.archived`. Conocimiento: socio. Prueba: `null`.
+  Auditoría: bus `salud.archivar_plan`; hoy `care_plan.archived`. Conocimiento: socio. Prueba: `apps/api/test/route-gaps.test.ts`.
   Nota: El OWNER puede archivar (desactivar → R2). Sin vuelta atrás: archivado no tiene transición de salida (care_plan_guard) — para reponerlo hay que crear nueva versión (que el owner no puede crear). Sin prueba HTTP ni SQL directa de archive_care_plan (grep); solo el auto-archivado al publicar. La entrada de extracción no listaba parses: la ruta parsea IdParams + EmptyBody (health.ts:352-354).
 - **`salud.consultar_mi_perfil_clinico`** — servicio `apps/api/src/modules/health.ts:182 → SELECT app.staff_member WHERE id = app.health_staff_id() (0010_health.sql:96)`; R0 lectura; roles por `apps/api/src/modules/health.ts:182 sin chequeo de rol (solo JWT, apps/api/src/app.ts:54); staff_member RLS deja ver la propia fila`.
   Entrada: ninguna.
@@ -1800,7 +1800,7 @@ Riesgo: R0 sin confirmación · R1 confirmación verbal tras repetir los datos �
   Nota: El OWNER NO puede crear planes (health_can_author lo excluye para los 3 tipos; Ley 82: solo el rol licenciado redacta nutrición, clinician tratamiento). copilot=false para el dueño. Rol no autor → 403 por RLS.
 - **`salud.devolver_plan`** — servicio `apps/api/src/modules/health.ts:350 transition('return') (registrada en apps/api/src/modules/health.ts:371) → app.return_care_plan (0010_health.sql:516)`; R2 sensible; roles por `0010_health.sql:521 health_can_approve(kind) OR health_can_author(kind)`.
   Entrada: params IdParams, body EmptyBody.
-  Auditoría: bus `salud.devolver_plan`; hoy `care_plan.draft`. Conocimiento: socio. Prueba: `null`.
+  Auditoría: bus `salud.devolver_plan`; hoy `care_plan.draft`. Conocimiento: socio. Prueba: `apps/api/test/route-gaps.test.ts`.
   Nota: Sin prueba HTTP (grep); el SQL está cubierto en packages/db/test/health.test.ts:911. Owner excluido. Nota: el evento de auditoría es 'care_plan.draft' (concatenación del estado nuevo). La entrada de extracción no listaba parses: la ruta parsea IdParams + EmptyBody (health.ts:352-354).
 - **`salud.editar_evaluacion`** — servicio `apps/api/src/modules/health.ts:253 → UPDATE app.assessment (solo columnas ASSESSMENT_WRITABLE; trigger assessment_guard 0010_health.sql:302)`; R2 sensible; roles por `0010_health.sql:636 policy assessment_update (status='draft' AND health_staff_can_see)`.
   Entrada: params IdParams, body AssessmentPatch.
@@ -2043,7 +2043,7 @@ Riesgo: R0 sin confirmación · R1 confirmación verbal tras repetir los datos �
   Nota: El accountant ve facturas/pagos pero listas vacías de suscripciones, créditos y pases (no tienen política para accountant).
 - **`suscripciones.ver_politica`** — servicio `apps/api/src/modules/billing.ts:276 → SELECT app.billing_policy`; R0 lectura; roles por `0006_billing.sql:892 policy billing_policy_select`.
   Entrada: ninguna.
-  Auditoría: bus `suscripciones.ver_politica`; hoy **sin auditoría**. Conocimiento: —. Prueba: `null`.
+  Auditoría: bus `suscripciones.ver_politica`; hoy **sin auditoría**. Conocimiento: —. Prueba: `apps/api/test/route-gaps.test.ts`.
   Nota: Ninguna pantalla web la llama y no hay prueba HTTP. NUEVO: no existe ruta para CAMBIAR billing_policy aunque RLS lo permite al owner (0006:895-898); si el dueño pide 'sube la congelación a 60 días' hace falta crearla (R2).
 
 </details>

@@ -12,7 +12,13 @@ const ROOT = join(import.meta.dirname, "..", "..", "..");
 const read = (rel: string) => readFileSync(join(ROOT, rel), "utf8");
 let routes: Array<{ method: string; url: string }> = [];
 const cache = new Map<string, string>();
-const src0 = (rel: string) => cache.get(rel) ?? (cache.set(rel, read(rel)), read(rel));
+function src0(rel: string): string {
+  const hit = cache.get(rel);
+  if (hit !== undefined) return hit;
+  const text = read(rel);
+  cache.set(rel, text);
+  return text;
+}
 
 beforeAll(async () => {
   const seen: Array<{ method: string; url: string }> = [];
