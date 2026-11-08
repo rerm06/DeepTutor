@@ -47,8 +47,8 @@ el 2026-11-08: «No me preguntes nada ni pidas aprobación de nada»).
 | Fase | Estado |
 |---|---|
 | 0 Inventario | hecho (ver `INVENTARIO.md`) |
-| 1 Datos | hecho, compuerta 1–7 PASA; revisor en curso |
-| 2 Cálculos | hecho, compuerta 1–7 PASA; revisor en curso |
+| 1 Datos | **PARADA DURA** — compuerta 1–7 PASA; punto 8 FALLA tras 5 iteraciones; escalado al dueño |
+| 2 Cálculos | **PARADA DURA** — compuerta 1–7 PASA; punto 8 FALLA (A1 y M3 están en el cálculo) |
 | 3 Generación | pendiente |
 | 4 Verificador | pendiente |
 | 3I Agentes, costos y fallos | pendiente |
@@ -128,7 +128,36 @@ el 2026-11-08: «No me preguntes nada ni pidas aprobación de nada»).
   - R2: para la pérdida, el gasto que declara quien llama no se cree por debajo de reposo × factor de actividad
     diaria (1.2/1.3/1.4).
   - Pruebas nuevas (6) verificadas por mutación: cada una falla al quitar su corrección.
-  - Resultado it.5: compuerta 1–7 verde (db 834, api 362, web 179). Revisión: en curso. Si no firma: parada dura.
+  - Resultado it.5: compuerta 1–7 verde (db 834, api 362, web 179).
+- F1–F2 revisión it.5 (5.ª revisión, auditor nuevo): **NO FIRMA** — N1, B1 y R1 (secuencial) cerrados; 1 alto y 3
+  medios nuevos:
+  - **A1 [alto]** el piso (reposo de Mifflin) y el ritmo implícito usan entradas que personal no profesional o el
+    socio pueden cambiar sin levantar ningún bloqueo: estatura más reciente de cualquier procedencia, fecha de
+    nacimiento, sexo y actividad diaria. Con estatura 150 y nacimiento 1950, un plan de 1310 kcal pasa; al extremo,
+    ≈ 880 kcal/día llegan a «enviado». Misma clase que H1/B3: una entrada vigilada por un control y editable por otro.
+  - **M1 [medio]** carrera: un envío y un vínculo de tutor (o una bajada de límite) concurrentes dejan el plan
+    «enviado» y visible; `transition` no bloquea perfil ni ajustes.
+  - **M2 [medio]** `nutrition_sync` calcula las entradas antes de bloquear la fila del perfil: una liberación
+    concurrente puede soltar bloqueos que el profesional nunca vio.
+  - **M3 [medio]** el gasto declarado no tiene tope: un superávit ≈ 2.7 %/semana pasa con límite 0.5 %.
+  - Bajos: historial archivado visible con bloqueo (B1'); el dueño sube el límite de pérdida (nota de diseño).
+
+## PARADA DURA (2026-11-08) — compuerta de las fases 1–2
+Se agotaron las 5 iteraciones del loop sin firma del revisor independiente. Conforme a la especificación del loop:
+- **Estado estable conservado:** producción no tiene el módulo (0030 y 0031 **no** están desplegadas ni fijadas en
+  `applied-migrations.sha256`). En la rama se conserva `b5d4c75` (última compuerta 1–7 verde) en lugar de volver a
+  `3938234`: revertir reabriría N1 (alto) y B1, es decir, un estado estrictamente menos seguro. Desviación declarada.
+- **No se avanza** a la Fase 3 ni se despliega nada de Nutrición hasta la decisión del dueño.
+- **Diagnóstico de causa raíz común:** las cinco revisiones encuentran la misma clase de defecto — una entrada de
+  seguridad que un control vigila y otro camino puede cambiar (campo, módulo, momento o transacción). El trinquete
+  cerró los bloqueos (N1), pero el piso y el ritmo siguen leyendo entradas vivas.
+- **Enfoque C propuesto (requiere nuevo presupuesto de iteraciones):** «entradas de seguridad conservadoras y
+  serializadas» — (1) el piso y el ritmo usan siempre el valor más conservador registrado: estatura máxima, edad más
+  joven que haya constado, factor de actividad mínimo 1.2 y nunca por debajo del mayor histórico; (2) solo el socio
+  o un profesional cambian fecha de nacimiento, sexo para ecuaciones y actividad diaria; (3) tope del gasto
+  (reposo × factor + ejercicio máximo plausible) para la comprobación de ganancia; (4) bloqueo del perfil
+  (`FOR UPDATE`) antes de leer entradas en `nutrition_sync` y en cada transición, y `FOR SHARE` de los ajustes;
+  (5) con bloqueo vigente, el socio no ve ningún plan, ni el historial.
 
 ## Decisiones técnicas de las fases 1–2
 - Ejercicio **neto** de reposo: (MET − 1) × kg × h, porque el reposo ya está en basal × factor; con METs brutos se
