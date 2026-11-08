@@ -1,10 +1,16 @@
 name: ci
+# One run per change: pull requests (which already cover pushes to their branch) and pushes to main.
+# Documentation-only changes do not spend Actions minutes; a newer push cancels the run it replaces.
 on:
   push:
-    branches: ["claude/**", "main"]
+    branches: ["main"]
   pull_request:
+    paths-ignore: ["docs/**", "**/*.md"]
 permissions:
   contents: read
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 jobs:
   gate:
     runs-on: ubuntu-latest
