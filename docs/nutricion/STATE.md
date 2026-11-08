@@ -50,8 +50,8 @@ el 2026-11-08: «No me preguntes nada ni pidas aprobación de nada»).
 | Fase | Estado |
 |---|---|
 | 0 Inventario | hecho (ver `INVENTARIO.md`) |
-| 1 Datos | pendiente |
-| 2 Cálculos | pendiente |
+| 1 Datos | hecho, compuerta 1–7 PASA; revisor en curso |
+| 2 Cálculos | hecho, compuerta 1–7 PASA; revisor en curso |
 | 3 Generación | pendiente |
 | 4 Verificador | pendiente |
 | 3I Agentes, costos y fallos | pendiente |
@@ -65,4 +65,19 @@ el 2026-11-08: «No me preguntes nada ni pidas aprobación de nada»).
 | 5 Interfaz final | pendiente |
 
 ## Bitácora de iteraciones
-(se anota por fase: intento, causa raíz, resultado)
+- F1 it.1: `r := r || 'texto'` en plpgsql se interpretó como literal de arreglo → `malformed array literal`. Causa raíz:
+  ambigüedad de tipos en `text[] || unknown`. Corrección: `array_append`. Resultado: 21/21.
+- F1 it.1: el rol de migración de Netlify no es superusuario y `FORCE RLS` ocultaría a los socios al enlazar perfiles y
+  bloquearía la siembra del catálogo. Corrección: `NO FORCE`/`FORCE` alrededor de esas lecturas/escrituras (mismo patrón
+  que las siembras existentes); verificado aplicando las migraciones como `nf_owner`.
+- F2 it.1: verde a la primera.
+
+## Decisiones técnicas de las fases 1–2
+- Ejercicio **neto** de reposo: (MET − 1) × kg × h, porque el reposo ya está en basal × factor; con METs brutos se
+  contaría dos veces. Valores MET de la edición 2024 del Compendium (Herrmann 2024, permitida por la lista: «o la
+  edición más reciente»), verificados en pacompendium.com el 2026-11-08.
+- Katch-McArdle: el pedido pide ofrecerla con masa magra medida, pero **no está en la lista cerrada de fuentes**; no
+  se usa ni se cita hasta que se agregue su fuente a la lista.
+- 7,700 kcal por kg y el superávit del 10 % para ganar masa son SUPUESTOS (no están en la lista); se usan para el
+  cálculo y nunca se citan como fuente.
+
