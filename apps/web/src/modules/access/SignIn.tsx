@@ -1,6 +1,7 @@
 import { type FormEvent, useEffect, useId, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Icon } from "../../components/icons";
+import { codeFromScan } from "../floor/api";
 import { useModuleT } from "../i18n";
 import { adoptSession } from "../signup/api";
 import { loginStart, loginVerify, tokenFromScan } from "./api";
@@ -171,7 +172,8 @@ export function CodeSignIn({
 type Detector = { detect(src: CanvasImageSource): Promise<{ rawValue: string }[]> };
 
 /** In-app QR scanner for the door codes (BarcodeDetector). Falls back to "use your phone camera". */
-export function DoorScanner({ onClose }: { onClose(): void }) {
+/** Camera QR scanner: a door code opens /door/…, an equipment station label opens /s/<CODE>. */
+export function DoorScanner({ onClose, help }: { onClose(): void; help?: string }) {
   const { t } = useModuleT(dict);
   const navigate = useNavigate();
   const video = useRef<HTMLVideoElement>(null);
@@ -208,6 +210,12 @@ export function DoorScanner({ onClose }: { onClose(): void }) {
         try {
           const codes = await detector.detect(video.current);
           for (const c of codes) {
+            const station = codeFromScan(c.rawValue);
+            if (station) {
+              alive = false;
+              navigate(`/s/${encodeURIComponent(station)}`);
+              return;
+            }
             const tok = tokenFromScan(c.rawValue);
             if (tok) {
               alive = false;
@@ -233,7 +241,7 @@ export function DoorScanner({ onClose }: { onClose(): void }) {
 
   return (
     <div className="acc-scan">
-      <p className="acc-scan__help">{t("scan.help")}</p>
+      <p className="acc-scan__help">{help ?? t("scan.help")}</p>
       {state === "unsupported" || state === "denied" ? (
         <p className="note">{t(state === "denied" ? "scan.denied" : "scan.unsupported")}</p>
       ) : (

@@ -44,10 +44,16 @@ const NewAsset = z
     equipment_type: z.enum(FLOOR_ASSET_TYPES),
     brand: BrandModel.optional(),
     model: BrandModel.optional(),
-    station_code: StationCode,
+    // Left out: the database generates <PREFIX>-<NN> (migration 0029). Given: kept as typed (one unit only).
+    station_code: StationCode.optional(),
+    quantity: z.number().int().min(1).max(50).default(1),
     notes: Note.optional(),
   })
-  .strict();
+  .strict()
+  .refine((b) => b.station_code === undefined || b.quantity === 1, {
+    message: "station_code_needs_quantity_1",
+    path: ["quantity"],
+  });
 const AssetPatch = z
   .object({
     status: z.enum(FLOOR_ASSET_STATUSES).optional(),
@@ -159,24 +165,30 @@ export async function routes(app: FastifyInstance): Promise<void> {
     });
   });
 
+  // Adds one or more units of the same equipment; each gets its own station code (all in one transaction).
   app.post("/floor/assets", async (req, reply) => {
     const b = NewAsset.parse(req.body);
-    const row = await app.asCaller(req, async (tx) => {
-      const { rows } = await tx.query<{ id: string }>(
-        `INSERT INTO app.asset (location_id, equipment_type, brand, model, station_code, notes)
-         VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-        [
-          b.location_id,
-          b.equipment_type,
-          b.brand ?? null,
-          b.model ?? null,
-          b.station_code,
-          b.notes ?? null,
-        ],
-      );
-      return rows[0];
+    const created = await app.asCaller(req, async (tx) => {
+      const out: Array<{ id: string; station_code: string }> = [];
+      for (let i = 0; i < b.quantity; i += 1) {
+        const { rows } = await tx.query<{ id: string; station_code: string }>(
+          `INSERT INTO app.asset (location_id, equipment_type, brand, model, station_code, notes)
+           VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, station_code`,
+          [
+            b.location_id,
+            b.equipment_type,
+            b.brand ?? null,
+            b.model ?? null,
+            b.station_code ?? null,
+            b.notes ?? null,
+          ],
+        );
+        if (rows[0]) out.push(rows[0]);
+      }
+      return out;
     });
-    return reply.code(201).send(row);
+    const first = created[0];
+    return reply.code(201).send({ id: first?.id, station_code: first?.station_code, created });
   });
 
   app.patch("/floor/assets/:id", async (req) => {

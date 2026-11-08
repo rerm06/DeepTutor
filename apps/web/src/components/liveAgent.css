@@ -373,3 +373,10 @@ dialog.la-panel {
   color: inherit;
   inset: auto;
 }
+/* Keep the last control of every page clear of the floating pill: the page can always scroll past it. */
+body:has(.la) .main {
+  padding-bottom: calc(96px + env(safe-area-inset-bottom));
+}
+body:has(.tabbar):has(.la) .shell--member .main {
+  padding-bottom: calc(168px + env(safe-area-inset-bottom));
+}

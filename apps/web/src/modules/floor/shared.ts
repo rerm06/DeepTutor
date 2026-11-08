@@ -17,3 +17,14 @@ export function formatWhen(iso: string, lang: "es" | "en"): string {
     timeZone: "America/Puerto_Rico",
   });
 }
+
+/** Clock time in the gym's zone (Puerto Rico), e.g. "10:42 a. m.". */
+export function formatTime(iso: string, lang: "es" | "en"): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleTimeString(lang === "es" ? "es-PR" : "en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "America/Puerto_Rico",
+  });
+}

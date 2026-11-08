@@ -86,3 +86,15 @@ export function Empty({
     </div>
   );
 }
+
+/** Routine progress: a bar with its value spoken as text. */
+export function Progress({ pct, children }: { pct: number; children: string }) {
+  return (
+    <div className="floor-progress">
+      <progress className="floor-progress__bar" max={100} value={pct} aria-label={children} />
+      <span className="floor-progress__text" aria-hidden="true">
+        {children}
+      </span>
+    </div>
+  );
+}

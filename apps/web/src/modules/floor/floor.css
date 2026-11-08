@@ -602,3 +602,268 @@
     color: #000000;
   }
 }
+
+/* ── Equipment use (0029): station page, routine progress, live board ── */
+.floor-label__cta {
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+.floor-scan-btn {
+  min-height: 56px;
+  width: 100%;
+  justify-content: center;
+  font-size: 1.0625rem;
+  margin-bottom: 12px;
+}
+.floor-use__card {
+  display: grid;
+  justify-items: center;
+  text-align: center;
+  gap: 10px;
+}
+.floor-use__badge {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--live);
+  color: var(--live-ink);
+}
+.floor-use__title {
+  text-wrap: balance;
+}
+.floor-use__title:focus {
+  outline: none; /* focused by script so the result is announced; not a control */
+}
+.floor-use__privacy {
+  max-width: 52ch;
+  font-size: 0.875rem;
+  margin: 0;
+}
+.floor-use__actions {
+  justify-content: center;
+}
+.floor-progress {
+  display: grid;
+  gap: 6px;
+}
+.floor-progress__bar {
+  appearance: none;
+  width: 100%;
+  height: 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  overflow: hidden;
+  color: var(--live);
+}
+.floor-progress__bar::-webkit-progress-bar {
+  background: var(--surface-2);
+  border-radius: 999px;
+}
+.floor-progress__bar::-webkit-progress-value {
+  background: var(--live);
+  border-radius: 999px;
+}
+.floor-progress__bar::-moz-progress-bar {
+  background: var(--live);
+  border-radius: 999px;
+}
+.floor-progress__text {
+  font-size: 0.875rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.floor-steps,
+.floor-list,
+.floor-live__training,
+.floor-live__grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.floor-steps {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+.floor-step {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: var(--surface-2);
+  border: 1px solid transparent;
+}
+.floor-step.is-here {
+  border-color: var(--live-line);
+  background: var(--live-soft);
+}
+.floor-step__n {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.floor-step.is-here .floor-step__n {
+  background: var(--live);
+  border-color: transparent;
+  color: var(--live-ink);
+}
+.floor-step__text,
+.floor-list__main,
+.floor-live__who {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+}
+.floor-training {
+  display: grid;
+  gap: 10px;
+}
+.floor-list {
+  display: grid;
+  gap: 8px;
+}
+.floor-list__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: var(--surface-2);
+}
+.floor-list__side {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.floor-live__stamp {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 0.875rem;
+}
+.floor-live__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--live);
+  box-shadow: 0 0 0 4px var(--live-soft);
+}
+.floor-live__dot.is-paused {
+  background: var(--border-strong);
+  box-shadow: none;
+}
+.floor-live__training {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+}
+.floor-live__person {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 12px;
+  border-radius: 16px;
+  background: var(--surface-2);
+}
+.floor-live__grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 230px), 1fr));
+}
+.floor-live__tile {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  padding: 14px;
+  border-radius: var(--radius-card, 20px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.floor-live__tile.is-busy {
+  border: 2px solid var(--live);
+  background: color-mix(in srgb, var(--live) 6%, var(--surface));
+}
+.floor-live__tile.is-down {
+  border-color: var(--blocked-line);
+  opacity: 0.85;
+}
+.floor-live__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+.floor-live__code {
+  font-size: 1.125rem;
+  font-weight: 800;
+}
+.floor-live__user {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.floor-live__user > span {
+  display: grid;
+  min-width: 0;
+}
+.floor-live__today {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+@media print {
+  .floor-label {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .floor-label img {
+    width: 34mm;
+    height: 34mm;
+  }
+}
+/* Labels always print black on white, whatever the screen theme. */
+@media print {
+  html,
+  body {
+    background: #ffffff !important;
+    color-scheme: light;
+  }
+  .floor-print,
+  .floor-print * {
+    color: #000000 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    print-color-adjust: exact;
+  }
+  .floor-print .floor-label img {
+    background: #ffffff !important;
+  }
+  .floor-print .floor-label {
+    border: 1px dashed #000000 !important;
+  }
+}
+@media print {
+  /* App chrome never prints over the labels (some of it forces itself visible on screen). */
+  body:has(.floor-print) .appnav,
+  body:has(.floor-print) .la,
+  body:has(.floor-print) .tabbar {
+    display: none !important;
+  }
+}

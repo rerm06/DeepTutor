@@ -16,6 +16,7 @@ import {
   STATION_CODE,
   floorApi,
   normalizeCode,
+  stationUrl,
 } from "./api";
 import { useFloorT } from "./dict";
 import { assetTone, formatWhen } from "./shared";
@@ -31,6 +32,8 @@ export function EquipmentScreen() {
   const [locationId, setLocationId] = useState("");
   const [showNew, setShowNew] = useState(false);
   const [showPrint, setShowPrint] = useState(false);
+  // Codes created in this visit: the print list can show only their labels.
+  const [printOnly, setPrintOnly] = useState<string[] | null>(null);
   const [announce, setAnnounce] = useState<string | null>(null);
   const locations = useAsync(() => api.locations(), [api]);
   const assets = useAsync(() => floor.assets(locationId || undefined), [floor, locationId]);
@@ -69,7 +72,10 @@ export function EquipmentScreen() {
             data-tour-id="floor-print-codes"
             aria-expanded={showPrint}
             aria-controls={printId}
-            onClick={() => setShowPrint((v) => !v)}
+            onClick={() => {
+              setPrintOnly(null);
+              setShowPrint((v) => !v);
+            }}
           >
             <Icon name="qr" size={18} />
             {t("equipment.print")}
@@ -101,8 +107,14 @@ export function EquipmentScreen() {
         <div id={newId}>
           <NewAssetForm
             locations={locs}
-            onCreated={(code) => {
-              setAnnounce(t("equipment.created", { code }));
+            onCreated={(codes) => {
+              setAnnounce(
+                codes.length === 1
+                  ? t("equipment.created", { code: codes[0] ?? "" })
+                  : t("equipment.createdMany", { n: codes.length, codes: codes.join(", ") }),
+              );
+              setPrintOnly(codes);
+              setShowPrint(true);
               assets.reload();
             }}
           />
@@ -112,7 +124,11 @@ export function EquipmentScreen() {
       <LiveResult>{announce}</LiveResult>
       {showPrint && assets.data ? (
         <div id={printId}>
-          <PrintList assets={rows} locName={locName} />
+          <PrintList
+            assets={printOnly ? rows.filter((a) => printOnly.includes(a.station_code)) : rows}
+            locName={locName}
+            onShowAll={printOnly ? () => setPrintOnly(null) : undefined}
+          />
         </div>
       ) : null}
 
@@ -271,7 +287,7 @@ function NewAssetForm({
   onCreated,
 }: {
   locations: Location[];
-  onCreated: (code: string) => void;
+  onCreated: (codes: string[]) => void;
 }) {
   const { t, label } = useFloorT();
   const { api } = useSession();
@@ -279,6 +295,7 @@ function NewAssetForm({
   const [locationId, setLocationId] = useState("");
   const [type, setType] = useState<string>(ASSET_TYPES[0]);
   const [code, setCode] = useState("");
+  const [quantity, setQuantity] = useState("1");
   const [brand, setBrand] = useState("");
   const [model, setModel] = useState("");
   const [error, setError] = useState<ErrorCode | null>(null);
@@ -288,31 +305,37 @@ function NewAssetForm({
     type: useId(),
     code: useId(),
     help: useId(),
+    qty: useId(),
+    qtyHelp: useId(),
     brand: useId(),
     model: useId(),
   };
   const loc = locationId || locations[0]?.id || "";
   const normalized = normalizeCode(code);
   const codeOk = code === "" || STATION_CODE.test(normalized);
+  const qty = code === "" ? Number.parseInt(quantity, 10) : 1;
+  const qtyOk = Number.isInteger(qty) && qty >= 1 && qty <= 50;
 
   async function submit(e: FormEvent) {
     e.preventDefault();
-    if (!STATION_CODE.test(normalized) || !loc) {
+    if (!codeOk || !qtyOk || !loc) {
       setError("invalid_input");
       return;
     }
     setBusy(true);
     setError(null);
     try {
-      await floor.createAsset({
+      const r = await floor.createAsset({
         location_id: loc,
         equipment_type: type,
-        station_code: normalized,
+        station_code: code === "" ? undefined : normalized,
+        quantity: qty,
         brand: brand.trim() || undefined,
         model: model.trim() || undefined,
       });
-      onCreated(normalized);
+      onCreated(r.created.map((c) => c.station_code));
       setCode("");
+      setQuantity("1");
     } catch (err) {
       setError(toErrorCode(err));
     } finally {
@@ -345,11 +368,12 @@ function NewAssetForm({
             </select>
           </div>
           <div className="field">
-            <label htmlFor={ids.code}>{t("common.code")}</label>
+            <label htmlFor={ids.code}>
+              {t("common.code")} <span className="muted">{t("common.optional")}</span>
+            </label>
             <input
               id={ids.code}
               value={code}
-              required
               maxLength={24}
               autoComplete="off"
               className="mono"
@@ -358,7 +382,26 @@ function NewAssetForm({
               onChange={(e) => setCode(e.target.value)}
             />
             <p id={ids.help} className="help">
-              {t("equipment.codeHelp")}
+              {t("equipment.codeAuto")}
+            </p>
+          </div>
+          <div className="field">
+            <label htmlFor={ids.qty}>{t("equipment.quantity")}</label>
+            <input
+              id={ids.qty}
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={50}
+              value={code === "" ? quantity : "1"}
+              disabled={code !== ""}
+              aria-describedby={ids.qtyHelp}
+              aria-invalid={!qtyOk}
+              data-tour-id="floor-asset-quantity"
+              onChange={(e) => setQuantity(e.target.value)}
+            />
+            <p id={ids.qtyHelp} className="help">
+              {code === "" ? t("equipment.quantityHelp") : t("equipment.quantityCode")}
             </p>
           </div>
           <div className="field">
@@ -547,15 +590,27 @@ function IssuesQueue({
   );
 }
 
-/** Printable list: station code, type and an SVG QR (encodes only the code; no URL, no tracking). */
-function PrintList({ assets, locName }: { assets: Asset[]; locName: Map<string, string> }) {
+/**
+ * Printable labels: station code, type, location and an SVG QR. The QR holds this site's station URL
+ * (/s/<CODE>), so any phone camera opens the station page and the member's use is logged there. It carries no
+ * member data.
+ */
+function PrintList({
+  assets,
+  locName,
+  onShowAll,
+}: { assets: Asset[]; locName: Map<string, string>; onShowAll?: () => void }) {
   const { t, label } = useFloorT();
   const [qr, setQr] = useState<Record<string, string>>({});
   useEffect(() => {
     let alive = true;
     Promise.all(
       assets.map(async (a) => {
-        const svg = await QRCode.toString(a.station_code, { type: "svg", margin: 1 });
+        const svg = await QRCode.toString(stationUrl(a.station_code), {
+          type: "svg",
+          margin: 1,
+          errorCorrectionLevel: "M",
+        });
         return [
           a.station_code,
           `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`,
@@ -579,6 +634,12 @@ function PrintList({ assets, locName }: { assets: Asset[]; locName: Map<string, 
           {t("equipment.printTitle")}
         </h2>
         <div className="section__actions floor-noprint">
+          <span className="muted">{t("equipment.printCount", { n: assets.length })}</span>
+          {onShowAll ? (
+            <button type="button" className="btn" onClick={onShowAll}>
+              {t("equipment.printAll")}
+            </button>
+          ) : null}
           <button type="button" className="btn btn--primary" onClick={() => window.print()}>
             <Icon d={FLOOR_ICON.printer} size={18} />
             {t("equipment.printNow")}
@@ -591,14 +652,15 @@ function PrintList({ assets, locName }: { assets: Asset[]; locName: Map<string, 
             {qr[a.station_code] ? (
               <img
                 src={qr[a.station_code]}
-                width={96}
-                height={96}
+                width={128}
+                height={128}
                 alt={t("equipment.qrAlt", { code: a.station_code })}
               />
             ) : null}
             <span className="floor-label__code mono">{a.station_code}</span>
             <span>{label("eq", a.equipment_type)}</span>
             <span className="muted">{locName.get(a.location_id) ?? ""}</span>
+            <span className="floor-label__cta">{t("equipment.scanToUse")}</span>
           </li>
         ))}
       </ul>

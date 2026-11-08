@@ -2,7 +2,8 @@
 
 Migration `packages/db/migrations/0011_floor.sql` · seed `packages/db/seed/0011_floor.sql` · API
 `apps/api/src/modules/floor.ts` · UI `apps/web/src/modules/floor/`. No hardware integration: a station code is a
-printed QR label that encodes only the code (no URL).
+printed QR label. Since 0029 the QR holds the station URL (`<site>/s/<CODE>`) so a phone camera opens the station
+page; it carries no member data.
 
 ## Data model
 | Table | Purpose | Key rules |
@@ -69,3 +70,28 @@ by step, log sets, "Máquina ocupada" → substitutes, "Fuera de servicio"), **E
 - Station codes are unique per org, so a duplicate on another location returns 409 (codes are printed labels, not
   secrets).
 - Guardians can read a ward's training log but cannot write it. Confirm with legal for minors.
+
+
+## Equipment use (migration 0029, owner request 2026-11-08)
+
+- **Generated station codes.** `POST /v1/floor/assets` takes an optional `station_code` and a `quantity` (1–50).
+  Without a code the trigger `asset_station_code` assigns `<PREFIX>-<NN>` per org (BAR, MAN, KB, CAB, LP, CP, LAT,
+  ROW, TM, BIC, REM, BAN, RACK, SMI, EST, EQ), serialised per org; a typed code is kept and creates one unit.
+- **Printable labels.** Equipos → "Lista imprimible de códigos" (all, or only the units just created). Each label has
+  the QR with the station URL, the code, the type, the location and "Escanea con la cámara para registrar tu uso".
+  Print CSS forces black on white and hides the app chrome.
+- **Scan → use.** `/s/:code` (public route; visitors sign in and come back). For a member it calls
+  `POST /v1/floor/stations/:code/use` → `app.start_equipment_use`: equipment must be `ok` (409
+  `asset_unavailable`), the previous open use closes, and when the member has an open circuit run at that location
+  the use maps to the first step on that station (or its equipment type) with sets left. Sets logged on the page go
+  through `app.log_set`, which now also keeps the use active. `POST /v1/floor/uses/:id/end` ends it.
+- **Occupancy is an estimate from scans** (spec v0.5 §6.4: "solo se infiere de escaneos recientes"): a use is
+  active while not ended and active in the last 20 minutes. It revises 0011's "no occupancy history": uses are kept
+  as part of the member's own training log with the same visibility as `set_log` (member, guardians, owner /
+  location_manager / trainer of the location; never front desk, accountant, chef or clinical roles).
+- **Live board** `/staff/floor/live` (`GET /v1/floor/live`, coaches only): each station with who is on it now, today's
+  uses / members / minutes / sets, and routines in progress with sets done vs planned. Polls every 10 s while visible.
+- **Progress.** Member: "Escanear equipo" shows "Mi entrenamiento" (`GET /v1/floor/training`); staff member profile
+  tab "Rutinas y uso de equipos" (`GET /v1/floor/training?member_id=`). The portal home keeps its circuit progress.
+- Production seed `0029_equipment_use.sql`: starter exercise library (20 exercises, technique cues only) for
+  Fitness R Us so every equipment type offers at least one exercise. Equipment itself is added by the owner.

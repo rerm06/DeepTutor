@@ -146,6 +146,116 @@ export interface StationCard {
   circuit_steps: Array<{ circuit_id: string; circuit_name: string; position: number }>;
 }
 
+export interface RoutineStep {
+  position: number;
+  exercise_id: string;
+  exercise_name: string;
+  sets: number;
+  reps: number;
+  rest_seconds: number;
+  station_code: string | null;
+  equipment_type: string | null;
+  done: number;
+}
+export interface Routine {
+  run_id: string;
+  circuit_id: string;
+  circuit_name: string;
+  location_id: string;
+  started_at: string;
+  finished_at: string | null;
+  sets_done: number;
+  sets_planned: number;
+  pct: number;
+}
+export interface EquipmentUse {
+  id: string;
+  asset_id: string;
+  station_code: string;
+  equipment_type: string;
+  location_id: string;
+  location_name: string;
+  exercise_id: string | null;
+  exercise_name: string | null;
+  circuit_run_id: string | null;
+  started_at: string;
+  ended_at: string | null;
+}
+export interface UseView {
+  use: EquipmentUse | null;
+  routine: (Routine & { steps: RoutineStep[] }) | null;
+}
+export interface LiveAsset {
+  id: string;
+  station_code: string;
+  equipment_type: string;
+  status: AssetStatus;
+  location_id: string;
+  uses_today: number;
+  members_today: number;
+  minutes_today: number;
+  sets_today: number;
+  in_use: Array<{
+    use_id: string;
+    member_id: string;
+    name: string | null;
+    since: string;
+    last_activity_at: string;
+    exercise_name: string | null;
+    circuit_name: string | null;
+  }>;
+}
+export interface LiveBoard {
+  at: string;
+  totals: {
+    stations: number;
+    in_use: number;
+    members_now: number;
+    uses_today: number;
+    down: number;
+  };
+  assets: LiveAsset[];
+  training: Array<{
+    run_id: string;
+    member_id: string;
+    name: string | null;
+    circuit_name: string;
+    started_at: string;
+    sets_done: number;
+    sets_planned: number;
+    pct: number;
+    station_code: string | null;
+  }>;
+}
+export interface Training {
+  member_id: string;
+  open: (Routine & { steps: RoutineStep[] }) | null;
+  routines: Routine[];
+  uses: Array<{
+    id: string;
+    station_code: string;
+    equipment_type: string;
+    exercise_name: string | null;
+    circuit_name: string | null;
+    started_at: string;
+    ended_at: string | null;
+    active: boolean;
+    minutes: number;
+  }>;
+  by_equipment: Array<{ equipment_type: string; uses: number }>;
+}
+
+/** The URL printed in a station's QR: a phone camera opens it straight on the station page. */
+export const stationUrl = (code: string, origin = globalThis.location?.origin ?? "") =>
+  `${origin}/s/${encodeURIComponent(code)}`;
+/** A station code from a scanned QR (our URL, or a bare code on older labels); null otherwise. */
+export function codeFromScan(raw: string): string | null {
+  const v = raw.trim();
+  const fromUrl = v.match(/\/s\/([A-Za-z0-9-]{3,24})(?:[?#/]|$)/)?.[1];
+  const code = normalizeCode(fromUrl ?? v);
+  return STATION_CODE.test(code) ? code : null;
+}
+
 function qs(params: Record<string, string | undefined>): string {
   const q = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) if (v) q.set(k, v);
@@ -162,11 +272,17 @@ export function floorApi(api: ApiClient) {
     createAsset: (a: {
       location_id: string;
       equipment_type: string;
-      station_code: string;
+      station_code?: string;
+      quantity?: number;
       brand?: string;
       model?: string;
       notes?: string;
-    }) => r<{ id: string }>("POST", "/floor/assets", a),
+    }) =>
+      r<{ id: string; station_code: string; created: Array<{ id: string; station_code: string }> }>(
+        "POST",
+        "/floor/assets",
+        a,
+      ),
     setAssetStatus: (id: string, status: AssetStatus) =>
       r<{ id: string; status: AssetStatus }>("PATCH", `/floor/assets/${enc(id)}`, { status }),
     station: (code: string) => r<StationCard>("GET", `/floor/stations/${enc(code)}`),
@@ -214,6 +330,15 @@ export function floorApi(api: ApiClient) {
       weight_kg: number;
     }) => r<{ id: string }>("POST", "/floor/sets", s),
     mySets: () => r<ListOf<SetLog>>("GET", "/floor/sets?limit=20"),
+    startUse: (code: string, source: "scan" | "code" = "scan") =>
+      r<UseView>("POST", `/floor/stations/${enc(code)}/use`, { source }),
+    endUse: (id: string) =>
+      r<{ id: string; ended_at: string }>("POST", `/floor/uses/${enc(id)}/end`),
+    myUse: () => r<UseView>("GET", "/floor/me/use"),
+    live: (locationId?: string) =>
+      r<LiveBoard>("GET", `/floor/live${qs({ location_id: locationId })}`),
+    training: (memberId?: string) =>
+      r<Training>("GET", `/floor/training${qs({ member_id: memberId })}`),
   };
 }
 export type FloorApi = ReturnType<typeof floorApi>;
