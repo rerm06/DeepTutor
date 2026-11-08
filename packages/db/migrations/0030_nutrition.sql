@@ -171,6 +171,9 @@ CREATE TABLE app.nutrition_plan (
   CHECK (status <> 'enviado' OR sent_at IS NOT NULL),
   CHECK ((licensed_by IS NULL) = (licensed_at IS NULL) AND (licensed_by IS NULL) = (license_no IS NULL)),
   CHECK ((status = 'rechazado') = (rejected_reason IS NOT NULL)),
+  -- Nothing reaches the member without the licensed approval (Ley 82; AGENTS.md rule 4), whatever path writes it.
+  CHECK (status <> 'enviado' OR licensed_by IS NOT NULL),
+  CHECK (sent_at IS NULL OR licensed_by IS NOT NULL),
   CHECK (origin NOT IN ('ia', 'formulario_socio', 'cambio_rutina', 'cambio_evaluacion')
          OR (model IS NOT NULL AND prompt_version IS NOT NULL))
 );
@@ -317,10 +320,13 @@ BEGIN
     UNION ALL
     SELECT m.weight_kg, m.height_cm, m.taken_at FROM app.nutrition_measurement m
      WHERE m.member_id = p_member AND m.source = 'personal' AND m.taken_at > now() - interval '365 days')
-  SELECT (SELECT weight_kg FROM measured WHERE weight_kg IS NOT NULL ORDER BY at DESC LIMIT 1),
-         (SELECT height_cm FROM measured WHERE height_cm IS NOT NULL ORDER BY at DESC LIMIT 1)
-    INTO mw, mh;
-  IF mw IS NOT NULL AND coalesce(mh, h) IS NOT NULL AND mw / ((coalesce(mh, h) / 100) ^ 2) < 18.5 THEN
+  SELECT (SELECT weight_kg FROM measured WHERE weight_kg IS NOT NULL ORDER BY at DESC LIMIT 1) INTO mw;
+  -- The measured weight is divided by the TALLEST height ever recorded for the member (any provenance): that gives
+  -- the lowest, most cautious BMI, so declaring a shorter height can never lift this block.
+  SELECT max(x.height_cm) INTO mh FROM (
+    SELECT a.height_cm FROM app.assessment a WHERE a.member_id = p_member AND a.status = 'signed'
+    UNION ALL SELECT m.height_cm FROM app.nutrition_measurement m WHERE m.member_id = p_member) x;
+  IF mw IS NOT NULL AND mh IS NOT NULL AND mw / ((mh / 100) ^ 2) < 18.5 THEN
     r := array_append(r, 'imc_bajo');
   END IF;
   IF p.goal = 'perder_grasa' AND p.rate_pct_week IS NOT NULL AND p.rate_pct_week >
@@ -330,11 +336,20 @@ BEGIN
   RETURN ARRAY(SELECT DISTINCT unnest(r) ORDER BY 1);
 END $$;
 
--- Recompute the profile status from the blocks (after any profile, measurement or triage change).
+-- Recompute the profile status from the blocks (after a profile change or a measurement). When the member now
+-- needs a professional, the plan they were following is withdrawn (archived) at once: a plan sent before a new
+-- block never stays in front of them.
 CREATE FUNCTION app.nutrition_refresh_status(p_member uuid) RETURNS text
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = app, pg_temp AS $$
 DECLARE v_reasons text[] := app.nutrition_blocks(p_member);
 BEGIN
+  IF v_reasons && ARRAY['menor_de_edad', 'embarazo', 'lactancia', 'diabetes', 'enfermedad_renal',
+       'enfermedad_cardiovascular', 'tca', 'medicamento_apetito_peso', 'triaje_requiere_profesional',
+       'condicion_en_evaluacion', 'imc_bajo', 'ritmo_inseguro'] THEN
+    UPDATE app.nutrition_plan SET status = 'archivado', archived_at = now(),
+      outdated_reason = coalesce(outdated_reason, 'requiere_profesional')
+     WHERE member_id = p_member AND status = 'enviado';
+  END IF;
   UPDATE app.nutrition_profile SET
     status = CASE
       WHEN v_reasons && ARRAY['menor_de_edad', 'embarazo', 'lactancia', 'diabetes', 'enfermedad_renal',
@@ -357,13 +372,26 @@ DECLARE
   v_self boolean := EXISTS (SELECT 1 FROM app.member m WHERE m.id = p_member AND m.org_id = app.org_id()
                              AND m.person_id = app.person_id() AND app.role() = 'member');
   v_loc uuid;
+  v_old app.nutrition_profile;
+  v_new app.nutrition_profile;
 BEGIN
   IF app.org_id() IS NULL OR NOT (v_self OR app.nutrition_can_write(p_member)) THEN
     RAISE EXCEPTION 'forbidden' USING ERRCODE = '42501';
   END IF;
+  INSERT INTO app.nutrition_profile (org_id, member_id) VALUES (app.org_id(), p_member) ON CONFLICT DO NOTHING;
+  SELECT * INTO v_old FROM app.nutrition_profile WHERE member_id = p_member FOR UPDATE;
   IF p ? 'health_answers' AND NOT (v_self OR (app.role() IN ('nutritionist', 'clinician')
                                                AND app.health_staff_can_see(p_member))) THEN
     RAISE EXCEPTION 'forbidden_health_answers' USING ERRCODE = '42501';
+  END IF;
+  -- Removing an allergen or a diet exclusion loosens a hard safety exclusion: only the member themself, or a
+  -- nutritionist / clinician of their location, may do it. Staff may always add.
+  IF NOT (v_self OR (app.role() IN ('nutritionist', 'clinician') AND app.health_staff_can_see(p_member))) AND (
+       (p ? 'allergens' AND EXISTS (SELECT 1 FROM unnest(v_old.allergens) a
+                                     WHERE a NOT IN (SELECT jsonb_array_elements_text(p -> 'allergens'))))
+    OR (p ? 'diet_exclusions' AND EXISTS (SELECT 1 FROM unnest(v_old.diet_exclusions) a
+                                     WHERE a NOT IN (SELECT jsonb_array_elements_text(p -> 'diet_exclusions'))))) THEN
+    RAISE EXCEPTION 'forbidden_exclusion_removal' USING ERRCODE = '42501';
   END IF;
   IF (p ? 'liked_foods' AND EXISTS (SELECT 1 FROM jsonb_array_elements_text(p -> 'liked_foods') x
                                      WHERE NOT EXISTS (SELECT 1 FROM app.food f WHERE f.fdc_id = x::integer)))
@@ -371,7 +399,6 @@ BEGIN
                                      WHERE NOT EXISTS (SELECT 1 FROM app.food f WHERE f.fdc_id = x::integer))) THEN
     RAISE EXCEPTION 'unknown_food' USING ERRCODE = '22023';
   END IF;
-  INSERT INTO app.nutrition_profile (org_id, member_id) VALUES (app.org_id(), p_member) ON CONFLICT DO NOTHING;
   UPDATE app.nutrition_profile SET
     goal = CASE WHEN p ? 'goal' THEN p ->> 'goal' ELSE goal END,
     rate_pct_week = CASE WHEN p ? 'rate_pct_week' THEN (p ->> 'rate_pct_week')::numeric ELSE rate_pct_week END,
@@ -401,10 +428,16 @@ BEGIN
        AND outdated_reason IS NULL;
   END IF;
   SELECT home_location_id INTO v_loc FROM app.member WHERE id = p_member;
-  -- The audit names the fields that changed (never their values) and who changed them.
+  SELECT * INTO v_new FROM app.nutrition_profile WHERE member_id = p_member;
+  -- The audit names the fields that changed and who changed them; for the hard exclusions it also keeps which codes
+  -- were added and removed (so the licensed reviewer can see a loosened exclusion). Health answers: never values.
   PERFORM app.audit('nutrition.profile_save', 'nutrition_profile', p_member::text, v_loc,
     jsonb_build_object('by', CASE WHEN v_self THEN 'socio' ELSE app.role()::text END,
-                       'fields', (SELECT jsonb_agg(k) FROM jsonb_object_keys(p) k)));
+      'fields', (SELECT jsonb_agg(k) FROM jsonb_object_keys(p) k),
+      'allergens_added', to_jsonb(ARRAY(SELECT unnest(v_new.allergens) EXCEPT SELECT unnest(v_old.allergens))),
+      'allergens_removed', to_jsonb(ARRAY(SELECT unnest(v_old.allergens) EXCEPT SELECT unnest(v_new.allergens))),
+      'exclusions_added', to_jsonb(ARRAY(SELECT unnest(v_new.diet_exclusions) EXCEPT SELECT unnest(v_old.diet_exclusions))),
+      'exclusions_removed', to_jsonb(ARRAY(SELECT unnest(v_old.diet_exclusions) EXCEPT SELECT unnest(v_new.diet_exclusions)))));
   RETURN app.nutrition_refresh_status(p_member);
 END $$;
 
@@ -453,8 +486,8 @@ DECLARE
   v_target numeric;
 BEGIN
   SELECT * INTO pl FROM app.nutrition_plan WHERE id = p_plan AND org_id = app.org_id();
-  IF NOT FOUND THEN RAISE EXCEPTION 'forbidden' USING ERRCODE = '42501'; END IF;
-  PERFORM app.nutrition_assert_reader(pl.member_id);
+  -- Staff only: a member never probes drafts that row security hides from them.
+  IF NOT FOUND OR NOT app.health_staff_can_see(pl.member_id) THEN RAISE EXCEPTION 'forbidden' USING ERRCODE = '42501'; END IF;
   SELECT * INTO p FROM app.nutrition_profile WHERE member_id = pl.member_id;
   r := r || app.nutrition_blocks(pl.member_id);
   IF pl.outdated_reason IS NOT NULL THEN r := array_append(r, 'plan_desactualizado'); END IF;
@@ -474,7 +507,7 @@ BEGIN
       IF d.kcal < v_bmr THEN r := array_append(r, 'debajo_del_piso'); END IF;
       SELECT (e ->> 'target_kcal')::numeric INTO v_target
         FROM jsonb_array_elements(coalesce(pl.calc -> 'days', '[]'::jsonb)) e WHERE (e ->> 'day')::int = d.day LIMIT 1;
-      IF v_target IS NULL THEN
+      IF v_target IS NULL OR v_target <= 0 THEN
         r := array_append(r, 'meta_ausente');
       ELSE
         IF v_target < v_bmr THEN r := array_append(r, 'meta_debajo_del_piso'); END IF;
@@ -619,6 +652,12 @@ BEGIN
     END IF;
     IF pl.status <> 'aprobado' THEN RAISE EXCEPTION 'invalid_transition' USING ERRCODE = '55000'; END IF;
     IF pl.licensed_by IS NULL THEN RAISE EXCEPTION 'licensed_approval_required' USING ERRCODE = '55000'; END IF;
+    -- The licence that approved it must still be valid now.
+    IF NOT EXISTS (SELECT 1 FROM app.staff_member st WHERE st.org_id = pl.org_id AND st.person_id = pl.licensed_by
+                     AND st.role = 'nutritionist' AND st.active AND st.license_verified_at IS NOT NULL
+                     AND st.license_no = pl.license_no) THEN
+      RAISE EXCEPTION 'license_no_longer_valid' USING ERRCODE = '55000';
+    END IF;
     IF (SELECT disclaimer_accepted_at FROM app.nutrition_profile WHERE member_id = pl.member_id) IS NULL THEN
       RAISE EXCEPTION 'disclaimer_not_accepted' USING ERRCODE = '55000';
     END IF;
@@ -670,6 +709,27 @@ BEGIN
 END $$;
 CREATE TRIGGER nutrition_plan_guard BEFORE UPDATE ON app.nutrition_plan
   FOR EACH ROW EXECUTE FUNCTION app.nutrition_plan_guard();
+-- Plans and items are never deleted (history of what a member was given).
+CREATE FUNCTION app.nutrition_no_delete() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  RAISE EXCEPTION 'nutrition_history_is_permanent' USING ERRCODE = '42501';
+END $$;
+CREATE TRIGGER nutrition_plan_no_delete BEFORE DELETE ON app.nutrition_plan
+  FOR EACH ROW EXECUTE FUNCTION app.nutrition_no_delete();
+CREATE TRIGGER nutrition_plan_item_no_delete BEFORE DELETE ON app.nutrition_plan_item
+  FOR EACH ROW EXECUTE FUNCTION app.nutrition_no_delete();
+
+-- M3: a newly signed assessment (its triage row) makes the member's open plans outdated.
+CREATE FUNCTION app.nutrition_on_triage() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = app, pg_temp AS $$
+BEGIN
+  UPDATE app.nutrition_plan SET outdated_reason = 'nueva_evaluacion'
+   WHERE member_id = NEW.member_id AND status IN ('borrador', 'en_revision', 'aprobado', 'enviado')
+     AND outdated_reason IS NULL;
+  RETURN NEW;
+END $$;
+CREATE TRIGGER triage_nutrition_outdated AFTER INSERT ON app.triage_result
+  FOR EACH ROW EXECUTE FUNCTION app.nutrition_on_triage();
 
 -- Owner-only settings change (limits stay inside the source ranges enforced by the table CHECKs).
 CREATE FUNCTION app.nutrition_settings_save(p jsonb) RETURNS void
@@ -742,7 +802,8 @@ CREATE POLICY nutrition_measurement_select ON app.nutrition_measurement FOR SELE
 -- Plans: health staff see every version; the member and guardian see only what was sent to them.
 CREATE POLICY nutrition_plan_select ON app.nutrition_plan FOR SELECT TO app_authenticated USING (
   org_id = (SELECT app.org_id()) AND (app.health_staff_can_see(member_id)
-    OR (status IN ('enviado', 'archivado') AND sent_at IS NOT NULL AND app.health_self_or_guardian(member_id))));
+    OR (sent_at IS NOT NULL AND app.health_self_or_guardian(member_id)
+        AND (status = 'archivado' OR (status = 'enviado' AND outdated_reason IS NULL)))));
 CREATE POLICY nutrition_plan_item_select ON app.nutrition_plan_item FOR SELECT TO app_authenticated USING (
   org_id = (SELECT app.org_id()) AND EXISTS (SELECT 1 FROM app.nutrition_plan p WHERE p.id = nutrition_plan_item.plan_id));
 
@@ -773,7 +834,7 @@ BEGIN
     'app.nutrition_plan_check(uuid)',
     'app.nutrition_plan_create(uuid, date, text, jsonb, jsonb, jsonb, jsonb, text, text, jsonb, uuid)',
     'app.nutrition_plan_verify(uuid, jsonb)', 'app.nutrition_plan_transition(uuid, text, text)',
-    'app.nutrition_settings_save(jsonb)', 'app.nutrition_profile_for_new_member()',
+    'app.nutrition_settings_save(jsonb)', 'app.nutrition_profile_for_new_member()', 'app.nutrition_on_triage()',
     'app.nutrition_settings_for_new_org()'] LOOP
     EXECUTE format('ALTER FUNCTION %s OWNER TO app_definer', f);
     EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', f);

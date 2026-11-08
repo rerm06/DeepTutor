@@ -65,7 +65,11 @@ lines = [
     "  kcal, protein_g, carb_g, fat_g, fiber_g, sugar_g, sodium_mg, sat_fat_g) VALUES",
 ]
 rows = []
+# Diet tags follow from allergens too: a food with milk is "lacteo" for a member who excludes dairy, egg is "huevo",
+# fish and shellfish likewise. Without this a vegan could receive bread made with milk or egg.
+ALLERGEN_TAG = {"leche": "lacteo", "huevo": "huevo", "pescado": "pescado", "marisco": "marisco"}
 for fid, (fdc, name_es, group, allergens, tags) in sorted(WANT.items(), key=lambda kv: kv[1][1]):
+    tags = sorted(set(tags) | {ALLERGEN_TAG[a] for a in allergens if a in ALLERGEN_TAG})
     v = vals[fid]
     for need in ("kcal", "protein_g", "carb_g", "fat_g"):
         if need not in v:

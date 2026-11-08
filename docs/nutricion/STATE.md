@@ -83,7 +83,18 @@ el 2026-11-08: «No me preguntes nada ni pidas aprobación de nada»).
     (AMDR); M6 clasificación OMS con el IMC exacto; M7 rangos de la organización dentro de las fuentes; M8 modelo y
     versión obligatorios en planes de IA; B1 archivar solo la misma serie; B2 ritmo 0 sin superávit; B3 comentario
     del factor; B4 semana y alimentos preferidos validados; B6 permiso innecesario retirado. B5 cubierto por A3.
-  - Resultado it.1: compuerta 1–7 verde (db 815, api 362, web 179). Revisión de cierre: en curso.
+  - Resultado it.1: compuerta 1–7 verde (db 815, api 362, web 179).
+- F1–F2 revisión de cierre (it.2): **NO FIRMA** — 20 hallazgos previos cerrados salvo A4 y M3 parciales; 10 nuevos.
+  - N1 (alto) el dueño podía quitar una alergia → quitar alérgenos o exclusiones solo el socio o nutricionista/clínico;
+    la auditoría guarda los códigos añadidos y quitados.
+  - N2 (alto) una estatura declarada levantaba el bloqueo de IMC medido → el peso medido se divide por la estatura
+    MÁS ALTA registrada (primer intento con `greatest(medida, última)` falló la prueba: la última declarada ganaba).
+  - N3 enviar exige la licencia vigente en ese momento; N4 un bloqueo nuevo archiva el plan enviado y la política del
+    socio oculta planes desactualizados; N5 meta 0 → `meta_ausente`; N6 etiquetas de dieta derivadas de alérgenos;
+    N7 CHECK «enviado solo con licencia» y prohibición de borrar historial; N8 `plan_check` solo para personal;
+    N9 aviso `protein_below_min`; N10 misma base (edad hoy y cuerpo más reciente) documentada en calc y SQL;
+    M3 completo: un triaje nuevo marca los planes desactualizados.
+  - Resultado it.2: compuerta 1–7 verde (db 822, api 362, web 179).
 
 ## Decisiones técnicas de las fases 1–2
 - Ejercicio **neto** de reposo: (MET − 1) × kg × h, porque el reposo ya está en basal × factor; con METs brutos se

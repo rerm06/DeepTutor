@@ -201,6 +201,8 @@ export interface DayTarget {
   fat_g: number;
   carb_g: number;
   carb_below_rda: boolean;
+  /** The 35 % energy ceiling left protein under the organisation's minimum g/kg: flagged, never silent. */
+  protein_below_min: boolean;
 }
 
 /** kcal per kg of body-weight change. SUPUESTO (rule of thumb, not in the closed source list; never cited). */
@@ -222,6 +224,9 @@ export const PROTEIN_MAX_SHARE = 0.35;
 export const CARB_RDA_G = 130;
 
 /**
+ * Basis shared with the database floor (app.nutrition_plan_check): age in whole years TODAY and the latest body
+ * values of any provenance. Callers must pass those, or a plan built at the floor can be refused by a few kcal.
+ *
  * Per-day targets: rest × daily-living factor + net exercise of that day, then the goal adjustment, the floor
  * (never below the resting expenditure) and the macro split. Training and rest days differ by construction.
  */
@@ -279,6 +284,7 @@ export function weekTargets(p: Person, sessions: Session[], limits: Limits): Day
       fat_g: fat,
       carb_g: carb,
       carb_below_rda: carb < CARB_RDA_G,
+      protein_below_min: protein < r0(limits.protein_min_g_kg * p.weightKg),
     });
   }
   return out;

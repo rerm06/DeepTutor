@@ -212,6 +212,8 @@ describe("review fixes (2026-11-08)", () => {
     )[0];
     expect((d?.protein_g ?? 0) * 4).toBeLessThanOrEqual((d?.target_kcal ?? 0) * 0.35 + 2);
     expect((d?.protein_g ?? 0) * 4 + (d?.fat_g ?? 0) * 9).toBeLessThanOrEqual(d?.target_kcal ?? 0);
+    // N9: when the ceiling leaves protein under the organisation's minimum g/kg, it is flagged.
+    expect(d?.protein_below_min).toBe(true);
   });
 
   it("B2: a gain rate of 0 adds no surplus", () => {

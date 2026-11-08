@@ -534,6 +534,162 @@ describe("versions and approvals", () => {
   });
 });
 
+describe("second review (N1–N8)", () => {
+  it("N1: the owner cannot remove an allergy or exclusion; the member and a nutritionist can; removals are audited", async () => {
+    const m = t.fx.A.members[0] as string;
+    await resetProfile(m);
+    await expect(
+      run(A(), "owner", (tx) =>
+        tx.query(`SELECT app.nutrition_profile_save($1, '{"allergens":[]}')`, [m]),
+      ),
+    ).rejects.toThrow(/forbidden_exclusion_removal/);
+    await expect(
+      run(A(), "owner", (tx) =>
+        tx.query(`SELECT app.nutrition_profile_save($1, '{"diet_exclusions":[]}')`, [m]),
+      ),
+    ).rejects.toThrow(/forbidden_exclusion_removal/);
+    // Adding is always allowed.
+    await run(A(), "owner", (tx) =>
+      tx.query(`SELECT app.nutrition_profile_save($1, '{"allergens":["mani","soya"]}')`, [m]),
+    );
+    await run(A(), "nutritionist", (tx) =>
+      tx.query(`SELECT app.nutrition_profile_save($1, '{"allergens":["mani"]}')`, [m]),
+    );
+    const audit = await t.admin.query(
+      `SELECT meta FROM app.audit_log WHERE action = 'nutrition.profile_save' AND entity_id = $1 ORDER BY at DESC, id DESC LIMIT 1`,
+      [m],
+    );
+    expect(audit.rows[0].meta).toMatchObject({ by: "nutritionist", allergens_removed: ["soya"] });
+    await resetProfile(m);
+  });
+
+  it("N2: a declared height cannot lift a low BMI from a staff-measured weight", async () => {
+    const m = t.fx.B.members[1] as string;
+    await t.admin.query(
+      `UPDATE app.nutrition_profile SET birth_date = DATE '1990-05-10', sex_for_equations = 'femenino', goal = 'mantener',
+         daily_activity = 'ligero', health_answers = $2::jsonb, disclaimer_accepted_at = now() WHERE member_id = $1`,
+      [m, JSON.stringify(QUESTIONS_NO)],
+    );
+    await run(
+      t.fx.B,
+      "member",
+      (tx) => tx.query("SELECT app.nutrition_measure($1, NULL, 165, NULL, NULL)", [m]),
+      person[m],
+    );
+    await run(t.fx.B, "owner", (tx) =>
+      tx.query("SELECT app.nutrition_measure($1, 47, NULL, NULL, NULL)", [m]),
+    );
+    await run(
+      t.fx.B,
+      "member",
+      (tx) => tx.query("SELECT app.nutrition_measure($1, NULL, 152, NULL, NULL)", [m]),
+      person[m],
+    );
+    const b = await run(
+      t.fx.B,
+      "owner",
+      async (tx) => (await tx.query("SELECT app.nutrition_blocks($1) AS b", [m])).rows[0].b,
+    );
+    expect(b).toContain("imc_bajo");
+  });
+
+  it("N3: sending needs the licence to be valid at that moment", async () => {
+    const m = t.fx.A.members[0] as string;
+    await resetProfile(m);
+    const plan = await create(t.fx.A, "owner", m);
+    await transition(t.fx.A, "owner", plan, "approve");
+    await transition(t.fx.A, "nutritionist", plan, "license");
+    await t.admin.query(
+      "UPDATE app.staff_member SET license_verified_at = NULL WHERE org_id = $1 AND role = 'nutritionist'",
+      [t.fx.A.orgId],
+    );
+    try {
+      await expect(transition(t.fx.A, "owner", plan, "send")).rejects.toThrow(
+        /license_no_longer_valid/,
+      );
+    } finally {
+      await t.admin.query(
+        "UPDATE app.staff_member SET license_verified_at = now() WHERE org_id = $1 AND role = 'nutritionist'",
+        [t.fx.A.orgId],
+      );
+    }
+  });
+
+  it("N4: a new block withdraws the plan the member was following", async () => {
+    const m = t.fx.A.members[0] as string;
+    await resetProfile(m);
+    const plan = await create(t.fx.A, "owner", m);
+    await publish(t.fx.A, plan);
+    await run(
+      A(),
+      "member",
+      (tx) =>
+        tx.query("SELECT app.nutrition_profile_save($1, $2::jsonb)", [
+          m,
+          JSON.stringify({ health_answers: { embarazo: true } }),
+        ]),
+      person[m],
+    );
+    const row = await t.admin.query("SELECT status FROM app.nutrition_plan WHERE id = $1", [plan]);
+    expect(row.rows[0].status).toBe("archivado");
+    const current = await run(
+      A(),
+      "member",
+      async (tx) =>
+        (await tx.query("SELECT id FROM app.nutrition_plan WHERE status = 'enviado'")).rows,
+      person[m],
+    );
+    expect(current).toHaveLength(0);
+    await resetProfile(m);
+  });
+
+  it("N5: a zero target is reported as missing, not as a database error", async () => {
+    const m = t.fx.A.members[0] as string;
+    await resetProfile(m);
+    const w = week();
+    const plan = await create(t.fx.A, "owner", m, {
+      calc: { days: w.calc.days.map((d) => ({ ...d, target_kcal: 0 })) },
+    });
+    const r = await run(
+      t.fx.A,
+      "owner",
+      async (tx) => (await tx.query("SELECT app.nutrition_plan_check($1) AS r", [plan])).rows[0].r,
+    );
+    expect(r).toContain("meta_ausente");
+  });
+
+  it("N7: no path can send without a licence or delete history", async () => {
+    const m = t.fx.A.members[0] as string;
+    await resetProfile(m);
+    const plan = await create(t.fx.A, "owner", m);
+    await transition(t.fx.A, "owner", plan, "approve");
+    await expect(
+      t.admin.query(
+        "UPDATE app.nutrition_plan SET status = 'enviado', sent_at = now() WHERE id = $1",
+        [plan],
+      ),
+    ).rejects.toThrow(/check constraint/);
+    await expect(
+      t.admin.query("DELETE FROM app.nutrition_plan WHERE id = $1", [plan]),
+    ).rejects.toThrow(/permanent/);
+  });
+
+  it("N8: a member cannot probe plans; N6: dairy-free members never get bread with milk", async () => {
+    const m = t.fx.A.members[0] as string;
+    const plan = await create(t.fx.A, "owner", m);
+    await expect(
+      run(
+        A(),
+        "member",
+        (tx) => tx.query("SELECT app.nutrition_plan_check($1)", [plan]),
+        person[m],
+      ),
+    ).rejects.toThrow(/forbidden/);
+    const bread = await t.admin.query("SELECT diet_tags FROM app.food WHERE fdc_id = 174924");
+    expect(bread.rows[0].diet_tags).toContain("lacteo");
+  });
+});
+
 describe("who sees and who writes", () => {
   it("front desk, chef and accountant see no nutrition rows; another org sees only its own", async () => {
     for (const role of ["front_desk", "chef", "accountant"] as Role[]) {
