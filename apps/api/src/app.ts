@@ -22,6 +22,8 @@ export interface AppDeps {
   logger?: boolean;
   /** DEMO MODE: expose /v1/demo/* to mint tokens for the synthetic personas. Never enable with real tenants. */
   demo?: boolean;
+  /** Observer of the route table (copilot action-registry coverage test). Not used in production. */
+  onRoute?: (route: { method: string; url: string }) => void;
 }
 
 declare module "fastify" {
@@ -37,6 +39,12 @@ declare module "fastify" {
 export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   const app = Fastify({ logger: deps.logger ?? false, bodyLimit: 256 * 1024 });
   const key = new TextEncoder().encode(deps.jwtSecret);
+  const observe = deps.onRoute;
+  if (observe) {
+    app.addHook("onRoute", (r) => {
+      for (const m of ([] as string[]).concat(r.method)) observe({ method: m, url: r.url });
+    });
+  }
 
   app.decorateRequest("claims", null as unknown as Claims);
   app.decorate("asCaller", <T>(req: FastifyRequest, fn: Parameters<typeof withClaims<T>>[2]) =>
