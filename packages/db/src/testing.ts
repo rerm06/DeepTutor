@@ -3,13 +3,14 @@
  * organisations (A, B) × two locations × every role. The admin (superuser) connection is used ONLY to
  * create the database and insert fixtures; all assertions run through `withClaims` as app_api.
  */
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { type Claims, ROLES, type Role, STAFF_ROLES } from "@gym/shared";
 import pg from "pg";
-import { type Db, createPool } from "./index.js";
+import { seedModules } from "./fixtures/index.js";
+import { type Db, type Tx, bindClaims, createDb } from "./index.js";
 import { migrate } from "./migrate.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -25,6 +26,7 @@ function withDb(url: string, db: string, user?: string, password?: string): stri
 
 export interface OrgFixture {
   orgId: string;
+  brandId: string;
   locations: [string, string];
   /** person id per role; staff roles are assigned to locations[0] (owner/accountant are org-wide). */
   people: Record<Role, string>;
@@ -46,6 +48,8 @@ export interface TestDb {
   adminUrl: string;
   api: Db;
   admin: pg.Client;
+  /** Hex HMAC key installed in app_private.claims_key for this database. */
+  claimsKeyHex: string;
   fx: Fixture;
   claims(org: OrgFixture, role: Role, personId?: string): Claims;
   drop(): Promise<void>;
@@ -66,14 +70,20 @@ export async function createTestDb(): Promise<TestDb> {
 
   const admin = new pg.Client({ connectionString: adminUrl });
   await admin.connect();
+  const claimsKeyHex = randomBytes(32).toString("hex");
+  await admin.query(
+    "INSERT INTO app_private.claims_key (id, key) VALUES (true, decode($1, 'hex')) ON CONFLICT (id) DO UPDATE SET key = EXCLUDED.key",
+    [claimsKeyHex],
+  );
   const fx = await seed(admin);
-  const api = createPool(apiUrl);
+  const api = createDb(apiUrl, claimsKeyHex);
 
   const claims = (org: OrgFixture, role: Role, personId?: string): Claims => ({
     sub: personId ?? org.people[role],
     org_id: org.orgId,
     app_role: role,
     location_ids: role === "member" || role === "guardian" ? [] : [org.locations[0]],
+    exp: Math.floor(Date.now() / 1000) + 600,
   });
 
   return {
@@ -83,10 +93,11 @@ export async function createTestDb(): Promise<TestDb> {
     adminUrl,
     api,
     admin,
+    claimsKeyHex,
     fx,
     claims,
     async drop() {
-      await api.end();
+      await api.pool.end();
       await admin.end();
       const r = new pg.Client({ connectionString: ADMIN_URL });
       await r.connect();
@@ -125,18 +136,23 @@ async function seedOrg(c: pg.Client, label: string): Promise<OrgFixture> {
     );
   const locations: [string, string] = [await loc(1), await loc(2)];
   const person = (tag: string) =>
-    one(c, "INSERT INTO app.person (email, full_name) VALUES ($1, $2) RETURNING id", [
+    one(c, "INSERT INTO app.person (email) VALUES ($1) RETURNING id", [
       `${tag}.${label.toLowerCase()}@demo.invalid`,
-      `Demo ${tag} ${label}`,
     ]);
+  const member = (personId: string, loc: string, name: string, phone?: string) =>
+    one(
+      c,
+      "INSERT INTO app.member (org_id, person_id, home_location_id, full_name, phone, status) VALUES ($1,$2,$3,$4,$5,'active') RETURNING id",
+      [orgId, personId, loc, name, phone ?? null],
+    );
 
   const people = {} as Record<Role, string>;
   for (const role of ROLES) people[role] = await person(role);
   for (const role of STAFF_ROLES) {
     const sm = await one(
       c,
-      "INSERT INTO app.staff_member (org_id, person_id, role) VALUES ($1,$2,$3) RETURNING id",
-      [orgId, people[role], role],
+      "INSERT INTO app.staff_member (org_id, person_id, role, display_name) VALUES ($1,$2,$3,$4) RETURNING id",
+      [orgId, people[role], role, `Demo ${role} ${label}`],
     );
     if (role !== "owner" && role !== "accountant") {
       await c.query(
@@ -145,48 +161,93 @@ async function seedOrg(c: pg.Client, label: string): Promise<OrgFixture> {
       );
     }
   }
-  const m1 = await one(
-    c,
-    "INSERT INTO app.member (org_id, person_id, home_location_id, status) VALUES ($1,$2,$3,'active') RETURNING id",
-    [orgId, people.member, locations[0]],
-  );
-  const otherPerson = await person("member2");
-  const m2 = await one(
-    c,
-    "INSERT INTO app.member (org_id, person_id, home_location_id, status) VALUES ($1,$2,$3,'active') RETURNING id",
-    [orgId, otherPerson, locations[1]],
-  );
+  const m1 = await member(people.member, locations[0], `Demo member ${label}`, "+1-787-555-0101");
+  const m2 = await member(await person("member2"), locations[1], `Demo member2 ${label}`);
   // The guardian's ward is a minor member at location 1.
-  const ward = await person("ward");
-  const wardMember = await one(
-    c,
-    "INSERT INTO app.member (org_id, person_id, home_location_id, status) VALUES ($1,$2,$3,'active') RETURNING id",
-    [orgId, ward, locations[0]],
-  );
+  const wardMember = await member(await person("ward"), locations[0], `Demo ward ${label}`);
   await c.query(
     "INSERT INTO app.guardian_link (org_id, guardian_person_id, member_id) VALUES ($1,$2,$3)",
     [orgId, people.guardian, wardMember],
   );
-  return { orgId, locations, people, members: [m1, m2] };
+  await c.query(
+    "INSERT INTO app.message_policy (org_id, window_start, window_end) VALUES ($1, '09:00', '20:00')",
+    [orgId],
+  );
+  // Messaging fixtures: m1 consents to SMS reminders; one queued and one blocked message; one inbound at loc 2.
+  await c.query(
+    `INSERT INTO app.consent (org_id, member_id, brand_id, channel, purpose, status, source, evidence, recorded_by, granted_at)
+     VALUES ($1,$2,$3,'sms','reminder','granted','front_desk','Demo fixture',$4, now())`,
+    [orgId, m1, brand, people.front_desk],
+  );
+  for (const [member_id, loc, status, reason] of [
+    [m1, locations[0], "queued", null],
+    [m2, locations[1], "blocked", "no_consent"],
+  ] as const) {
+    await c.query(
+      `INSERT INTO app.outbound_message (org_id, brand_id, location_id, member_id, channel, purpose, template_key, locale,
+         body, status, block_reason, scheduled_for, created_by)
+       VALUES ($1,$2,$3,$4,'sms','reminder','class.reminder','es','Demo',$5,$6, now(), $7)`,
+      [orgId, brand, loc, member_id, status, reason, people.front_desk],
+    );
+  }
+  // History and brand opt-out rows so the isolation matrix covers these tables (E8 re-review N4).
+  await c.query(
+    `INSERT INTO app.consent_event (org_id, consent_id, member_id, brand_id, channel, purpose, status, source, evidence, recorded_by)
+     SELECT org_id, id, member_id, brand_id, channel, purpose, status, source, evidence, recorded_by FROM app.consent WHERE org_id = $1`,
+    [orgId],
+  );
+  const optedOut = await member(await person("optedout"), locations[1], `Demo optedout ${label}`);
+  await c.query(
+    "INSERT INTO app.brand_opt_out (org_id, member_id, brand_id, source, recorded_by) VALUES ($1,$2,$3,'front_desk',$4)",
+    [orgId, optedOut, brand, people.front_desk],
+  );
+  await c.query(
+    "INSERT INTO app.inbound_message (org_id, brand_id, location_id, channel, from_address, body) VALUES ($1,$2,$3,'sms','+17875550000','Demo hola')",
+    [orgId, brand, locations[1]],
+  );
+  // Audit rows so the isolation matrix is not vacuous for audit_log.
+  await c.query(
+    "INSERT INTO app.audit_log (org_id, actor_person_id, actor_role, action, entity, location_id) VALUES ($1,$2,'owner','fixture','fixture',$3)",
+    [orgId, people.owner, locations[0]],
+  );
+  const fixture: OrgFixture = { orgId, brandId: brand, locations, people, members: [m1, m2] };
+  await seedModules(c, fixture, label as "A" | "B");
+  return fixture;
 }
 
 async function seed(c: pg.Client): Promise<Fixture> {
   const A = await seedOrg(c, "A");
   const B = await seedOrg(c, "B");
-  const sharedPersonId = await one(
-    c,
-    "INSERT INTO app.person (email, full_name) VALUES ($1,$2) RETURNING id",
-    ["shared@demo.invalid", "Demo Shared Person"],
-  );
-  const mA = await one(
-    c,
-    "INSERT INTO app.member (org_id, person_id, home_location_id, status) VALUES ($1,$2,$3,'active') RETURNING id",
-    [A.orgId, sharedPersonId, A.locations[0]],
-  );
-  const mB = await one(
-    c,
-    "INSERT INTO app.member (org_id, person_id, home_location_id, status) VALUES ($1,$2,$3,'active') RETURNING id",
-    [B.orgId, sharedPersonId, B.locations[0]],
-  );
+  const sharedPersonId = await one(c, "INSERT INTO app.person (email) VALUES ($1) RETURNING id", [
+    "shared@demo.invalid",
+  ]);
+  const link = (org: OrgFixture) =>
+    one(
+      c,
+      "INSERT INTO app.member (org_id, person_id, home_location_id, full_name, status) VALUES ($1,$2,$3,'Demo Shared','active') RETURNING id",
+      [org.orgId, sharedPersonId, org.locations[0]],
+    );
+  const mA = await link(A);
+  const mB = await link(B);
   return { A, B, sharedPersonId, sharedMemberIds: { A: mA, B: mB } };
+}
+
+/**
+ * Test-only twin of withClaims for denial tests: identical binding, but a transaction that ends aborted
+ * (because the test expected the last statement to be refused) is rolled back instead of raising.
+ */
+export async function asCaller<T>(db: Db, claims: Claims, fn: (tx: Tx) => Promise<T>): Promise<T> {
+  const client = await db.pool.connect();
+  try {
+    await client.query("BEGIN");
+    await bindClaims(client, db, claims);
+    const result = await fn(client);
+    await client.query("COMMIT");
+    return result;
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw err;
+  } finally {
+    client.release();
+  }
 }

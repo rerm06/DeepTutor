@@ -1,10 +1,10 @@
-import { createPool } from "@gym/db";
+import { createDb } from "@gym/db";
 import { buildApp } from "./app.js";
 import { loadConfig } from "./config.js";
 
 const cfg = loadConfig();
 const app = await buildApp({
-  db: createPool(cfg.DATABASE_URL_API),
+  db: createDb(cfg.DATABASE_URL_API, cfg.CLAIMS_HMAC_KEY),
   jwtSecret: cfg.JWT_SECRET,
   jwtIssuer: cfg.JWT_ISSUER,
   jwtAudience: cfg.JWT_AUDIENCE,

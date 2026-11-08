@@ -18,3 +18,19 @@ Consequences
 - `register_member` with an email that already exists links the global Person. This is an existence oracle for
   emails across orgs (a 409 never happens, but linking is observable to the person). Accepted; revisit with the IdP.
 - Fixtures in tests use a superuser connection only for setup; every assertion runs as `app_api`.
+
+## Amendment (cycle 1, after independent security review — 8 findings, all fixed with regression tests)
+- **Signed claims (HIGH-4).** `request.jwt.claims` is accompanied by `request.jwt.claims_sig` = HMAC-SHA256 with a key in
+  `app_private.claims_key`, readable only by `app_definer`. Rewriting claims from SQL yields `{}` → no rows. The API
+  receives the same key as `CLAIMS_HMAC_KEY`; the deploy step installs it with the owner role. Rotation = update both.
+- **Identity-only Person (HIGH-1).** `person` holds `id` and `email`; names and phones live on org-scoped rows
+  (`member.full_name/phone`, `staff_member.display_name`), so no organisation reads or overwrites another's data.
+- **Column-level grants (HIGH-2, HIGH-3).** Writes are limited by policy *and* by column. `saas_plan`,
+  `stripe_account_id`, `license_verified_at`, `person_id`, `org_id` are not writable by request traffic.
+- **Audit through `app.audit()` only (MEDIUM-5).** Actor, role, org and timestamp forced server-side.
+- **Guardian links and staff visibility scoped by location (MEDIUM-6, LOW-8)** via `app.staff_can_see_member()`
+  (definer, avoids member ↔ guardian_link policy recursion).
+- **Tokens:** `exp` and `iat` required, max age 15 min (MEDIUM-7).
+- **Performance:** claim helpers are called as `(SELECT app.x())` so they run once per statement.
+- **Migration policy:** migrations are immutable once applied to any shared environment. Before the first staging
+  deploy (none yet), pre-release migrations may be amended; this amendment used that window.

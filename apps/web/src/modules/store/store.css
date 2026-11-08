@@ -1,0 +1,583 @@
+/* Module store, design system v2 (client dark/gold designs). Tokens only, light + dark; 360 px safe. */
+
+/* ── Page header / shared bits ── */
+.store-head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.store-gold,
+.store-cat > .icon {
+  color: var(--gold-text);
+}
+.store-stat dl,
+.store-stat dd {
+  margin: 0;
+}
+.store-cat {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.store-name {
+  min-width: 11em;
+}
+.store-money {
+  font-weight: 700;
+}
+.store-note {
+  background: var(--surface);
+  color: var(--text-muted);
+  border-color: var(--border);
+}
+.store-note > .icon {
+  color: var(--gold-text);
+}
+.store-block {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+.store-block > .section__title > .icon {
+  color: var(--gold-text);
+}
+.store-disclaimer {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+
+/* ── Two-column counter layout: catalogue left, sticky cart right ── */
+.store-split {
+  display: grid;
+  gap: 16px;
+  align-items: start;
+  min-width: 0;
+}
+.store-split__main {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+@media (min-width: 1200px) {
+  .store-split {
+    grid-template-columns: minmax(0, 1fr) minmax(340px, 400px);
+  }
+  .store-cart {
+    position: sticky;
+    top: calc(var(--banner-h) + var(--topbar-h) + 16px);
+    /* Fits below the page header at rest, so the charge bar is in view without scrolling. */
+    max-height: max(420px, calc(100vh - 300px));
+    overflow-y: auto;
+  }
+  .store-cart .store-charge-bar {
+    bottom: -22px;
+  }
+}
+@media (min-width: 760px) and (max-width: 1023.98px) {
+  .store-split {
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+  }
+  .store-cart {
+    position: sticky;
+    top: calc(var(--topbar-h) + 16px);
+    max-height: max(420px, calc(100vh - 300px));
+    overflow-y: auto;
+  }
+  .store-cart .store-charge-bar {
+    bottom: -22px;
+  }
+}
+
+/* ── POS search ── */
+.store-toolbar {
+  padding: 16px 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+}
+.store-search__box {
+  position: relative;
+  display: block;
+}
+.store-search__box > .icon {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--gold-text);
+  pointer-events: none;
+}
+.store-search__box input {
+  width: 100%;
+  min-height: 52px;
+  padding-left: 46px;
+  font-size: 1.0625rem;
+}
+
+/* ── POS product tiles (.ds-grid) ── */
+.ds-grid.store-tiles {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 150px), 1fr));
+  gap: 12px;
+}
+.store-tiles > li {
+  display: flex;
+  min-width: 0;
+}
+.store-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  width: 100%;
+  min-height: 168px;
+  padding: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 150ms var(--ease-out), background-color 150ms var(--ease-out);
+}
+.store-tile:hover:not(:disabled) {
+  border-color: var(--gold);
+  background: color-mix(in srgb, var(--gold) 6%, var(--surface));
+}
+.store-tile:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.store-tile:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.store-tile__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.store-tile__art {
+  display: inline-grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--gold) 14%, var(--surface));
+  color: var(--gold-text);
+}
+.store-tile__name {
+  font-weight: 700;
+  font-size: 1.0625rem;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+.store-tile__sku {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+.store-tile__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: auto;
+  padding-top: 6px;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
+.store-tile__price {
+  font-size: 1.375rem;
+  font-weight: 700;
+  color: var(--gold-text);
+  font-variant-numeric: tabular-nums;
+}
+.store-tile__out {
+  color: var(--blocked-text);
+  font-weight: 600;
+}
+.store-tile__age {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--warn-text);
+}
+.store-tile__add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 36px;
+  margin-top: 8px;
+  border-radius: 999px;
+  border: 1px solid var(--gold);
+  color: var(--gold-text);
+  font-weight: 700;
+  font-size: 0.9375rem;
+}
+.store-tile:hover:not(:disabled) .store-tile__add {
+  background: var(--gold);
+  color: var(--accent-text);
+}
+
+/* ── Cart card ── */
+.store-cart__form {
+  gap: 14px;
+}
+.store-lines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.store-line {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-areas:
+    "name name name"
+    "qty total remove";
+  align-items: center;
+  gap: 6px 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+.store-line:first-child {
+  padding-top: 0;
+}
+.store-line--simple {
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "name remove";
+}
+.store-line__name {
+  grid-area: name;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  min-width: 0;
+}
+.store-line__name strong {
+  overflow-wrap: anywhere;
+}
+.store-line__age {
+  flex-basis: 100%;
+  font-size: 0.8125rem;
+  color: var(--warn-text);
+}
+.store-qty {
+  grid-area: qty;
+  width: 5.5em;
+  min-height: 44px;
+}
+.store-line__total {
+  grid-area: total;
+  justify-self: end;
+  font-weight: 700;
+  font-size: 1rem;
+}
+.store-line__remove {
+  grid-area: remove;
+  min-height: 44px;
+}
+
+/* IVU breakdown (numbers come from the server) */
+.store-ivu {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+.store-ivu__list {
+  margin: 0;
+  display: grid;
+  gap: 4px;
+}
+.store-ivu__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--text-muted);
+}
+.store-ivu__list dd {
+  margin: 0;
+  color: var(--text);
+}
+.store-ivu__total {
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-strong);
+  color: var(--text);
+  font-weight: 700;
+  font-size: 1.25rem;
+  align-items: baseline;
+}
+.store-ivu__total dd.mono {
+  font-size: 1.375rem;
+  color: var(--gold-text);
+}
+.store-ivu__note {
+  font-size: 0.8125rem;
+}
+.store-receipt .store-ivu {
+  max-width: 440px;
+}
+
+/* Age check + checkboxes */
+.store-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.store-check p {
+  flex-basis: 100%;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+.store-check input[type="checkbox"],
+.store-radio input[type="radio"] {
+  width: 24px;
+  min-width: 24px;
+  height: 24px;
+  min-height: 24px;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--gold);
+}
+.store-check label {
+  flex: 1 1 0;
+  min-width: 0;
+  font-weight: 600;
+}
+.store-check--toggle {
+  align-items: center;
+  min-height: 44px;
+}
+.store-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+}
+
+/* Payment method: big segmented choices */
+.store-fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 140px), 1fr));
+  gap: 8px;
+  min-width: 0;
+}
+.store-fieldset legend {
+  font-weight: 600;
+  padding: 0;
+  margin-bottom: 6px;
+}
+.store-radio {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  font-weight: 600;
+  cursor: pointer;
+}
+.store-radio > .icon {
+  color: var(--gold-text);
+}
+.store-radio:has(input:checked) {
+  border-color: var(--gold);
+  background: color-mix(in srgb, var(--gold) 12%, var(--surface));
+}
+.store-radio:has(input:focus-visible) {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* Big gold charge / order button; its bar stays in view at the bottom of the cart while the cart scrolls */
+.store-charge-bar {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 -22px -22px;
+  padding: 12px 22px 22px;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  border-radius: 0 0 16px 16px;
+}
+.store-charge {
+  width: 100%;
+  min-height: 60px;
+  font-size: 1.25rem;
+  border-radius: 14px;
+}
+
+/* ── Member shop product cards ── */
+.store-shop-loc label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.store-shop-loc label > .icon {
+  color: var(--gold-text);
+}
+.ds-grid.store-products {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 230px), 1fr));
+}
+.store-product {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+}
+.store-product__art {
+  display: grid;
+  place-items: center;
+  height: 112px;
+  background: radial-gradient(
+      circle at 50% 120%,
+      color-mix(in srgb, var(--gold) 30%, transparent) 0%,
+      transparent 70%
+    ), var(--surface-2);
+  color: var(--gold-text);
+}
+.store-product__body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  padding: 16px 18px 18px;
+}
+.store-product__body p {
+  margin: 0;
+}
+.store-product__cat {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
+.store-product__name {
+  font-size: 1.1875rem;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+.store-product__price {
+  font-size: 1.625rem;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--gold-text);
+  font-variant-numeric: tabular-nums;
+}
+.store-product__age {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
+.store-product__age > .icon {
+  flex: none;
+  color: var(--gold-text);
+}
+.store-product__cta {
+  width: 100%;
+  margin-top: auto;
+}
+.store-product .store-disclaimer {
+  font-size: 0.75rem;
+}
+
+/* ── Sales / receipts / inventory forms ── */
+.store-detail > td {
+  background: var(--surface-2);
+}
+.store-detail .store-receipt {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 6px 0;
+}
+.store-receipt {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.store-receipt__facts dd {
+  margin: 0;
+}
+.store-inline {
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+.store-price {
+  width: 7em;
+}
+.store-forms {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 460px), 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+@media print {
+  .topbar,
+  .nav,
+  .demo-banner,
+  .toolbar,
+  .store-tiles,
+  .store-split,
+  .ds-stats,
+  .btn,
+  .ds-cta {
+    display: none !important;
+  }
+}
+
+/* Phones: stats pair up and stay compact so the catalogue / tiles start above the fold. */
+@media (max-width: 599.98px) {
+  .store-page .ds-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .store-page .ds-stat {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    min-height: 0;
+    padding: 12px 14px;
+  }
+  .store-page .ds-stat__label {
+    font-size: 0.875rem;
+  }
+  .store-page .ds-stat__value {
+    font-size: 1.5rem;
+  }
+  .store-product__art {
+    height: 84px;
+  }
+}

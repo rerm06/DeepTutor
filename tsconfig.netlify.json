@@ -1,0 +1,5 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": { "noEmit": true, "types": ["node"] },
+  "include": ["netlify/functions/**/*.mts", "netlify/server.mts", "netlify/server-bundle.d.mts"]
+}
