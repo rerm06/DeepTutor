@@ -5,15 +5,14 @@
 --   * blocks (minor, pregnancy, lactation, diabetes, kidney, cardiovascular, eating disorder current or past, appetite
 --     or weight medication, BMI < 18.5, unsafe loss rate, missing weight or height) are re-checked in SQL whatever the
 --     API computed;
---   * a plan reaches the member only after the owner (or location manager) approves it AND, in organisation mode A
---     (default), a nutritionist with a verified licence approves it. Mode B ("orientación general") must be switched
---     on by the owner with a written legal-opinion attestation;
+--   * a plan reaches the member only after the owner (or location manager) approves it AND a nutritionist with a
+--     verified licence approves it (Ley 82; AGENTS.md rule 4: no plan published without a licensed signature);
 --   * every food value comes from app.food (USDA FoodData Central, migration 0031); item calories and macros are
 --     computed here from grams × per-100 g values, never taken from a model;
 --   * nothing is overwritten: an edit is a new version of the plan series; items are insert-only.
 --
 --   app.food / app.food_portion           global reference catalog (no tenant data), read-only for everyone
---   app.nutrition_settings                per organisation: mode, safety limits, models, AI cost caps
+--   app.nutrition_settings                per organisation: safety limits and models
 --   app.nutrition_profile                 one per member (created for every existing member here)
 --   app.nutrition_measurement             body measurements with provenance (assessment / declared / staff)
 --   app.nutrition_plan / _plan_item       versioned weekly plan and its foods
@@ -55,23 +54,17 @@ CREATE TABLE app.food_portion (
 -- ── Organisation settings (defaults are the decisions in docs/nutricion/STATE.md, all editable by the owner) ──
 CREATE TABLE app.nutrition_settings (
   org_id uuid PRIMARY KEY DEFAULT app.org_id() REFERENCES app.organization (id),
-  mode text NOT NULL DEFAULT 'A' CHECK (mode IN ('A', 'B')),
-  mode_b_attested_by uuid REFERENCES app.person (id),
-  mode_b_attested_at timestamptz,
-  mode_b_attestation text CHECK (length(mode_b_attestation) BETWEEN 20 AND 1000),
   max_loss_pct_week numeric(4, 2) NOT NULL DEFAULT 1.00 CHECK (max_loss_pct_week BETWEEN 0.10 AND 1.00),
   max_gain_pct_week numeric(4, 2) NOT NULL DEFAULT 0.50 CHECK (max_gain_pct_week BETWEEN 0.10 AND 1.00),
-  protein_min_g_kg numeric(3, 1) NOT NULL DEFAULT 1.4 CHECK (protein_min_g_kg BETWEEN 0.8 AND 2.0),
-  protein_max_g_kg numeric(3, 1) NOT NULL DEFAULT 2.0 CHECK (protein_max_g_kg BETWEEN 1.0 AND 2.5),
-  fat_min_pct numeric(4, 1) NOT NULL DEFAULT 20.0 CHECK (fat_min_pct BETWEEN 15 AND 35),
+  protein_min_g_kg numeric(3, 1) NOT NULL DEFAULT 1.4 CHECK (protein_min_g_kg BETWEEN 1.4 AND 2.0),
+  protein_max_g_kg numeric(3, 1) NOT NULL DEFAULT 2.0 CHECK (protein_max_g_kg BETWEEN 1.4 AND 2.0),
+  fat_min_pct numeric(4, 1) NOT NULL DEFAULT 20.0 CHECK (fat_min_pct BETWEEN 20 AND 35),
   day_tolerance_pct numeric(4, 1) NOT NULL DEFAULT 5.0 CHECK (day_tolerance_pct BETWEEN 1 AND 15),
   plan_model text NOT NULL DEFAULT 'gemini-3.8-flash' CHECK (plan_model ~ '^[a-z0-9][a-z0-9.\-]{2,60}$'),
   light_model text NOT NULL DEFAULT 'gemini-3.1-flash-lite' CHECK (light_model ~ '^[a-z0-9][a-z0-9.\-]{2,60}$'),
   fallback_model text CHECK (fallback_model ~ '^[a-z0-9][a-z0-9.\-]{2,60}$'),
   updated_at timestamptz NOT NULL DEFAULT now(),
-  CHECK (protein_min_g_kg <= protein_max_g_kg),
-  CHECK ((mode = 'B') = (mode_b_attested_at IS NOT NULL AND mode_b_attested_by IS NOT NULL
-                         AND mode_b_attestation IS NOT NULL) OR mode = 'A')
+  CHECK (protein_min_g_kg <= protein_max_g_kg)
 );
 
 -- Health questionnaire answers: a closed set of yes/no keys (no free text).
@@ -79,6 +72,8 @@ CREATE FUNCTION app.nutrition_answers_valid(p jsonb) RETURNS boolean LANGUAGE pl
 DECLARE e record;
 BEGIN
   IF p IS NULL OR jsonb_typeof(p) <> 'object' THEN RETURN false; END IF;
+  -- All 8 questions must be answered: an empty or partial questionnaire never counts as "no".
+  IF (SELECT count(*) FROM jsonb_object_keys(p)) <> 8 THEN RETURN false; END IF;
   FOR e IN SELECT * FROM jsonb_each(p) LOOP
     IF e.key NOT IN ('embarazo', 'lactancia', 'diabetes', 'enfermedad_renal', 'enfermedad_cardiovascular',
                      'tca_actual', 'tca_pasado', 'medicamento_apetito_peso') OR jsonb_typeof(e.value) <> 'boolean' THEN
@@ -175,7 +170,9 @@ CREATE TABLE app.nutrition_plan (
   CHECK (status IN ('borrador', 'en_revision', 'rechazado') OR (approved_by IS NOT NULL AND approved_at IS NOT NULL)),
   CHECK (status <> 'enviado' OR sent_at IS NOT NULL),
   CHECK ((licensed_by IS NULL) = (licensed_at IS NULL) AND (licensed_by IS NULL) = (license_no IS NULL)),
-  CHECK ((status = 'rechazado') = (rejected_reason IS NOT NULL))
+  CHECK ((status = 'rechazado') = (rejected_reason IS NOT NULL)),
+  CHECK (origin NOT IN ('ia', 'formulario_socio', 'cambio_rutina', 'cambio_evaluacion')
+         OR (model IS NOT NULL AND prompt_version IS NOT NULL))
 );
 CREATE INDEX nutrition_plan_member_idx ON app.nutrition_plan (org_id, member_id, week_start DESC, version DESC);
 CREATE INDEX nutrition_plan_queue_idx ON app.nutrition_plan (org_id, status, created_at);
@@ -225,28 +222,68 @@ END $$;
 CREATE TRIGGER nutrition_item_frozen BEFORE UPDATE ON app.nutrition_plan_item
   FOR EACH ROW EXECUTE FUNCTION app.nutrition_item_frozen();
 
--- Staff who may read a member's nutrition data: the health rule (owner org-wide; location_manager, trainer,
--- nutritionist, clinician of the member's home location). Writers: owner, location_manager, nutritionist.
+-- Staff who may write a member's nutrition data: owner, location_manager, nutritionist of the member's location
+-- (owner org-wide). Readers follow the health rule (app.health_staff_can_see) plus the member and guardian.
 CREATE FUNCTION app.nutrition_can_write(p_member uuid) RETURNS boolean
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = app, pg_temp AS $$
   SELECT coalesce(app.role() IN ('owner', 'location_manager', 'nutritionist'), false) AND app.health_staff_can_see(p_member)
 $$;
 
--- Hard blocks re-checked in SQL (the API computes the same list with its explanation). Returns the reasons.
-CREATE FUNCTION app.nutrition_blocks(p_member uuid, p_weight numeric, p_height numeric) RETURNS text[]
+-- Every function that returns health data about a member checks this first (no cross-org, no front desk, chef or
+-- accountant). Raises instead of returning nothing so a wrong caller is visible.
+CREATE FUNCTION app.nutrition_assert_reader(p_member uuid) RETURNS void
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = app, pg_temp AS $$
+BEGIN
+  IF app.org_id() IS NULL OR NOT EXISTS (SELECT 1 FROM app.member m WHERE m.id = p_member AND m.org_id = app.org_id())
+     OR NOT (app.health_staff_can_see(p_member) OR app.health_self_or_guardian(p_member)) THEN
+    RAISE EXCEPTION 'forbidden' USING ERRCODE = '42501';
+  END IF;
+END $$;
+
+-- Latest weight, height and body fat with provenance: the newest of the signed assessment and the nutrition
+-- measurements, per field.
+CREATE FUNCTION app.nutrition_latest_body(p_member uuid)
+RETURNS TABLE (weight_kg numeric, weight_source text, weight_at timestamptz, height_cm numeric, height_source text,
+               height_at timestamptz, body_fat_pct numeric, body_fat_method text, body_fat_at timestamptz)
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = app, pg_temp AS $$
+BEGIN
+  PERFORM app.nutrition_assert_reader(p_member);
+  RETURN QUERY
+  WITH src AS (
+    SELECT a.weight_kg, a.height_cm, NULL::numeric AS body_fat_pct, NULL::text AS body_fat_method,
+           'evaluacion'::text AS source, a.signed_at AS at
+      FROM app.assessment a WHERE a.member_id = p_member AND a.status = 'signed'
+    UNION ALL
+    SELECT m.weight_kg, m.height_cm, m.body_fat_pct, m.body_fat_method,
+           CASE m.source WHEN 'personal' THEN 'medido_personal' ELSE 'declarado' END, m.taken_at
+      FROM app.nutrition_measurement m WHERE m.member_id = p_member)
+  SELECT w.weight_kg, w.source, w.at, h.height_cm, h.source, h.at, f.body_fat_pct, f.body_fat_method, f.at
+    FROM (SELECT 1) one
+    LEFT JOIN LATERAL (SELECT * FROM src WHERE src.weight_kg IS NOT NULL ORDER BY src.at DESC LIMIT 1) w ON true
+    LEFT JOIN LATERAL (SELECT * FROM src WHERE src.height_cm IS NOT NULL ORDER BY src.at DESC LIMIT 1) h ON true
+    LEFT JOIN LATERAL (SELECT * FROM src WHERE src.body_fat_pct IS NOT NULL ORDER BY src.at DESC LIMIT 1) f ON true;
+END $$;
+
+-- Hard blocks (the API shows the same list with its explanation). BMI is checked against BOTH the latest value of
+-- any provenance and the latest value measured by staff or a signed assessment in the last 365 days, and the more
+-- conservative one wins: a newer declared weight never lifts a low-BMI block that a measurement raised.
+CREATE FUNCTION app.nutrition_blocks(p_member uuid) RETURNS text[]
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = app, pg_temp AS $$
 DECLARE
   p app.nutrition_profile;
   tr app.triage_result;
   v_conditions text[];
   r text[] := '{}';
-  v_bmi numeric;
+  w numeric; h numeric; mw numeric; mh numeric;
 BEGIN
+  PERFORM app.nutrition_assert_reader(p_member);
   SELECT * INTO p FROM app.nutrition_profile WHERE member_id = p_member;
   IF NOT FOUND THEN RETURN ARRAY['sin_perfil']; END IF;
   IF p.health_answers IS NULL THEN r := array_append(r, 'cuestionario_pendiente'); END IF;
   IF p.disclaimer_accepted_at IS NULL THEN r := array_append(r, 'aviso_pendiente'); END IF;
-  IF p.birth_date IS NULL OR p.sex_for_equations IS NULL OR p.goal IS NULL THEN r := array_append(r, 'datos_insuficientes'); END IF;
+  IF p.birth_date IS NULL OR p.sex_for_equations IS NULL OR p.goal IS NULL OR p.daily_activity IS NULL THEN
+    r := array_append(r, 'datos_insuficientes');
+  END IF;
   IF p.birth_date IS NOT NULL AND age(current_date, p.birth_date) < interval '18 years' THEN r := array_append(r, 'menor_de_edad'); END IF;
   IF EXISTS (SELECT 1 FROM app.guardian_link g WHERE g.member_id = p_member) THEN r := array_append(r, 'menor_de_edad'); END IF;
   IF coalesce((p.health_answers ->> 'embarazo')::boolean, false) THEN r := array_append(r, 'embarazo'); END IF;
@@ -268,11 +305,23 @@ BEGIN
       r := array_append(r, 'condicion_en_evaluacion');
     END IF;
   END IF;
-  IF p_weight IS NULL OR p_height IS NULL THEN
+  SELECT x.weight_kg, x.height_cm INTO w, h FROM app.nutrition_latest_body(p_member) x;
+  IF w IS NULL OR h IS NULL THEN
     r := array_append(r, 'falta_peso_o_estatura');
-  ELSE
-    v_bmi := p_weight / ((p_height / 100) ^ 2);
-    IF v_bmi < 18.5 THEN r := array_append(r, 'imc_bajo'); END IF;
+  ELSIF w / ((h / 100) ^ 2) < 18.5 THEN
+    r := array_append(r, 'imc_bajo');
+  END IF;
+  WITH measured AS (
+    SELECT a.weight_kg, a.height_cm, a.signed_at AS at FROM app.assessment a
+     WHERE a.member_id = p_member AND a.status = 'signed' AND a.signed_at > now() - interval '365 days'
+    UNION ALL
+    SELECT m.weight_kg, m.height_cm, m.taken_at FROM app.nutrition_measurement m
+     WHERE m.member_id = p_member AND m.source = 'personal' AND m.taken_at > now() - interval '365 days')
+  SELECT (SELECT weight_kg FROM measured WHERE weight_kg IS NOT NULL ORDER BY at DESC LIMIT 1),
+         (SELECT height_cm FROM measured WHERE height_cm IS NOT NULL ORDER BY at DESC LIMIT 1)
+    INTO mw, mh;
+  IF mw IS NOT NULL AND coalesce(mh, h) IS NOT NULL AND mw / ((coalesce(mh, h) / 100) ^ 2) < 18.5 THEN
+    r := array_append(r, 'imc_bajo');
   END IF;
   IF p.goal = 'perder_grasa' AND p.rate_pct_week IS NOT NULL AND p.rate_pct_week >
        (SELECT coalesce(max(s.max_loss_pct_week), 1.00) FROM app.nutrition_settings s WHERE s.org_id = p.org_id) THEN
@@ -281,18 +330,46 @@ BEGIN
   RETURN ARRAY(SELECT DISTINCT unnest(r) ORDER BY 1);
 END $$;
 
+-- Recompute the profile status from the blocks (after any profile, measurement or triage change).
+CREATE FUNCTION app.nutrition_refresh_status(p_member uuid) RETURNS text
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = app, pg_temp AS $$
+DECLARE v_reasons text[] := app.nutrition_blocks(p_member);
+BEGIN
+  UPDATE app.nutrition_profile SET
+    status = CASE
+      WHEN v_reasons && ARRAY['menor_de_edad', 'embarazo', 'lactancia', 'diabetes', 'enfermedad_renal',
+           'enfermedad_cardiovascular', 'tca', 'medicamento_apetito_peso', 'triaje_requiere_profesional',
+           'condicion_en_evaluacion', 'imc_bajo', 'ritmo_inseguro'] THEN 'requiere_profesional'
+      WHEN cardinality(v_reasons) = 0 THEN 'apto'
+      ELSE 'incompleto' END,
+    status_reasons = v_reasons
+  WHERE member_id = p_member;
+  RETURN (SELECT status FROM app.nutrition_profile WHERE member_id = p_member);
+END $$;
+
 -- ── Writes (definer functions; request traffic has no direct write grants) ─────────────────────────────────────
--- Save the profile (staff writer, or the member for themself). Recomputes status from the blocks.
+-- Save the profile (staff writer, or the member for themself). Health answers: only the member themself, or a
+-- nutritionist / clinician of their location, may set them, and they merge into the existing answers (the CHECK
+-- requires all 8). Any change that affects targets or exclusions marks the open plans outdated.
 CREATE FUNCTION app.nutrition_profile_save(p_member uuid, p jsonb) RETURNS text
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = app, pg_temp AS $$
 DECLARE
   v_self boolean := EXISTS (SELECT 1 FROM app.member m WHERE m.id = p_member AND m.org_id = app.org_id()
                              AND m.person_id = app.person_id() AND app.role() = 'member');
-  v_reasons text[];
-  w numeric; h numeric;
+  v_loc uuid;
 BEGIN
   IF app.org_id() IS NULL OR NOT (v_self OR app.nutrition_can_write(p_member)) THEN
     RAISE EXCEPTION 'forbidden' USING ERRCODE = '42501';
+  END IF;
+  IF p ? 'health_answers' AND NOT (v_self OR (app.role() IN ('nutritionist', 'clinician')
+                                               AND app.health_staff_can_see(p_member))) THEN
+    RAISE EXCEPTION 'forbidden_health_answers' USING ERRCODE = '42501';
+  END IF;
+  IF (p ? 'liked_foods' AND EXISTS (SELECT 1 FROM jsonb_array_elements_text(p -> 'liked_foods') x
+                                     WHERE NOT EXISTS (SELECT 1 FROM app.food f WHERE f.fdc_id = x::integer)))
+     OR (p ? 'disliked_foods' AND EXISTS (SELECT 1 FROM jsonb_array_elements_text(p -> 'disliked_foods') x
+                                     WHERE NOT EXISTS (SELECT 1 FROM app.food f WHERE f.fdc_id = x::integer))) THEN
+    RAISE EXCEPTION 'unknown_food' USING ERRCODE = '22023';
   END IF;
   INSERT INTO app.nutrition_profile (org_id, member_id) VALUES (app.org_id(), p_member) ON CONFLICT DO NOTHING;
   UPDATE app.nutrition_profile SET
@@ -309,51 +386,27 @@ BEGIN
       THEN ARRAY(SELECT jsonb_array_elements_text(p -> 'liked_foods')::integer) ELSE liked_foods END,
     disliked_foods = CASE WHEN p ? 'disliked_foods'
       THEN ARRAY(SELECT jsonb_array_elements_text(p -> 'disliked_foods')::integer) ELSE disliked_foods END,
-    health_answers = CASE WHEN p ? 'health_answers' THEN p -> 'health_answers' ELSE health_answers END,
+    health_answers = CASE WHEN p ? 'health_answers'
+      THEN coalesce(health_answers, '{}'::jsonb) || (p -> 'health_answers') ELSE health_answers END,
     health_answered_at = CASE WHEN p ? 'health_answers' THEN now() ELSE health_answered_at END,
     disclaimer_accepted_at = CASE WHEN coalesce((p ->> 'accept_disclaimer')::boolean, false) AND v_self
       THEN coalesce(disclaimer_accepted_at, now()) ELSE disclaimer_accepted_at END,
     updated_at = now(),
     updated_by = app.person_id()
   WHERE member_id = p_member;
-  SELECT x.weight_kg, x.height_cm INTO w, h FROM app.nutrition_latest_body(p_member) x;
-  v_reasons := app.nutrition_blocks(p_member, w, h);
-  UPDATE app.nutrition_profile SET
-    status = CASE
-      WHEN v_reasons && ARRAY['menor_de_edad', 'embarazo', 'lactancia', 'diabetes', 'enfermedad_renal',
-           'enfermedad_cardiovascular', 'tca', 'medicamento_apetito_peso', 'triaje_requiere_profesional',
-           'condicion_en_evaluacion', 'imc_bajo', 'ritmo_inseguro'] THEN 'requiere_profesional'
-      WHEN cardinality(v_reasons) = 0 THEN 'apto'
-      ELSE 'incompleto' END,
-    status_reasons = v_reasons
-  WHERE member_id = p_member;
-  PERFORM app.audit('nutrition.profile_save', 'nutrition_profile', p_member::text,
-    (SELECT home_location_id FROM app.member WHERE id = p_member),
-    jsonb_build_object('by', CASE WHEN v_self THEN 'socio' ELSE app.role()::text END, 'fields',
-      (SELECT jsonb_agg(k) FROM jsonb_object_keys(p) k WHERE k <> 'health_answers')));
-  RETURN (SELECT status FROM app.nutrition_profile WHERE member_id = p_member);
+  IF p ?| ARRAY['goal', 'rate_pct_week', 'birth_date', 'sex_for_equations', 'daily_activity', 'allergens',
+                'diet_exclusions', 'health_answers'] THEN
+    UPDATE app.nutrition_plan SET outdated_reason = 'perfil_cambio'
+     WHERE member_id = p_member AND status IN ('borrador', 'en_revision', 'aprobado', 'enviado')
+       AND outdated_reason IS NULL;
+  END IF;
+  SELECT home_location_id INTO v_loc FROM app.member WHERE id = p_member;
+  -- The audit names the fields that changed (never their values) and who changed them.
+  PERFORM app.audit('nutrition.profile_save', 'nutrition_profile', p_member::text, v_loc,
+    jsonb_build_object('by', CASE WHEN v_self THEN 'socio' ELSE app.role()::text END,
+                       'fields', (SELECT jsonb_agg(k) FROM jsonb_object_keys(p) k)));
+  RETURN app.nutrition_refresh_status(p_member);
 END $$;
-
--- Latest weight, height and body fat with provenance: the newest of the signed assessment and the nutrition
--- measurements, per field.
-CREATE FUNCTION app.nutrition_latest_body(p_member uuid)
-RETURNS TABLE (weight_kg numeric, weight_source text, weight_at timestamptz, height_cm numeric, height_source text,
-               height_at timestamptz, body_fat_pct numeric, body_fat_method text, body_fat_at timestamptz)
-LANGUAGE sql STABLE SECURITY DEFINER SET search_path = app, pg_temp AS $$
-  WITH src AS (
-    SELECT a.weight_kg, a.height_cm, NULL::numeric AS body_fat_pct, NULL::text AS body_fat_method,
-           'evaluacion'::text AS source, a.signed_at AS at
-      FROM app.assessment a WHERE a.member_id = p_member AND a.status = 'signed'
-    UNION ALL
-    SELECT m.weight_kg, m.height_cm, m.body_fat_pct, m.body_fat_method,
-           CASE m.source WHEN 'personal' THEN 'medido_personal' ELSE 'declarado' END, m.taken_at
-      FROM app.nutrition_measurement m WHERE m.member_id = p_member)
-  SELECT w.weight_kg, w.source, w.at, h.height_cm, h.source, h.at, f.body_fat_pct, f.body_fat_method, f.at
-    FROM (SELECT 1) one
-    LEFT JOIN LATERAL (SELECT * FROM src WHERE src.weight_kg IS NOT NULL ORDER BY at DESC LIMIT 1) w ON true
-    LEFT JOIN LATERAL (SELECT * FROM src WHERE src.height_cm IS NOT NULL ORDER BY at DESC LIMIT 1) h ON true
-    LEFT JOIN LATERAL (SELECT * FROM src WHERE src.body_fat_pct IS NOT NULL ORDER BY at DESC LIMIT 1) f ON true
-$$;
 
 CREATE FUNCTION app.nutrition_measure(p_member uuid, p_weight numeric, p_height numeric, p_fat numeric,
                                       p_fat_method text) RETURNS uuid
@@ -372,18 +425,70 @@ BEGIN
   VALUES (app.org_id(), p_member, CASE WHEN v_self THEN 'declarado' ELSE 'personal' END, p_weight, p_height, p_fat,
           p_fat_method, app.person_id())
   RETURNING id INTO v_id;
-  -- A new body value makes the current plans outdated (the plan is never regenerated by itself).
+  -- A new body value makes the open plans outdated (a plan is never regenerated by itself).
   UPDATE app.nutrition_plan SET outdated_reason = 'nueva_medicion'
    WHERE member_id = p_member AND status IN ('borrador', 'en_revision', 'aprobado', 'enviado')
      AND outdated_reason IS NULL;
+  PERFORM app.nutrition_refresh_status(p_member);
   PERFORM app.audit('nutrition.measure', 'nutrition_measurement', v_id::text,
-    (SELECT home_location_id FROM app.member WHERE id = p_member), '{}'::jsonb);
+    (SELECT home_location_id FROM app.member WHERE id = p_member),
+    jsonb_build_object('source', CASE WHEN v_self THEN 'declarado' ELSE 'personal' END));
   RETURN v_id;
+END $$;
+
+-- Everything that must hold before a plan may be approved, licensed or sent, recomputed in SQL from the stored
+-- items and the CURRENT profile (whatever the caller's JSON says): no block, not outdated, no excluded food, all 7
+-- days, every day at or above the resting expenditure (Mifflin-St Jeor recomputed here) and within the day
+-- tolerance of its stored target, which itself may not be under that floor.
+CREATE FUNCTION app.nutrition_plan_check(p_plan uuid) RETURNS text[]
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = app, pg_temp AS $$
+DECLARE
+  pl app.nutrition_plan;
+  p app.nutrition_profile;
+  r text[] := '{}';
+  w numeric; h numeric;
+  v_bmr numeric;
+  v_tol numeric;
+  d record;
+  v_target numeric;
+BEGIN
+  SELECT * INTO pl FROM app.nutrition_plan WHERE id = p_plan AND org_id = app.org_id();
+  IF NOT FOUND THEN RAISE EXCEPTION 'forbidden' USING ERRCODE = '42501'; END IF;
+  PERFORM app.nutrition_assert_reader(pl.member_id);
+  SELECT * INTO p FROM app.nutrition_profile WHERE member_id = pl.member_id;
+  r := r || app.nutrition_blocks(pl.member_id);
+  IF pl.outdated_reason IS NOT NULL THEN r := array_append(r, 'plan_desactualizado'); END IF;
+  IF EXISTS (SELECT 1 FROM app.nutrition_plan_item i JOIN app.food f ON f.fdc_id = i.fdc_id
+              WHERE i.plan_id = p_plan AND (f.allergens && p.allergens OR f.diet_tags && p.diet_exclusions)) THEN
+    r := array_append(r, 'alimento_excluido');
+  END IF;
+  IF (SELECT count(DISTINCT day) FROM app.nutrition_plan_item WHERE plan_id = p_plan) < 7 THEN
+    r := array_append(r, 'faltan_dias');
+  END IF;
+  SELECT x.weight_kg, x.height_cm INTO w, h FROM app.nutrition_latest_body(pl.member_id) x;
+  IF w IS NOT NULL AND h IS NOT NULL AND p.birth_date IS NOT NULL AND p.sex_for_equations IS NOT NULL THEN
+    v_bmr := round(10 * w + 6.25 * h - 5 * extract(year FROM age(current_date, p.birth_date))
+                   + CASE p.sex_for_equations WHEN 'masculino' THEN 5 ELSE -161 END);
+    SELECT coalesce(max(s.day_tolerance_pct), 5) INTO v_tol FROM app.nutrition_settings s WHERE s.org_id = pl.org_id;
+    FOR d IN SELECT day, sum(kcal) AS kcal FROM app.nutrition_plan_item WHERE plan_id = p_plan GROUP BY day LOOP
+      IF d.kcal < v_bmr THEN r := array_append(r, 'debajo_del_piso'); END IF;
+      SELECT (e ->> 'target_kcal')::numeric INTO v_target
+        FROM jsonb_array_elements(coalesce(pl.calc -> 'days', '[]'::jsonb)) e WHERE (e ->> 'day')::int = d.day LIMIT 1;
+      IF v_target IS NULL THEN
+        r := array_append(r, 'meta_ausente');
+      ELSE
+        IF v_target < v_bmr THEN r := array_append(r, 'meta_debajo_del_piso'); END IF;
+        IF abs(d.kcal - v_target) / v_target * 100 > v_tol THEN r := array_append(r, 'fuera_de_tolerancia'); END IF;
+      END IF;
+    END LOOP;
+  END IF;
+  RETURN ARRAY(SELECT DISTINCT unnest(r) ORDER BY 1);
 END $$;
 
 -- Store a generated (or manually built) draft. Items arrive as [{day, meal, dish, position, fdc_id, grams,
 -- household}]; their values are computed by the item trigger. Blocks are re-checked; foods carrying one of the
--- member's allergens or excluded diet tags are refused.
+-- member's allergens or excluded diet tags are refused. A draft created by the member (their own form) never
+-- carries a verifier result: staff must run the verifier before approving.
 CREATE FUNCTION app.nutrition_plan_create(p_member uuid, p_week date, p_origin text, p_inputs jsonb, p_calc jsonb,
                                           p_justification jsonb, p_verifier jsonb, p_model text, p_prompt_version text,
                                           p_items jsonb, p_previous uuid) RETURNS uuid
@@ -393,7 +498,6 @@ DECLARE
                              AND m.person_id = app.person_id() AND app.role() = 'member');
   p app.nutrition_profile;
   v_reasons text[];
-  w numeric; h numeric;
   v_prev app.nutrition_plan;
   v_series uuid;
   v_version integer := 1;
@@ -404,9 +508,11 @@ BEGIN
   IF app.org_id() IS NULL OR NOT (app.nutrition_can_write(p_member) OR (v_self AND p_origin = 'formulario_socio')) THEN
     RAISE EXCEPTION 'forbidden' USING ERRCODE = '42501';
   END IF;
+  IF p_week IS NULL OR p_week < current_date - 7 OR p_week > current_date + 56 THEN
+    RAISE EXCEPTION 'invalid_week' USING ERRCODE = '22023';
+  END IF;
   SELECT * INTO p FROM app.nutrition_profile WHERE member_id = p_member AND org_id = app.org_id();
-  SELECT x.weight_kg, x.height_cm INTO w, h FROM app.nutrition_latest_body(p_member) x;
-  v_reasons := app.nutrition_blocks(p_member, w, h);
+  v_reasons := app.nutrition_blocks(p_member);
   IF cardinality(v_reasons) > 0 THEN
     RAISE EXCEPTION 'requiere_evaluacion_profesional:%', array_to_string(v_reasons, ',') USING ERRCODE = '42501';
   END IF;
@@ -425,7 +531,7 @@ BEGIN
   INSERT INTO app.nutrition_plan (id, org_id, member_id, series_id, version, week_start, origin, inputs, calc,
                                   justification, verifier, model, prompt_version, previous_id, created_by)
   VALUES (v_id, app.org_id(), p_member, v_series, v_version, p_week, p_origin, p_inputs, p_calc, p_justification,
-          p_verifier, p_model, p_prompt_version, p_previous, app.person_id());
+          CASE WHEN v_self THEN NULL ELSE p_verifier END, p_model, p_prompt_version, p_previous, app.person_id());
   FOR it IN SELECT * FROM jsonb_array_elements(p_items) LOOP
     IF EXISTS (SELECT 1 FROM app.food f WHERE f.fdc_id = (it ->> 'fdc_id')::integer
                  AND (f.allergens && p.allergens OR f.diet_tags && p.diet_exclusions)) THEN
@@ -443,25 +549,47 @@ BEGIN
   RETURN v_id;
 END $$;
 
--- State machine. submit: borrador → en_revision. approve (owner / location_manager): en_revision → aprobado.
--- license (nutritionist with verified licence): adds the licensed approval. send: aprobado → enviado, only when
--- the organisation is in mode B or the licensed approval exists (mode A). reject: borrador|en_revision →
--- rechazado (reason). archive: anything sent or approved → archivado. A new version of the same series archives
--- the previously sent one when it is sent.
+-- Staff writers record the verifier result for a draft (the API runs the verifier with the staff member's claims;
+-- used for drafts the member created from their form).
+CREATE FUNCTION app.nutrition_plan_verify(p_plan uuid, p_verifier jsonb) RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = app, pg_temp AS $$
+DECLARE pl app.nutrition_plan;
+BEGIN
+  SELECT * INTO pl FROM app.nutrition_plan WHERE id = p_plan AND org_id = app.org_id() FOR UPDATE;
+  IF NOT FOUND OR NOT app.nutrition_can_write(pl.member_id) THEN RAISE EXCEPTION 'forbidden' USING ERRCODE = '42501'; END IF;
+  IF pl.status NOT IN ('borrador', 'en_revision') THEN RAISE EXCEPTION 'invalid_transition' USING ERRCODE = '55000'; END IF;
+  IF p_verifier IS NULL OR jsonb_typeof(p_verifier) <> 'object' THEN RAISE EXCEPTION 'invalid_input' USING ERRCODE = '22023'; END IF;
+  UPDATE app.nutrition_plan SET verifier = p_verifier WHERE id = p_plan;
+  PERFORM app.audit('nutrition.plan_verify', 'nutrition_plan', p_plan::text,
+    (SELECT home_location_id FROM app.member WHERE id = pl.member_id),
+    jsonb_build_object('ok', coalesce((p_verifier ->> 'ok')::boolean, false)));
+END $$;
+
+-- State machine. submit: borrador → en_revision. approve (owner / location_manager): → aprobado. license
+-- (nutritionist with a verified licence; Ley 82 and AGENTS.md rule 4): adds the licensed approval. send: aprobado →
+-- enviado, only with the licensed approval and the member's accepted disclaimer. reject: borrador|en_revision →
+-- rechazado (reason). archive: aprobado|enviado → archivado. approve, license and send re-run
+-- app.nutrition_plan_check against the current profile and body: any change since the draft stops the plan.
+-- Sending a version archives the version of the SAME series the member had.
 CREATE FUNCTION app.nutrition_plan_transition(p_plan uuid, p_action text, p_reason text) RETURNS text
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = app, pg_temp AS $$
 DECLARE
   pl app.nutrition_plan;
   s app.staff_member;
-  v_mode text;
   v_loc uuid;
+  v_problems text[];
 BEGIN
   SELECT * INTO pl FROM app.nutrition_plan WHERE id = p_plan AND org_id = app.org_id() FOR UPDATE;
   IF NOT FOUND OR NOT app.health_staff_can_see(pl.member_id) THEN
     RAISE EXCEPTION 'forbidden' USING ERRCODE = '42501';
   END IF;
-  SELECT coalesce((SELECT mode FROM app.nutrition_settings WHERE org_id = pl.org_id), 'A') INTO v_mode;
   SELECT home_location_id INTO v_loc FROM app.member WHERE id = pl.member_id;
+  IF p_action IN ('approve', 'license', 'send') THEN
+    v_problems := app.nutrition_plan_check(p_plan);
+    IF cardinality(v_problems) > 0 THEN
+      RAISE EXCEPTION 'plan_no_valido:%', array_to_string(v_problems, ',') USING ERRCODE = '55000';
+    END IF;
+  END IF;
   IF p_action = 'submit' THEN
     IF NOT app.nutrition_can_write(pl.member_id) THEN RAISE EXCEPTION 'forbidden' USING ERRCODE = '42501'; END IF;
     IF pl.status <> 'borrador' THEN RAISE EXCEPTION 'invalid_transition' USING ERRCODE = '55000'; END IF;
@@ -471,7 +599,6 @@ BEGIN
       RAISE EXCEPTION 'forbidden' USING ERRCODE = '42501';
     END IF;
     IF pl.status NOT IN ('borrador', 'en_revision') THEN RAISE EXCEPTION 'invalid_transition' USING ERRCODE = '55000'; END IF;
-    IF pl.outdated_reason IS NOT NULL THEN RAISE EXCEPTION 'plan_outdated' USING ERRCODE = '55000'; END IF;
     IF coalesce((pl.verifier ->> 'ok')::boolean, false) IS NOT TRUE THEN
       RAISE EXCEPTION 'verifier_not_passed' USING ERRCODE = '55000';
     END IF;
@@ -491,12 +618,12 @@ BEGIN
       RAISE EXCEPTION 'forbidden' USING ERRCODE = '42501';
     END IF;
     IF pl.status <> 'aprobado' THEN RAISE EXCEPTION 'invalid_transition' USING ERRCODE = '55000'; END IF;
-    IF v_mode = 'A' AND pl.licensed_by IS NULL THEN RAISE EXCEPTION 'licensed_approval_required' USING ERRCODE = '55000'; END IF;
+    IF pl.licensed_by IS NULL THEN RAISE EXCEPTION 'licensed_approval_required' USING ERRCODE = '55000'; END IF;
     IF (SELECT disclaimer_accepted_at FROM app.nutrition_profile WHERE member_id = pl.member_id) IS NULL THEN
       RAISE EXCEPTION 'disclaimer_not_accepted' USING ERRCODE = '55000';
     END IF;
     UPDATE app.nutrition_plan SET status = 'archivado', archived_at = now()
-     WHERE member_id = pl.member_id AND status = 'enviado' AND id <> p_plan;
+     WHERE series_id = pl.series_id AND status = 'enviado' AND id <> p_plan;
     UPDATE app.nutrition_plan SET status = 'enviado', sent_at = now() WHERE id = p_plan;
   ELSIF p_action = 'reject' THEN
     IF coalesce(app.role() NOT IN ('owner', 'location_manager', 'nutritionist'), true) THEN
@@ -514,25 +641,43 @@ BEGIN
   ELSE
     RAISE EXCEPTION 'invalid_action' USING ERRCODE = '22023';
   END IF;
-  PERFORM app.audit('nutrition.plan_' || p_action, 'nutrition_plan', p_plan::text, v_loc,
-    jsonb_build_object('mode', v_mode));
+  PERFORM app.audit('nutrition.plan_' || p_action, 'nutrition_plan', p_plan::text, v_loc, '{}'::jsonb);
   RETURN (SELECT status FROM app.nutrition_plan WHERE id = p_plan);
 END $$;
 
--- Owner-only settings change (mode B needs the attestation text).
+-- Plan rows are append-only except the review columns, and only along the state machine. Any other change is an
+-- error whoever attempts it (a corrected plan is a new version).
+CREATE FUNCTION app.nutrition_plan_guard() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF (NEW.org_id, NEW.member_id, NEW.series_id, NEW.version, NEW.week_start, NEW.origin, NEW.inputs, NEW.calc,
+      NEW.justification, NEW.model, NEW.prompt_version, NEW.previous_id, NEW.created_by, NEW.created_at)
+     IS DISTINCT FROM
+     (OLD.org_id, OLD.member_id, OLD.series_id, OLD.version, OLD.week_start, OLD.origin, OLD.inputs, OLD.calc,
+      OLD.justification, OLD.model, OLD.prompt_version, OLD.previous_id, OLD.created_by, OLD.created_at) THEN
+    RAISE EXCEPTION 'plan_is_immutable' USING ERRCODE = '42501';
+  END IF;
+  IF NEW.verifier IS DISTINCT FROM OLD.verifier AND OLD.status NOT IN ('borrador', 'en_revision') THEN
+    RAISE EXCEPTION 'plan_is_immutable' USING ERRCODE = '42501';
+  END IF;
+  IF NEW.status <> OLD.status AND NOT (
+       (OLD.status = 'borrador' AND NEW.status IN ('en_revision', 'aprobado', 'rechazado'))
+    OR (OLD.status = 'en_revision' AND NEW.status IN ('aprobado', 'rechazado'))
+    OR (OLD.status = 'aprobado' AND NEW.status IN ('enviado', 'archivado'))
+    OR (OLD.status = 'enviado' AND NEW.status = 'archivado')) THEN
+    RAISE EXCEPTION 'invalid_transition' USING ERRCODE = '55000';
+  END IF;
+  RETURN NEW;
+END $$;
+CREATE TRIGGER nutrition_plan_guard BEFORE UPDATE ON app.nutrition_plan
+  FOR EACH ROW EXECUTE FUNCTION app.nutrition_plan_guard();
+
+-- Owner-only settings change (limits stay inside the source ranges enforced by the table CHECKs).
 CREATE FUNCTION app.nutrition_settings_save(p jsonb) RETURNS void
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = app, pg_temp AS $$
 BEGIN
   IF app.org_id() IS NULL OR coalesce(app.role() <> 'owner', true) THEN RAISE EXCEPTION 'forbidden' USING ERRCODE = '42501'; END IF;
   INSERT INTO app.nutrition_settings (org_id) VALUES (app.org_id()) ON CONFLICT DO NOTHING;
   UPDATE app.nutrition_settings SET
-    mode = coalesce(p ->> 'mode', mode),
-    mode_b_attestation = CASE WHEN p ->> 'mode' = 'B' THEN p ->> 'mode_b_attestation'
-                              WHEN p ->> 'mode' = 'A' THEN NULL ELSE mode_b_attestation END,
-    mode_b_attested_by = CASE WHEN p ->> 'mode' = 'B' THEN app.person_id()
-                              WHEN p ->> 'mode' = 'A' THEN NULL ELSE mode_b_attested_by END,
-    mode_b_attested_at = CASE WHEN p ->> 'mode' = 'B' THEN now()
-                              WHEN p ->> 'mode' = 'A' THEN NULL ELSE mode_b_attested_at END,
     max_loss_pct_week = coalesce((p ->> 'max_loss_pct_week')::numeric, max_loss_pct_week),
     max_gain_pct_week = coalesce((p ->> 'max_gain_pct_week')::numeric, max_gain_pct_week),
     protein_min_g_kg = coalesce((p ->> 'protein_min_g_kg')::numeric, protein_min_g_kg),
@@ -545,7 +690,7 @@ BEGIN
     updated_at = now()
   WHERE org_id = app.org_id();
   PERFORM app.audit('nutrition.settings', 'nutrition_settings', app.org_id()::text, NULL,
-    jsonb_build_object('fields', (SELECT jsonb_agg(k) FROM jsonb_object_keys(p) k WHERE k <> 'mode_b_attestation')));
+    jsonb_build_object('fields', (SELECT jsonb_agg(k) FROM jsonb_object_keys(p) k)));
 END $$;
 
 -- ── Link every member: an empty profile now, and one for each member created later ─────────────────────────────
@@ -622,21 +767,22 @@ DO $own$
 DECLARE f text;
 BEGIN
   FOREACH f IN ARRAY ARRAY[
-    'app.nutrition_item_compute()', 'app.nutrition_can_write(uuid)', 'app.nutrition_blocks(uuid, numeric, numeric)',
-    'app.nutrition_profile_save(uuid, jsonb)', 'app.nutrition_latest_body(uuid)',
-    'app.nutrition_measure(uuid, numeric, numeric, numeric, text)',
+    'app.nutrition_item_compute()', 'app.nutrition_can_write(uuid)', 'app.nutrition_assert_reader(uuid)',
+    'app.nutrition_latest_body(uuid)', 'app.nutrition_blocks(uuid)', 'app.nutrition_refresh_status(uuid)',
+    'app.nutrition_profile_save(uuid, jsonb)', 'app.nutrition_measure(uuid, numeric, numeric, numeric, text)',
+    'app.nutrition_plan_check(uuid)',
     'app.nutrition_plan_create(uuid, date, text, jsonb, jsonb, jsonb, jsonb, text, text, jsonb, uuid)',
-    'app.nutrition_plan_transition(uuid, text, text)', 'app.nutrition_settings_save(jsonb)',
-    'app.nutrition_profile_for_new_member()', 'app.nutrition_settings_for_new_org()'] LOOP
+    'app.nutrition_plan_verify(uuid, jsonb)', 'app.nutrition_plan_transition(uuid, text, text)',
+    'app.nutrition_settings_save(jsonb)', 'app.nutrition_profile_for_new_member()',
+    'app.nutrition_settings_for_new_org()'] LOOP
     EXECUTE format('ALTER FUNCTION %s OWNER TO app_definer', f);
     EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', f);
   END LOOP;
 END $own$;
-GRANT EXECUTE ON FUNCTION app.nutrition_can_write(uuid), app.nutrition_blocks(uuid, numeric, numeric),
-  app.nutrition_profile_save(uuid, jsonb), app.nutrition_latest_body(uuid),
-  app.nutrition_measure(uuid, numeric, numeric, numeric, text),
+-- Request traffic: the reads check the caller themselves (nutrition_assert_reader); the writes re-check claims.
+GRANT EXECUTE ON FUNCTION app.nutrition_latest_body(uuid), app.nutrition_blocks(uuid), app.nutrition_plan_check(uuid),
+  app.nutrition_profile_save(uuid, jsonb), app.nutrition_measure(uuid, numeric, numeric, numeric, text),
   app.nutrition_plan_create(uuid, date, text, jsonb, jsonb, jsonb, jsonb, text, text, jsonb, uuid),
-  app.nutrition_plan_transition(uuid, text, text), app.nutrition_settings_save(jsonb),
-  app.nutrition_answers_valid(jsonb) TO app_authenticated;
-GRANT EXECUTE ON FUNCTION app.nutrition_answers_valid(jsonb), app.nutrition_latest_body(uuid),
-  app.nutrition_blocks(uuid, numeric, numeric) TO app_definer;
+  app.nutrition_plan_verify(uuid, jsonb), app.nutrition_plan_transition(uuid, text, text),
+  app.nutrition_settings_save(jsonb), app.nutrition_answers_valid(jsonb) TO app_authenticated;
+GRANT EXECUTE ON FUNCTION app.nutrition_answers_valid(jsonb) TO app_definer;

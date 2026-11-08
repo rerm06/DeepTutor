@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type pg from "pg";
 import type { OrgFixture } from "../testing.js";
 
@@ -27,15 +28,14 @@ export async function seed(c: pg.Client, org: OrgFixture): Promise<void> {
   );
   const plan = (
     await c.query(
-      `INSERT INTO app.nutrition_plan (org_id, member_id, series_id, version, week_start, origin, inputs, calc,
+      `INSERT INTO app.nutrition_plan (id, org_id, member_id, series_id, version, week_start, origin, inputs, calc,
          verifier, model, prompt_version, created_by)
-       VALUES ($1, $2, gen_random_uuid(), 1, date_trunc('week', now())::date, 'manual', '{}'::jsonb, '{}'::jsonb,
+       VALUES ($4, $1, $2, $4, 1, date_trunc('week', now())::date, 'manual', '{}'::jsonb, '{}'::jsonb,
          '{"ok":true}'::jsonb, NULL, NULL, $3)
        RETURNING id`,
-      [org.orgId, m, person],
+      [org.orgId, m, person, randomUUID()],
     )
   ).rows[0].id;
-  await c.query("UPDATE app.nutrition_plan SET series_id = id WHERE id = $1", [plan]);
   for (const [pos, fdc, grams] of [
     [1, 173904, 40],
     [2, 173944, 118],

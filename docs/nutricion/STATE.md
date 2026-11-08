@@ -29,14 +29,11 @@ el 2026-11-08: «No me preguntes nada ni pidas aprobación de nada»).
 3. **Pisos y límites (valores por defecto, editables por el dueño):** kcal diarias ≥ gasto basal (Mifflin-St Jeor);
    pérdida ≤ 1 % del peso por semana; ganancia ≤ 0.5 % por semana; proteína 1.4–2.0 g/kg (ISSN 2017); grasa ≥ 20 % de
    las kcal (AMDR, DRI 2005); tolerancia del día ±5 %; un plan con un día fuera de tolerancia no se muestra.
-4. **Quién revisa:** el borrador lo revisa y aprueba el dueño (o gerente). Para que **llegue al socio** se aplica el
-   modo de la organización definido en la especificación §6.7:
-   - **Modo A (por defecto):** además del dueño, lo aprueba un nutricionista o dietista **licenciado** (Ley 82 de 1972,
-     Art. 1(c) y Art. 9; el guardián de la base ya exige licencia verificada para planes de nutrición).
-   - **Modo B (opcional):** «orientación general», sin lenguaje terapéutico, solo para socios en verde; el dueño lo
-     activa declarando que tiene opinión legal favorable (se guarda quién, cuándo y el texto). No se activa solo.
-   Motivo: el dueño delegó las decisiones, pero no puede delegar en el sistema la interpretación de la Ley 82; el modo
-   B queda disponible para cuando el dueño decida asumirlo.
+4. **Quién revisa:** el borrador lo aprueba el dueño (o gerente) y, para que **llegue al socio**, además un
+   nutricionista o dietista con **licencia verificada** (Ley 82 de 1972, Art. 1(c) y 9; `AGENTS.md` regla 4: «ningún
+   plan se publica sin firma licenciada»). El modo B de la especificación §6.7 (solo dueño, «orientación general») se
+   **retiró del código** en la iteración 1 porque contradice `AGENTS.md`; volver a activarlo requiere que el dueño
+   cambie esa regla y una opinión legal.
 5. **Fuentes:** solo la lista cerrada del pedido. Los 5 DOI se comprobaron el 2026-11-08 (redirigen a Elsevier/AJCN,
    Cambridge/BJN, Ovid/MSSE ×2 y Taylor & Francis/JISSN); dietaryguidelines.gov, nap.edu (cat. 10490), who.int y
    fdc.nal.usda.gov responden 200. Información de cadenas: solo con URL oficial y fecha.
@@ -71,6 +68,22 @@ el 2026-11-08: «No me preguntes nada ni pidas aprobación de nada»).
   bloquearía la siembra del catálogo. Corrección: `NO FORCE`/`FORCE` alrededor de esas lecturas/escrituras (mismo patrón
   que las siembras existentes); verificado aplicando las migraciones como `nf_owner`.
 - F2 it.1: verde a la primera.
+- F1–F2 compuerta punto 8 (revisor independiente), it.1: **NO FIRMA** — 2 críticos, 4 altos, 8 medios, 6 bajos.
+  - C1 fuga de datos de salud por funciones DEFINER sin chequeo → `nutrition_assert_reader` en cada lectura.
+  - C2 aprobar/licenciar/enviar no re-chequeaban bloqueos ni alergias → `nutrition_plan_check` en las tres
+    transiciones; cambios de perfil marcan planes desactualizados.
+  - A1 cuestionario vacío = «todo no» → el CHECK exige las 8 respuestas; los parciales se fusionan.
+  - A2 piso y tolerancia no aplicados en la base → recalculados en SQL (Mifflin, 7 días, ±tolerancia);
+    el borrador creado por el socio no lleva resultado de verificador.
+  - A3 etiquetas de alimentos → retirados sofrito (receta con posible jamón), yuca y panapén crudos; alérgenos
+    conservadores en panes, galletas y tortilla de harina; procedencia documentada en `foods-pr.json`.
+  - A4 un peso declarado levantaba el bloqueo de IMC medido → se usa el más conservador de los últimos 365 días.
+  - M1 guardián de inmutabilidad del plan; M2 respuestas de salud solo del socio o nutricionista/clínico, con
+    auditoría de campos; M3 estado recalculado al medir; M4 `bodyFat` con procedencia; M5 tope de proteína 35 %
+    (AMDR); M6 clasificación OMS con el IMC exacto; M7 rangos de la organización dentro de las fuentes; M8 modelo y
+    versión obligatorios en planes de IA; B1 archivar solo la misma serie; B2 ritmo 0 sin superávit; B3 comentario
+    del factor; B4 semana y alimentos preferidos validados; B6 permiso innecesario retirado. B5 cubierto por A3.
+  - Resultado it.1: compuerta 1–7 verde (db 815, api 362, web 179). Revisión de cierre: en curso.
 
 ## Decisiones técnicas de las fases 1–2
 - Ejercicio **neto** de reposo: (MET − 1) × kg × h, porque el reposo ya está en basal × factor; con METs brutos se

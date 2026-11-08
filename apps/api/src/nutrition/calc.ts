@@ -17,12 +17,16 @@ export function ageYears(birthDate: string, on: string): number {
   return y - by - (m < bm || (m === bm && d < bd) ? 1 : 0);
 }
 
-/** BMI = kg / m² (who_bmi). */
+/** BMI = kg / m², unrounded (who_bmi). Round only for display; classify with the exact value. */
+export function bmiExact(weightKg: number, heightCm: number): number {
+  return weightKg / (heightCm / 100) ** 2;
+}
+/** BMI rounded to one decimal, for display. */
 export function bmi(weightKg: number, heightCm: number): number {
-  return r1(weightKg / (heightCm / 100) ** 2);
+  return r1(bmiExact(weightKg, heightCm));
 }
 
-/** WHO adult BMI classes (who_bmi). */
+/** WHO adult BMI classes (who_bmi). Pass the exact value (bmiExact): 18.476 is "bajo peso", not "normal". */
 export function bmiClass(b: number): string {
   if (b < 18.5) return "bajo peso";
   if (b < 25) return "normal";
@@ -45,6 +49,30 @@ export function bodyFatDeurenberg(
   return { pct: r1(1.2 * bmiValue + 0.23 * age - 10.8 * s - 5.4), margin: 4 };
 }
 
+export interface BodyFat {
+  pct: number;
+  /** ± percentage points; 0 when measured (the method's own error is not modelled). */
+  margin: number;
+  provenance: "medido" | "estimado";
+  method: string;
+}
+/**
+ * Body fat with provenance: the measured value when there is one, otherwise the Deurenberg estimate from the exact
+ * BMI, always marked "estimado" with its margin.
+ */
+export function bodyFat(
+  measured: { pct: number; method: string } | null,
+  weightKg: number,
+  heightCm: number,
+  age: number,
+  sex: Sex,
+): BodyFat {
+  if (measured)
+    return { pct: measured.pct, margin: 0, provenance: "medido", method: measured.method };
+  const e = bodyFatDeurenberg(bmiExact(weightKg, heightCm), age, sex);
+  return { pct: e.pct, margin: e.margin, provenance: "estimado", method: "deurenberg1991" };
+}
+
 /** Resting energy expenditure, kcal/day (mifflin1990): 10·kg + 6.25·cm − 5·edad + 5 (hombres) o − 161 (mujeres). */
 export function bmrMifflin(weightKg: number, heightCm: number, age: number, sex: Sex): number {
   return r0(10 * weightKg + 6.25 * heightCm - 5 * age + (sex === "masculino" ? 5 : -161));
@@ -52,8 +80,9 @@ export function bmrMifflin(weightKg: number, heightCm: number, age: number, sex:
 
 /**
  * Factor for daily living WITHOUT planned exercise (the exercise is added per day from METs).
- * SUPUESTO: sedentario 1.2, ligero 1.3, activo 1.4 — inside the DRI 2005 "sedentary" physical-activity-level band
- * (dri2005), because planned exercise is counted separately. Editable later.
+ * SUPUESTO: sedentario 1.2 and ligero 1.3 sit inside the DRI 2005 "sedentary" physical-activity-level band (1.0–<1.4);
+ * activo 1.4 is the lower edge of its "low active" band (dri2005). Low on purpose, because planned exercise is added
+ * separately per day.
  */
 export const DAILY_ACTIVITY_FACTOR: Record<DailyActivity, number> = {
   sedentario: 1.2,
@@ -187,6 +216,8 @@ export const PROTEIN_G_KG: Record<Goal, number> = {
   mantener: 1.6,
   rendimiento: 1.6,
 };
+/** Protein ceiling as a share of energy (dri2005 AMDR for protein, 10–35 %). */
+export const PROTEIN_MAX_SHARE = 0.35;
 /** RDA for carbohydrate, g/day, adults (dri2005). Days under it are flagged, not silently changed. */
 export const CARB_RDA_G = 130;
 
@@ -214,7 +245,7 @@ export function weekTargets(p: Person, sessions: Session[], limits: Limits): Day
       adjustment = -r0(((pct / 100) * p.weightKg * KCAL_PER_KG) / 7);
     } else if (p.goal === "ganar_masa") {
       const byRate = r0(
-        ((Math.min(rate || limits.max_gain_pct_week, limits.max_gain_pct_week) / 100) *
+        ((Math.min(p.ratePctWeek ?? limits.max_gain_pct_week, limits.max_gain_pct_week) / 100) *
           p.weightKg *
           KCAL_PER_KG) /
           7,
@@ -228,7 +259,9 @@ export function weekTargets(p: Person, sessions: Session[], limits: Limits): Day
       Math.max(PROTEIN_G_KG[p.goal], limits.protein_min_g_kg),
       limits.protein_max_g_kg,
     );
-    const protein = r0(gkg * p.weightKg);
+    // Protein never above 35 % of the day's energy (dri2005 AMDR 10–35 %): with a high body weight the g/kg rule
+    // alone would crowd out carbohydrate.
+    const protein = Math.min(r0(gkg * p.weightKg), r0((target * PROTEIN_MAX_SHARE) / 4));
     const fat = r0((target * Math.max(FAT_SHARE, limits.fat_min_pct / 100)) / 9);
     const carb = Math.max(0, r0((target - protein * 4 - fat * 9) / 4));
     out.push({

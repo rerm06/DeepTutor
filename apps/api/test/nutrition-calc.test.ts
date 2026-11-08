@@ -5,7 +5,9 @@ import {
   ageYears,
   bmi,
   bmiClass,
+  bmiExact,
   bmrMifflin,
+  bodyFat,
   bodyFatDeurenberg,
   circuitMinutes,
   classActivity,
@@ -122,7 +124,8 @@ describe("weekly targets", () => {
       tdee: 1840,
       target_kcal: 1444,
     });
-    expect(rest).toMatchObject({ protein_g: 144, fat_g: 40, carb_g: 127, carb_below_rda: true });
+    // 2.0 g/kg = 144 g would be 40 % of 1444 kcal; the AMDR ceiling (35 %) gives round(1444 × 0.35 / 4) = 126 g.
+    expect(rest).toMatchObject({ protein_g: 126, fat_g: 40, carb_g: 145, carb_below_rda: false });
     expect(train).toMatchObject({
       training: true,
       exercise_kcal: 313,
@@ -171,6 +174,61 @@ describe("weekly targets", () => {
       fat_g: 0.4,
     });
     expect(deviationPct(1520, 1444)).toBe(5.3);
+  });
+});
+
+describe("review fixes (2026-11-08)", () => {
+  it("M6: classify with the exact BMI (50.3 kg, 165 cm = 18.476 → bajo peso)", () => {
+    expect(bmi(50.3, 165)).toBe(18.5);
+    expect(bmiClass(bmiExact(50.3, 165))).toBe("bajo peso");
+  });
+
+  it("M4: body fat carries its provenance; the estimate is marked with its margin", () => {
+    expect(bodyFat({ pct: 28, method: "bioimpedancia" }, 72, 165, 35, "femenino")).toEqual({
+      pct: 28,
+      margin: 0,
+      provenance: "medido",
+      method: "bioimpedancia",
+    });
+    const e = bodyFat(null, 72, 165, 35, "femenino");
+    expect(e).toMatchObject({ provenance: "estimado", margin: 4, method: "deurenberg1991" });
+    // 1.2 × 26.446 + 0.23 × 35 − 5.4 = 34.4
+    expect(e.pct).toBe(34.4);
+  });
+
+  it("M5: protein never exceeds 35 % of the day's energy (150 kg)", () => {
+    const d = weekTargets(
+      {
+        weightKg: 150,
+        heightCm: 165,
+        age: 40,
+        sex: "femenino",
+        goal: "perder_grasa",
+        ratePctWeek: 0.5,
+        dailyActivity: "sedentario",
+      },
+      [],
+      LIMITS,
+    )[0];
+    expect((d?.protein_g ?? 0) * 4).toBeLessThanOrEqual((d?.target_kcal ?? 0) * 0.35 + 2);
+    expect((d?.protein_g ?? 0) * 4 + (d?.fat_g ?? 0) * 9).toBeLessThanOrEqual(d?.target_kcal ?? 0);
+  });
+
+  it("B2: a gain rate of 0 adds no surplus", () => {
+    const d = weekTargets(
+      {
+        weightKg: 72,
+        heightCm: 165,
+        age: 35,
+        sex: "femenino",
+        goal: "ganar_masa",
+        ratePctWeek: 0,
+        dailyActivity: "ligero",
+      },
+      [],
+      LIMITS,
+    )[0];
+    expect(d?.adjustment_kcal).toBe(0);
   });
 });
 
